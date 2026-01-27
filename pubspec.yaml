@@ -1,0 +1,31 @@
+name: studypulse
+description: Smart productivity tools for students
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Local storage
+  shared_preferences: ^2.2.2
+
+  # Google AdMob
+  google_mobile_ads: ^5.0.0
+
+  # Local notifications
+  flutter_local_notifications: ^17.0.0
+
+  # Internet availability checker
+  internet_connection_checker: ^1.0.0+1
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/logo.png
+    - assets/quotes.txt
