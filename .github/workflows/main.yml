@@ -79,7 +79,7 @@ jobs:
           </manifest>
           EOF
 
-      # 🔥 6.5️⃣ Replace Flutter default launcher icon with assets/logo.png
+      # 6.5️⃣ Replace Flutter default launcher icon with assets/logo.png
       - name: Replace App Icon
         run: |
           for dir in mipmap-hdpi mipmap-mdpi mipmap-xhdpi mipmap-xxhdpi mipmap-xxxhdpi; do
@@ -92,6 +92,7 @@ jobs:
         run: flutter build apk --release
 
       # 8️⃣ Build RELEASE AAB (Play Store)
+      - name: Build App Bundle (AAB)
         run: flutter build appbundle --release
 
       # 9️⃣ Upload APK
