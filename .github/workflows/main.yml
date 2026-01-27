@@ -10,35 +10,32 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1️⃣ Checkout repository
-      - name: Checkout source
+      # 1️⃣ Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2️⃣ Setup Java (required for Android builds)
+      # 2️⃣ Java
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      # 3️⃣ Setup Flutter (stable)
+      # 3️⃣ Flutter
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
 
-      # 4️⃣ Flutter doctor (sanity check)
-      - name: Flutter Doctor
-        run: flutter doctor -v
+      # 4️⃣ Create Flutter Android project (🔥 IMPORTANT)
+      - name: Generate Android folder
+        run: |
+          flutter create .
+          flutter pub get
 
-      # 5️⃣ Install Flutter dependencies
-      - name: Install dependencies
-        run: flutter pub get
-
-      # 6️⃣ Inject AndroidManifest.xml (Internet + AdMob + Notifications)
+      # 5️⃣ Inject AndroidManifest.xml (AFTER create)
       - name: Configure AndroidManifest.xml
         run: |
-          mkdir -p android/app/src/main
           cat > android/app/src/main/AndroidManifest.xml << 'EOF'
           <manifest xmlns:android="http://schemas.android.com/apk/res/android"
               package="com.studypulse.app">
@@ -78,20 +75,19 @@ jobs:
           </manifest>
           EOF
 
-      # 6.5️⃣ Replace Flutter default launcher icon with assets/logo.png
+      # 6️⃣ Replace launcher icon
       - name: Replace App Icon
         run: |
           for dir in mipmap-hdpi mipmap-mdpi mipmap-xhdpi mipmap-xxhdpi mipmap-xxxhdpi; do
-            mkdir -p android/app/src/main/res/$dir
             cp assets/logo.png android/app/src/main/res/$dir/ic_launcher.png
           done
 
-      # 7️⃣ Build RELEASE APK
-      - name: Build APK (Release)
+      # 7️⃣ Build APK
+      - name: Build APK
         run: flutter build apk --release
 
-      # 8️⃣ Build RELEASE AAB (Play Store)
-      - name: Build App Bundle (AAB)
+      # 8️⃣ Build AAB
+      - name: Build AAB
         run: flutter build appbundle --release
 
       # 9️⃣ Upload APK
