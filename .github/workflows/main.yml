@@ -1,0 +1,109 @@
+name: StudyPulse Android Build
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1️⃣ Checkout repository
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      # 2️⃣ Setup Java (required for Android builds)
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      # 3️⃣ Setup Flutter (stable)
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          flutter-version: 'stable'
+
+      # 4️⃣ Flutter doctor (sanity check)
+      - name: Flutter Doctor
+        run: flutter doctor -v
+
+      # 5️⃣ Install Flutter dependencies
+      - name: Install dependencies
+        run: flutter pub get
+
+      # 6️⃣ Inject AndroidManifest.xml (Internet + AdMob + Notifications)
+      - name: Configure AndroidManifest.xml
+        run: |
+          mkdir -p android/app/src/main
+          cat > android/app/src/main/AndroidManifest.xml << 'EOF'
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+              package="com.studypulse.app">
+
+              <uses-permission android:name="android.permission.INTERNET"/>
+              <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+              <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+
+              <application
+                  android:label="StudyPulse"
+                  android:icon="@mipmap/ic_launcher">
+
+                  <meta-data
+                      android:name="com.google.android.gms.ads.APPLICATION_ID"
+                      android:value="ca-app-pub-2139593035914184~9894998746"/>
+
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:launchMode="singleTop"
+                      android:theme="@style/LaunchTheme"
+                      android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+                      android:hardwareAccelerated="true"
+                      android:windowSoftInputMode="adjustResize">
+
+                      <meta-data
+                          android:name="io.flutter.embedding.android.NormalTheme"
+                          android:resource="@style/NormalTheme"/>
+
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN"/>
+                          <category android:name="android.intent.category.LAUNCHER"/>
+                      </intent-filter>
+                  </activity>
+
+              </application>
+          </manifest>
+          EOF
+
+      # 🔥 6.5️⃣ Replace Flutter default launcher icon with assets/logo.png
+      - name: Replace App Icon
+        run: |
+          for dir in mipmap-hdpi mipmap-mdpi mipmap-xhdpi mipmap-xxhdpi mipmap-xxxhdpi; do
+            mkdir -p android/app/src/main/res/$dir
+            cp assets/logo.png android/app/src/main/res/$dir/ic_launcher.png
+          done
+
+      # 7️⃣ Build RELEASE APK
+      - name: Build APK (Release)
+        run: flutter build apk --release
+
+      # 8️⃣ Build RELEASE AAB (Play Store)
+        run: flutter build appbundle --release
+
+      # 9️⃣ Upload APK
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: studypulse-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+
+      # 🔟 Upload AAB
+      - name: Upload AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: studypulse-aab
+          path: build/app/outputs/bundle/release/app-release.aab
