@@ -1,9 +1,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-import '../screens/permission.dart';
 import '../home.dart';
+import '../screens/permission.dart';
+import '../screens/notification_inbox.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -20,13 +21,49 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _start() async {
+    // Splash delay
     await Future.delayed(const Duration(seconds: 2));
-
-    // Always ask notification permission first
     if (!mounted) return;
+
+    final prefs = await SharedPreferences.getInstance();
+
+    /// 🔔 Was app opened by notification tap?
+    final openInbox = prefs.getBool('open_inbox') ?? false;
+
+    /// 🔐 Permission already asked?
+    final permissionAsked =
+        prefs.getBool('notification_permission_asked') ?? false;
+
+    // 🔔 CASE 1: Notification tap → OPEN INBOX
+    if (openInbox) {
+      await prefs.remove('open_inbox'); // reset flag
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const NotificationInboxScreen(),
+        ),
+      );
+      return;
+    }
+
+    // 🔐 CASE 2: Permission not asked yet
+    if (!permissionAsked) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const PermissionScreen(),
+        ),
+      );
+      return;
+    }
+
+    // ✅ CASE 3: Normal app open
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (_) => const PermissionScreen()),
+      MaterialPageRoute(
+        builder: (_) => const Home(),
+      ),
     );
   }
 
