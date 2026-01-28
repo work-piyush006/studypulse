@@ -30,6 +30,10 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      # 🔥🔥 THIS IS THE MISSING STEP 🔥🔥
+      - name: Generate Launcher Icons
+        run: flutter pub run flutter_launcher_icons
+
       - name: Build APK (Release)
         run: flutter build apk --release
 
