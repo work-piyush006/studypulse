@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../home.dart';
 
@@ -14,17 +14,49 @@ class PermissionScreen extends StatefulWidget {
 class _PermissionScreenState extends State<PermissionScreen> {
   bool loading = false;
 
+  @override
+  void initState() {
+    super.initState();
+    _checkPermissionStatus();
+  }
+
+  /// ✅ Decide whether to show this screen or skip it
+  Future<void> _checkPermissionStatus() async {
+    final prefs = await SharedPreferences.getInstance();
+    final alreadyAsked =
+        prefs.getBool('notif_permission_asked') ?? false;
+
+    final status = await Permission.notification.status;
+
+    // ✅ Already granted → skip screen
+    if (status.isGranted) {
+      _goHome();
+      return;
+    }
+
+    // ❌ Denied before → don't auto request again
+    if (alreadyAsked) {
+      // Just stay on screen, user must tap button
+      return;
+    }
+  }
+
   Future<void> _requestPermission() async {
     setState(() => loading = true);
 
-    // Android 13+ notification permission
-    final status = await Permission.notification.request();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('notif_permission_asked', true);
 
-    if (!mounted) return;
+    final status = await Permission.notification.request();
 
     setState(() => loading = false);
 
-    // Whether allowed or denied → continue
+    // ✔ Allow or deny → continue app
+    _goHome();
+  }
+
+  void _goHome() {
+    if (!mounted) return;
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(builder: (_) => const Home()),
@@ -97,14 +129,7 @@ class _PermissionScreenState extends State<PermissionScreen> {
 
               Center(
                 child: TextButton(
-                  onPressed: loading
-                      ? null
-                      : () {
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(builder: (_) => const Home()),
-                          );
-                        },
+                  onPressed: loading ? null : _goHome,
                   child: const Text(
                     'Skip for now',
                     style: TextStyle(color: Colors.grey),
