@@ -1,9 +1,9 @@
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart';
-
 import 'tools/percentage.dart';
 import 'tools/cgpa.dart';
 import 'tools/exam.dart';
