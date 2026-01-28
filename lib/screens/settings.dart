@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../main.dart'; // 🔥 ThemeController access
+import '../services/notification.dart';
+
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
 
@@ -26,9 +29,14 @@ class _SettingsPageState extends State<SettingsPage> {
     });
   }
 
+  // 🌙 INSTANT Dark Mode (NO RESTART)
   Future<void> _toggleDarkMode(bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('dark_mode', value);
+
+    // 🔥 Instant apply
+    ThemeController.of(context).toggleTheme(value);
+
     setState(() => darkMode = value);
 
     ScaffoldMessenger.of(context).showSnackBar(
@@ -40,9 +48,15 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  // 🔔 Notification Toggle
   Future<void> _toggleNotifications(bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('notifications', value);
+
+    if (!value) {
+      await NotificationService.cancelAll();
+    }
+
     setState(() => notificationsEnabled = value);
 
     ScaffoldMessenger.of(context).showSnackBar(
@@ -59,16 +73,19 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget _settingTile({
     required IconData icon,
     required String title,
-    required Widget trailing,
     String? subtitle,
+    required Widget trailing,
   }) {
     return Card(
       elevation: 0,
       margin: const EdgeInsets.symmetric(vertical: 6),
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: Colors.blue.withOpacity(0.1),
-          child: Icon(icon, color: Colors.blue),
+          backgroundColor: Theme.of(context)
+              .colorScheme
+              .primary
+              .withOpacity(0.1),
+          child: Icon(icon, color: Theme.of(context).colorScheme.primary),
         ),
         title: Text(
           title,
@@ -111,9 +128,9 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
           ),
 
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
 
-          // 🚀 Future Section
+          // 🚀 Coming Soon
           const Text(
             'More Features Coming Soon',
             style: TextStyle(
@@ -130,7 +147,10 @@ class _SettingsPageState extends State<SettingsPage> {
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
-                color: Colors.blue.withOpacity(0.05),
+                color: Theme.of(context)
+                    .colorScheme
+                    .primary
+                    .withOpacity(0.05),
               ),
               child: const Text(
                 '🚀 Premium tools & smart study features\ncoming soon!',
@@ -140,11 +160,10 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
           ),
 
-          const SizedBox(height: 20),
-
-          // 🧾 App Info
+          const SizedBox(height: 24),
           const Divider(),
           const SizedBox(height: 10),
+
           const Center(
             child: Text(
               'StudyPulse v1.0.0',
