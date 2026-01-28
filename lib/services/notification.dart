@@ -5,13 +5,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
+import 'notification_store.dart'; // 🔔 INBOX STORAGE
+
 class NotificationService {
   static final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
 
   static bool _initialized = false;
 
-  /// Call ONCE in main()
+  /// 🚀 Call ONCE in main()
   static Future<void> init() async {
     if (_initialized) return;
 
@@ -20,19 +22,38 @@ class NotificationService {
     const android = AndroidInitializationSettings('@mipmap/ic_launcher');
     const settings = InitializationSettings(android: android);
 
-    await _plugin.initialize(settings);
+    await _plugin.initialize(
+      settings,
+      onDidReceiveNotificationResponse: (response) {
+        // future use: deep link to 🔔 inbox
+      },
+    );
+
     _initialized = true;
   }
 
-  /// 🔥 Instant notification (exam set hote hi)
+  /* ============================================================
+     🔥 INSTANT NOTIFICATION (Exam set hote hi)
+  ============================================================ */
+
   static Future<void> showInstant({
     required int daysLeft,
     required String quote,
   }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final enabled = prefs.getBool('notifications') ?? true;
+    if (!enabled) return;
+
+    const title = '📘 Exam Countdown';
+    final body = '$daysLeft days left\n$quote';
+
+    // 🔔 Save to inbox
+    await NotificationStore.save(title: title, body: body);
+
     await _plugin.show(
       0,
-      '📘 Exam Countdown',
-      '$daysLeft days left\n$quote',
+      title,
+      body,
       const NotificationDetails(
         android: AndroidNotificationDetails(
           'exam_now',
@@ -44,7 +65,10 @@ class NotificationService {
     );
   }
 
-  /// 🕘 Daily notifications (9:00 AM & 4:30 PM)
+  /* ============================================================
+     🕘 DAILY NOTIFICATIONS (9:00 AM & 4:30 PM)
+  ============================================================ */
+
   static Future<void> scheduleDaily({
     required DateTime examDate,
   }) async {
@@ -52,10 +76,11 @@ class NotificationService {
     final enabled = prefs.getBool('notifications') ?? true;
     if (!enabled) return;
 
-    await cancelAll();
+    await cancelAll(); // avoid duplicates
 
     final quotes = await _loadQuotes();
     final random = Random();
+
     final daysLeft = examDate.difference(DateTime.now()).inDays;
     if (daysLeft < 0) return;
 
@@ -76,6 +101,10 @@ class NotificationService {
     );
   }
 
+  /* ============================================================
+     ⏰ INTERNAL SCHEDULER
+  ============================================================ */
+
   static Future<void> _schedule({
     required int id,
     required int hour,
@@ -92,10 +121,16 @@ class NotificationService {
       scheduled = scheduled.add(const Duration(days: 1));
     }
 
+    const title = '📚 StudyPulse Reminder';
+    final body = '$daysLeft days left\n$quote';
+
+    // 🔔 Save to inbox (once per schedule call)
+    await NotificationStore.save(title: title, body: body);
+
     await _plugin.zonedSchedule(
       id,
-      '📚 StudyPulse Reminder',
-      '$daysLeft days left\n$quote',
+      title,
+      body,
       scheduled,
       const NotificationDetails(
         android: AndroidNotificationDetails(
@@ -112,9 +147,17 @@ class NotificationService {
     );
   }
 
+  /* ============================================================
+     ❌ CANCEL
+  ============================================================ */
+
   static Future<void> cancelAll() async {
     await _plugin.cancelAll();
   }
+
+  /* ============================================================
+     📜 QUOTES
+  ============================================================ */
 
   static Future<List<String>> _loadQuotes() async {
     try {
