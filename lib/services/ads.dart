@@ -7,28 +7,27 @@ class AdsService {
   AdsService._();
 
   static bool _initialized = false;
+
   static InterstitialAd? _interstitialAd;
   static int _interstitialLoadAttempts = 0;
 
-  /// 🔥 CHANGE THIS TO false WHEN YOU PUBLISH
+  /// 🔥 TEST ADS ON (publish ke time false karna)
   static const bool useTestAds = true;
 
-  /* ===================== AD IDS ===================== */
+  /* ===================== AD UNIT IDS ===================== */
 
   static String get _bannerId {
     if (useTestAds) {
-      return Platform.isAndroid
-          ? BannerAd.testAdUnitId
-          : BannerAd.testAdUnitId;
+      // ✅ OFFICIAL ADMOB TEST BANNER
+      return 'ca-app-pub-3940256099942544/6300978111';
     }
     return 'ca-app-pub-2139593035914184/9260573924';
   }
 
   static String get _interstitialId {
     if (useTestAds) {
-      return Platform.isAndroid
-          ? InterstitialAd.testAdUnitId
-          : InterstitialAd.testAdUnitId;
+      // ✅ OFFICIAL ADMOB TEST INTERSTITIAL
+      return 'ca-app-pub-3940256099942544/1033173712';
     }
     return 'ca-app-pub-2139593035914184/1908697513';
   }
@@ -37,19 +36,25 @@ class AdsService {
 
   static Future<void> initialize() async {
     if (_initialized) return;
+
     await MobileAds.instance.initialize();
     _initialized = true;
+
+    // preload interstitial
     loadInterstitial();
   }
 
   /* ===================== BANNER ===================== */
 
   static BannerAd createBannerAd() {
-    return BannerAd(
+    final banner = BannerAd(
       adUnitId: _bannerId,
       size: AdSize.banner,
       request: const AdRequest(),
       listener: BannerAdListener(
+        onAdLoaded: (_) {
+          if (kDebugMode) debugPrint('✅ Banner loaded');
+        },
         onAdFailedToLoad: (ad, error) {
           ad.dispose();
           if (kDebugMode) {
@@ -58,11 +63,14 @@ class AdsService {
         },
       ),
     );
+
+    banner.load();
+    return banner;
   }
 
   /* ===================== INTERSTITIAL ===================== */
 
-  static void loadInterstitial() async {
+  static Future<void> loadInterstitial() async {
     final hasInternet = await InternetConnectionChecker().hasConnection;
     if (!hasInternet) return;
 
