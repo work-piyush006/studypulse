@@ -5,15 +5,16 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
-import 'notification_store.dart'; // 🔔 INBOX STORAGE
+import 'notification_store.dart';
 
+/// 🔔 GLOBAL NOTIFICATION SERVICE
 class NotificationService {
   static final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
 
   static bool _initialized = false;
 
-  /// 🚀 Call ONCE in main()
+  /// 🚀 CALL ONCE IN main()
   static Future<void> init() async {
     if (_initialized) return;
 
@@ -24,8 +25,9 @@ class NotificationService {
 
     await _plugin.initialize(
       settings,
-      onDidReceiveNotificationResponse: (response) {
-        // future use: deep link to 🔔 inbox
+      onDidReceiveNotificationResponse: (response) async {
+        // 🔔 Notification tapped → open inbox
+        await NotificationStore.markOpenedFromSystem();
       },
     );
 
@@ -47,11 +49,14 @@ class NotificationService {
     const title = '📘 Exam Countdown';
     final body = '$daysLeft days left\n$quote';
 
-    // 🔔 Save to inbox
-    await NotificationStore.save(title: title, body: body);
+    // 🔔 Save as UNREAD
+    await NotificationStore.save(
+      title: title,
+      body: body,
+    );
 
     await _plugin.show(
-      0,
+      100, // unique id
       title,
       body,
       const NotificationDetails(
@@ -76,7 +81,7 @@ class NotificationService {
     final enabled = prefs.getBool('notifications') ?? true;
     if (!enabled) return;
 
-    await cancelAll(); // avoid duplicates
+    await cancelAll();
 
     final quotes = await _loadQuotes();
     final random = Random();
@@ -124,9 +129,6 @@ class NotificationService {
     const title = '📚 StudyPulse Reminder';
     final body = '$daysLeft days left\n$quote';
 
-    // 🔔 Save to inbox (once per schedule call)
-    await NotificationStore.save(title: title, body: body);
-
     await _plugin.zonedSchedule(
       id,
       title,
@@ -144,6 +146,15 @@ class NotificationService {
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
       matchDateTimeComponents: DateTimeComponents.time,
+      payload: 'daily', // 🔔 identify type
+    );
+
+    // 🔔 IMPORTANT:
+    // Inbox me tab save hoga jab notification FIRE karega
+    await NotificationStore.registerScheduled(
+      title: title,
+      body: body,
+      fireAt: scheduled,
     );
   }
 
