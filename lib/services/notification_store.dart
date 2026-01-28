@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter_app_badger/flutter_app_badger.dart';
+import 'package:app_badge_plus/app_badge_plus.dart';
 
 class NotificationStore {
   static const _key = 'notifications';
@@ -20,13 +20,10 @@ class NotificationStore {
       return [];
     }
 
-    final List<Map<String, dynamic>> list =
+    final list =
         List<Map<String, dynamic>>.from(jsonDecode(raw));
 
-    // 🔥 REAL auto delete (30 days)
     final changed = _autoDeleteOld(list);
-
-    // 💾 Persist if anything removed
     if (changed) {
       await prefs.setString(_key, jsonEncode(list));
     }
@@ -43,7 +40,7 @@ class NotificationStore {
   }) async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_key);
-    final List list = raw == null ? [] : jsonDecode(raw);
+    final list = raw == null ? [] : jsonDecode(raw);
 
     list.insert(0, {
       'title': title,
@@ -52,39 +49,37 @@ class NotificationStore {
       'read': false,
     });
 
-    // 🔥 Auto delete old before save
     _autoDeleteOld(list);
 
     await prefs.setString(_key, jsonEncode(list));
     _updateUnread(list);
   }
 
-  /* ================= DELETE ONE ================= */
+  /* ================= DELETE ================= */
 
   static Future<void> deleteAt(int index) async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_key);
     if (raw == null) return;
 
-    final List<Map<String, dynamic>> list =
+    final list =
         List<Map<String, dynamic>>.from(jsonDecode(raw));
 
     if (index < 0 || index >= list.length) return;
 
     list.removeAt(index);
-
     await prefs.setString(_key, jsonEncode(list));
     _updateUnread(list);
   }
 
-  /* ================= MARK ALL READ ================= */
+  /* ================= MARK READ ================= */
 
   static Future<void> markAllRead() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_key);
     if (raw == null) return;
 
-    final List list = jsonDecode(raw);
+    final list = jsonDecode(raw);
     for (final n in list) {
       n['read'] = true;
     }
@@ -93,18 +88,12 @@ class NotificationStore {
     _updateUnread(list);
   }
 
-  /* ================= REPLACE ================= */
-
   static Future<void> replace(List<Map<String, dynamic>> list) async {
     final prefs = await SharedPreferences.getInstance();
-
     _autoDeleteOld(list);
-
     await prefs.setString(_key, jsonEncode(list));
     _updateUnread(list);
   }
-
-  /* ================= CLEAR ALL ================= */
 
   static Future<void> clear() async {
     final prefs = await SharedPreferences.getInstance();
@@ -112,9 +101,8 @@ class NotificationStore {
     _updateUnread([]);
   }
 
-  /* ================= AUTO DELETE (30 DAYS) ================= */
+  /* ================= AUTO DELETE ================= */
 
-  /// Returns true if anything was deleted
   static bool _autoDeleteOld(List list) {
     final now = DateTime.now();
     final before = list.length;
@@ -125,10 +113,10 @@ class NotificationStore {
       return now.difference(time).inDays >= 30;
     });
 
-    return list.length != before;
+    return before != list.length;
   }
 
-  /* ================= BADGE + UNREAD ================= */
+  /* ================= BADGE ================= */
 
   static Future<void> _updateUnread(List list) async {
     final unread =
@@ -136,13 +124,10 @@ class NotificationStore {
 
     unreadNotifier.value = unread;
 
-    // 🔐 Safe badge handling
-    if (await FlutterAppBadger.isAppBadgeSupported()) {
-      if (unread == 0) {
-        FlutterAppBadger.removeBadge();
-      } else {
-        FlutterAppBadger.updateBadgeCount(unread);
-      }
+    if (unread == 0) {
+      AppBadgePlus.removeBadge();
+    } else {
+      AppBadgePlus.updateBadge(unread);
     }
   }
 }
