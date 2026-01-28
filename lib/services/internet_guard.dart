@@ -11,13 +11,14 @@ class InternetGuard extends StatefulWidget {
 }
 
 class _InternetGuardState extends State<InternetGuard> {
+  late VoidCallback _slowListener;
+
   @override
   void initState() {
     super.initState();
 
-    // 🔔 Listen slow internet
-    InternetService.isSlow.addListener(() {
-      if (InternetService.isSlow.value) {
+    _slowListener = () {
+      if (InternetService.isSlow.value && mounted) {
         ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -27,7 +28,15 @@ class _InternetGuardState extends State<InternetGuard> {
           ),
         );
       }
-    });
+    };
+
+    InternetService.isSlow.addListener(_slowListener);
+  }
+
+  @override
+  void dispose() {
+    InternetService.isSlow.removeListener(_slowListener);
+    super.dispose();
   }
 
   @override
@@ -36,8 +45,11 @@ class _InternetGuardState extends State<InternetGuard> {
       valueListenable: InternetService.isConnected,
       builder: (_, connected, __) {
         if (!connected) {
+          // ❌ Full app blocked
           return const NoInternetScreen();
         }
+
+        // ✅ Internet OK
         return widget.child;
       },
     );
