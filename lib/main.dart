@@ -4,10 +4,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/splash.dart';
 import 'services/notification.dart';
 import 'services/internet.dart';
-import 'services/internet_guard.dart'; // 🔥 ADD
+import 'services/internet_guard.dart';
+import 'services/ads.dart'; // 🔥 ADD (IMPORTANT)
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // 🔥 ADS INIT (MANDATORY – warna koi ad load nahi hota)
+  await AdsService.initialize();
 
   // 🔔 init notification service ONLY ONCE
   await NotificationService.init();
@@ -72,7 +76,7 @@ class _StudyPulseAppState extends State<StudyPulseApp> {
           colorSchemeSeed: Colors.blue,
         ),
 
-        // 🔥 INTERNET GUARD APPLIED HERE
+        // 🌐 INTERNET GUARD (global – app fully online)
         home: InternetGuard(
           child: const SplashScreen(),
         ),
@@ -82,7 +86,7 @@ class _StudyPulseAppState extends State<StudyPulseApp> {
 }
 
 ///
-/// Global Theme Controller
+/// Global Theme Controller (unchanged)
 ///
 class ThemeController extends InheritedWidget {
   final void Function(bool) toggleTheme;
