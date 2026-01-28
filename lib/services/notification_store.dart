@@ -119,15 +119,11 @@ class NotificationStore {
   /* ================= BADGE ================= */
 
   static Future<void> _updateUnread(List list) async {
-    final unread =
-        list.where((n) => n['read'] == false).length;
+  final unread =
+      list.where((n) => n['read'] == false).length;
 
-    unreadNotifier.value = unread;
+  unreadNotifier.value = unread;
 
-    if (unread == 0) {
-      AppBadgePlus.removeBadge();
-    } else {
-      AppBadgePlus.updateBadge(unread);
-    }
-  }
+  // app_badge_plus best practice
+  AppBadgePlus.updateBadge(unread);
 }
