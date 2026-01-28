@@ -32,46 +32,27 @@ class _NotificationInboxScreenState
     if (mounted) setState(() => items = data);
   }
 
-  Future<void> _delete(String time) async {
-    items.removeWhere((n) => n['time'] == time);
-    await NotificationStore.replace(items);
-    if (mounted) setState(() {});
-  }
-
-  String _formatTime(DateTime t) {
-    int h = t.hour;
-    final m = t.minute.toString().padLeft(2, '0');
-    final s = h >= 12 ? 'PM' : 'AM';
-    h = h % 12 == 0 ? 12 : h % 12;
-    return '$h:$m $s';
-  }
-
-  bool _isToday(DateTime d) {
-    final n = DateTime.now();
-    return d.year == n.year && d.month == n.month && d.day == n.day;
-  }
-
-  bool _isYesterday(DateTime d) {
-    final y = DateTime.now().subtract(const Duration(days: 1));
-    return d.year == y.year && d.month == y.month && d.day == y.day;
-  }
-
   @override
   Widget build(BuildContext context) {
-    if (items.isEmpty) {
-      return const Scaffold(
-        body: Center(child: Text('No notifications 🔕')),
-      );
-    }
-
     return Scaffold(
       appBar: AppBar(title: const Text('Notifications')),
-      body: ListView(
-        children: [
-          _group('Today', _isToday),
-          _group('Yesterday', _isYesterday),
-          _group('Earlier', (d) => !_isToday(d) && !_isYesterday(d)),
-        ],
+      body: RefreshIndicator(
+        onRefresh: _load,
+        child: items.isEmpty
+            ? const ListView(
+                children: [
+                  SizedBox(height: 200),
+                  Center(child: Text('No notifications 🔕')),
+                ],
+              )
+            : ListView(
+                children: [
+                  _group('Today', _isToday),
+                  _group('Yesterday', _isYesterday),
+                  _group('Earlier',
+                      (d) => !_isToday(d) && !_isYesterday(d)),
+                ],
+              ),
       ),
     );
   }
@@ -82,31 +63,20 @@ class _NotificationInboxScreenState
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(12),
-          child: Text(title,
-              style: const TextStyle(
-                  fontWeight: FontWeight.w600, color: Colors.grey)),
-        ),
-        ...g.map((n) => Dismissible(
-              key: ValueKey(n['time']),
-              direction: DismissDirection.endToStart,
-              background: Container(
-                color: Colors.red,
-                alignment: Alignment.centerRight,
-                padding: const EdgeInsets.only(right: 20),
-                child: const Icon(Icons.delete, color: Colors.white),
-              ),
-              onDismissed: (_) => _delete(n['time']),
-              child: ListTile(
-                title: Text(n['title']),
-                subtitle: Text(n['body']),
-                trailing:
-                    Text(_formatTime(DateTime.parse(n['time']))),
-              ),
-            )),
-      ],
+      children: g.map((n) => ListTile(
+        title: Text(n['title']),
+        subtitle: Text(n['body']),
+      )).toList(),
     );
+  }
+
+  bool _isToday(DateTime d) {
+    final n = DateTime.now();
+    return d.year == n.year && d.month == n.month && d.day == n.day;
+  }
+
+  bool _isYesterday(DateTime d) {
+    final y = DateTime.now().subtract(const Duration(days: 1));
+    return d.year == y.year && d.month == y.month && d.day == y.day;
   }
 }
