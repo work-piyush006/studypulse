@@ -7,7 +7,6 @@ import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
 import 'notification_store.dart';
-import '../screens/notification_inbox.dart';
 
 class NotificationService {
   static final FlutterLocalNotificationsPlugin _plugin =
@@ -16,7 +15,7 @@ class NotificationService {
   static late GlobalKey<NavigatorState> _navKey;
   static bool _initialized = false;
 
-  /// 🚀 INIT (ONLY ONCE)
+  /// 🚀 INIT ONCE
   static Future<void> init(GlobalKey<NavigatorState> navKey) async {
     if (_initialized) return;
     _navKey = navKey;
@@ -28,28 +27,11 @@ class NotificationService {
 
     await _plugin.initialize(
       settings,
-      onDidReceiveNotificationResponse: (res) async {
-        final payload = res.payload;
-
-        // ✅ SAVE SCHEDULED NOTIFICATION WHEN IT FIRES
-        if (payload != null) {
-          final parts = payload.split('|');
-          await NotificationStore.save(
-            title: parts[0],
-            body: parts[1],
-          );
-
-          // 🔥 FLAG → OPEN INBOX AFTER SPLASH
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setBool('open_inbox', true);
-        }
-
-        _navKey.currentState?.pushAndRemoveUntil(
-          MaterialPageRoute(
-            builder: (_) => const NotificationInboxScreen(),
-          ),
-          (_) => false,
-        );
+      onDidReceiveNotificationResponse: (_) async {
+        // ❌ YAHAN SAVE NAHI
+        // Sirf inbox open
+        const channel = MethodChannel('studypulse/notifications');
+        await channel.invokeMethod('openInbox');
       },
     );
 
@@ -68,7 +50,7 @@ class NotificationService {
     final title = '📘 Exam Countdown';
     final body = '$daysLeft days left\n$quote';
 
-    // ✅ SAVE IMMEDIATELY
+    // ✅ SAFE SAVE (app active hai)
     await NotificationStore.save(title: title, body: body);
 
     await _plugin.show(
@@ -114,6 +96,9 @@ class NotificationService {
     final title = '📚 StudyPulse Reminder';
     final body = '$daysLeft days left\n$quote';
 
+    // ✅ SAVE AT SCHEDULE TIME (guaranteed)
+    await NotificationStore.save(title: title, body: body);
+
     final now = tz.TZDateTime.now(tz.local);
     var time =
         tz.TZDateTime(tz.local, now.year, now.month, now.day, hour, minute);
@@ -135,7 +120,6 @@ class NotificationService {
           priority: Priority.high,
         ),
       ),
-      payload: '$title|$body',
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
@@ -148,8 +132,6 @@ class NotificationService {
   static Future<void> cancelAll() async {
     await _plugin.cancelAll();
   }
-
-  /* ================= QUOTES ================= */
 
   static Future<List<String>> _loadQuotes() async {
     final raw = await rootBundle.loadString('assets/quotes.txt');
