@@ -17,8 +17,6 @@ class _NotificationInboxScreenState
   void initState() {
     super.initState();
     _load();
-
-    // 🔔 Realtime refresh when new notification saved
     NotificationStore.unreadNotifier.addListener(_load);
   }
 
@@ -28,12 +26,15 @@ class _NotificationInboxScreenState
     super.dispose();
   }
 
+  /* ================= LOAD ================= */
+
   Future<void> _load() async {
     final data = await NotificationStore.getAll();
     if (mounted) setState(() => items = data);
   }
 
-  /// 👁️ Mark single as read
+  /* ================= MARK READ ================= */
+
   Future<void> _markRead(int index) async {
     if (items[index]['read'] == true) return;
 
@@ -42,11 +43,46 @@ class _NotificationInboxScreenState
     setState(() {});
   }
 
-  /// ✅ Mark all as read
+  /* ================= MARK ALL READ ================= */
+
   Future<void> _markAllRead() async {
     await NotificationStore.markAllRead();
     await _load();
   }
+
+  /* ================= CONFIRM CLEAR ================= */
+
+  Future<void> _confirmClearAll() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Delete all notifications?'),
+        content: const Text(
+          'This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text(
+              'Delete',
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (ok == true) {
+      await NotificationStore.clear();
+      await _load();
+    }
+  }
+
+  /* ================= UI ================= */
 
   @override
   Widget build(BuildContext context) {
@@ -73,6 +109,10 @@ class _NotificationInboxScreenState
             onPressed: _markAllRead,
             child: const Text('Mark all read'),
           ),
+          IconButton(
+            icon: const Icon(Icons.delete_outline),
+            onPressed: _confirmClearAll,
+          ),
         ],
       ),
       body: ListView.builder(
@@ -82,53 +122,76 @@ class _NotificationInboxScreenState
           final n = items[i];
           final unread = n['read'] == false;
 
-          // 🎨 Unread highlight logic
           final bgColor = unread
               ? isDark
                   ? Colors.yellow.withOpacity(0.18)
                   : Colors.blue.withOpacity(0.14)
               : Theme.of(context).cardColor;
 
-          return GestureDetector(
-            onTap: () => _markRead(i),
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 10),
-              padding: const EdgeInsets.all(14),
+          return Dismissible(
+            key: ValueKey(n['time']),
+            direction: DismissDirection.endToStart,
+            background: Container(
+              alignment: Alignment.centerRight,
+              padding: const EdgeInsets.only(right: 20),
               decoration: BoxDecoration(
-                color: bgColor,
+                color: Colors.red.shade400,
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(
-                    Icons.notifications,
-                    color: unread
-                        ? Theme.of(context).colorScheme.primary
-                        : Colors.grey,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          n['title'],
-                          style: TextStyle(
-                            fontWeight: unread
-                                ? FontWeight.bold
-                                : FontWeight.w500,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          n['body'],
-                          style: const TextStyle(color: Colors.grey),
-                        ),
-                      ],
+              child: const Icon(
+                Icons.delete,
+                color: Colors.white,
+              ),
+            ),
+            onDismissed: (_) async {
+              await NotificationStore.deleteAt(i);
+              await _load();
+            },
+            child: GestureDetector(
+              onTap: () => _markRead(i),
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: bgColor,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.notifications,
+                      color: unread
+                          ? Theme.of(context)
+                              .colorScheme
+                              .primary
+                          : Colors.grey,
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment:
+                            CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            n['title'],
+                            style: TextStyle(
+                              fontWeight: unread
+                                  ? FontWeight.bold
+                                  : FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            n['body'],
+                            style: const TextStyle(
+                                color: Colors.grey),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           );
