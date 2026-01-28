@@ -20,7 +20,7 @@ class NotificationStore {
       return [];
     }
 
-    final list =
+    final List<Map<String, dynamic>> list =
         List<Map<String, dynamic>>.from(jsonDecode(raw));
 
     final changed = _autoDeleteOld(list);
@@ -40,7 +40,7 @@ class NotificationStore {
   }) async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_key);
-    final list = raw == null ? [] : jsonDecode(raw);
+    final List list = raw == null ? [] : jsonDecode(raw);
 
     list.insert(0, {
       'title': title,
@@ -62,7 +62,7 @@ class NotificationStore {
     final raw = prefs.getString(_key);
     if (raw == null) return;
 
-    final list =
+    final List<Map<String, dynamic>> list =
         List<Map<String, dynamic>>.from(jsonDecode(raw));
 
     if (index < 0 || index >= list.length) return;
@@ -79,7 +79,7 @@ class NotificationStore {
     final raw = prefs.getString(_key);
     if (raw == null) return;
 
-    final list = jsonDecode(raw);
+    final List list = jsonDecode(raw);
     for (final n in list) {
       n['read'] = true;
     }
@@ -118,12 +118,13 @@ class NotificationStore {
 
   /* ================= BADGE ================= */
 
-  static Future<void> _updateUnread(List list) async {
-  final unread =
-      list.where((n) => n['read'] == false).length;
+  static void _updateUnread(List list) {
+    final unread =
+        list.where((n) => n['read'] == false).length;
 
-  unreadNotifier.value = unread;
+    unreadNotifier.value = unread;
 
-  // app_badge_plus best practice
-  AppBadgePlus.updateBadge(unread);
+    // app_badge_plus correct usage
+    AppBadgePlus.updateBadge(unread);
+  }
 }
