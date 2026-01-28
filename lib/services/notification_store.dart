@@ -1,10 +1,16 @@
 import 'dart:convert';
+import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class NotificationStore {
-  static const String _key = 'notifications';
+  static const _key = 'notifications';
 
-  /// ✅ Save notification (UNREAD by default)
+  /// 🔔 REALTIME notifier for bell badge
+  static final ValueNotifier<int> unreadNotifier =
+      ValueNotifier<int>(0);
+
+  /* ================= SAVE ================= */
+
   static Future<void> save({
     required String title,
     required String body,
@@ -22,24 +28,26 @@ class NotificationStore {
     });
 
     await prefs.setString(_key, jsonEncode(list));
+    _updateUnreadCount(list);
   }
 
-  /// 📥 Get all notifications
+  /* ================= LOAD ================= */
+
   static Future<List<Map<String, dynamic>>> getAll() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_key);
-    if (raw == null) return [];
+    if (raw == null) {
+      unreadNotifier.value = 0;
+      return [];
+    }
 
-    return List<Map<String, dynamic>>.from(jsonDecode(raw));
+    final list = List<Map<String, dynamic>>.from(jsonDecode(raw));
+    _updateUnreadCount(list);
+    return list;
   }
 
-  /// 🔴 Count unread notifications (for 🔔 badge)
-  static Future<int> unreadCount() async {
-    final all = await getAll();
-    return all.where((n) => n['read'] == false).length;
-  }
+  /* ================= READ ================= */
 
-  /// 👁 Mark ALL as read (when inbox opened)
   static Future<void> markAllRead() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_key);
@@ -51,17 +59,27 @@ class NotificationStore {
     }
 
     await prefs.setString(_key, jsonEncode(list));
+    unreadNotifier.value = 0;
   }
 
-  /// ♻ Replace entire list (USED FOR SWIPE-TO-DELETE)
+  /* ================= DELETE ================= */
+
   static Future<void> replace(List<Map<String, dynamic>> list) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_key, jsonEncode(list));
+    _updateUnreadCount(list);
   }
 
-  /// 🗑 Clear ALL notifications
   static Future<void> clear() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_key);
+    unreadNotifier.value = 0;
+  }
+
+  /* ================= INTERNAL ================= */
+
+  static void _updateUnreadCount(List list) {
+    unreadNotifier.value =
+        list.where((n) => n['read'] == false).length;
   }
 }
