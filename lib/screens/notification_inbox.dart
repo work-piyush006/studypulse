@@ -18,14 +18,14 @@ class _NotificationInboxScreenState
     super.initState();
     _load();
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Notification saved'),
-          duration: Duration(seconds: 2),
-        ),
-      );
-    });
+    // 🔔 Realtime refresh when new notification saved
+    NotificationStore.unreadNotifier.addListener(_load);
+  }
+
+  @override
+  void dispose() {
+    NotificationStore.unreadNotifier.removeListener(_load);
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -33,13 +33,16 @@ class _NotificationInboxScreenState
     if (mounted) setState(() => items = data);
   }
 
-  Future<void> _markRead(int i) async {
-    if (items[i]['read'] == true) return;
-    items[i]['read'] = true;
+  /// 👁️ Mark single as read
+  Future<void> _markRead(int index) async {
+    if (items[index]['read'] == true) return;
+
+    items[index]['read'] = true;
     await NotificationStore.replace(items);
     setState(() {});
   }
 
+  /// ✅ Mark all as read
   Future<void> _markAllRead() async {
     await NotificationStore.markAllRead();
     await _load();
@@ -47,19 +50,20 @@ class _NotificationInboxScreenState
 
   @override
   Widget build(BuildContext context) {
+    final isDark =
+        Theme.of(context).brightness == Brightness.dark;
+
     if (items.isEmpty) {
       return Scaffold(
-        appBar: AppBar(
-          title: const Text('Notifications'),
-        ),
+        appBar: AppBar(title: const Text('Notifications')),
         body: const Center(
-          child: Text('No notifications 🔕'),
+          child: Text(
+            'No notifications 🔕',
+            style: TextStyle(color: Colors.grey),
+          ),
         ),
       );
     }
-
-    final isDark =
-        Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       appBar: AppBar(
@@ -78,10 +82,11 @@ class _NotificationInboxScreenState
           final n = items[i];
           final unread = n['read'] == false;
 
-          final color = unread
+          // 🎨 Unread highlight logic
+          final bgColor = unread
               ? isDark
                   ? Colors.yellow.withOpacity(0.18)
-                  : Colors.blue.withOpacity(0.15)
+                  : Colors.blue.withOpacity(0.14)
               : Theme.of(context).cardColor;
 
           return GestureDetector(
@@ -90,23 +95,38 @@ class _NotificationInboxScreenState
               margin: const EdgeInsets.only(bottom: 10),
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: color,
+                color: bgColor,
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: Column(
+              child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    n['title'],
-                    style: TextStyle(
-                      fontWeight:
-                          unread ? FontWeight.bold : FontWeight.w500,
-                    ),
+                  Icon(
+                    Icons.notifications,
+                    color: unread
+                        ? Theme.of(context).colorScheme.primary
+                        : Colors.grey,
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    n['body'],
-                    style: const TextStyle(color: Colors.grey),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          n['title'],
+                          style: TextStyle(
+                            fontWeight: unread
+                                ? FontWeight.bold
+                                : FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          n['body'],
+                          style: const TextStyle(color: Colors.grey),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
