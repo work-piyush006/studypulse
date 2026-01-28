@@ -2,9 +2,9 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class NotificationStore {
-  static const _key = 'notifications';
+  static const String _key = 'notifications';
 
-  /// ✅ Save notification (unread by default)
+  /// ✅ Save notification (UNREAD by default)
   static Future<void> save({
     required String title,
     required String body,
@@ -33,13 +33,13 @@ class NotificationStore {
     return List<Map<String, dynamic>>.from(jsonDecode(raw));
   }
 
-  /// 🔴 Count unread (for bell badge)
+  /// 🔴 Count unread notifications (for 🔔 badge)
   static Future<int> unreadCount() async {
     final all = await getAll();
     return all.where((n) => n['read'] == false).length;
   }
 
-  /// 👁 Mark all as read (when inbox opened)
+  /// 👁 Mark ALL as read (when inbox opened)
   static Future<void> markAllRead() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_key);
@@ -53,7 +53,13 @@ class NotificationStore {
     await prefs.setString(_key, jsonEncode(list));
   }
 
-  /// 🗑 Clear inbox
+  /// ♻ Replace entire list (USED FOR SWIPE-TO-DELETE)
+  static Future<void> replace(List<Map<String, dynamic>> list) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_key, jsonEncode(list));
+  }
+
+  /// 🗑 Clear ALL notifications
   static Future<void> clear() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_key);
