@@ -17,147 +17,96 @@ class _NotificationInboxScreenState
   void initState() {
     super.initState();
     _load();
+    NotificationStore.unreadNotifier.addListener(_load);
+  }
+
+  @override
+  void dispose() {
+    NotificationStore.unreadNotifier.removeListener(_load);
+    super.dispose();
   }
 
   Future<void> _load() async {
-    final data = await NotificationStore.getAll();
-
-    // 👁 Inbox opened → mark all as READ
     await NotificationStore.markAllRead();
-
-    setState(() => items = data);
+    final data = await NotificationStore.getAll();
+    if (mounted) setState(() => items = data);
   }
 
-  /// 🗑️ Delete single notification
   Future<void> _delete(String time) async {
     items.removeWhere((n) => n['time'] == time);
     await NotificationStore.replace(items);
-    setState(() {});
+    if (mounted) setState(() {});
   }
 
-  /// ⏰ Manual time formatter (NO intl)
   String _formatTime(DateTime t) {
-    int hour = t.hour;
-    final minute = t.minute.toString().padLeft(2, '0');
-    final suffix = hour >= 12 ? 'PM' : 'AM';
-
-    hour = hour % 12;
-    if (hour == 0) hour = 12;
-
-    return '$hour:$minute $suffix';
+    int h = t.hour;
+    final m = t.minute.toString().padLeft(2, '0');
+    final s = h >= 12 ? 'PM' : 'AM';
+    h = h % 12 == 0 ? 12 : h % 12;
+    return '$h:$m $s';
   }
 
-  /// 📅 Date helpers
   bool _isToday(DateTime d) {
-    final now = DateTime.now();
-    return d.year == now.year &&
-        d.month == now.month &&
-        d.day == now.day;
+    final n = DateTime.now();
+    return d.year == n.year && d.month == n.month && d.day == n.day;
   }
 
   bool _isYesterday(DateTime d) {
     final y = DateTime.now().subtract(const Duration(days: 1));
-    return d.year == y.year &&
-        d.month == y.month &&
-        d.day == y.day;
+    return d.year == y.year && d.month == y.month && d.day == y.day;
   }
 
   @override
   Widget build(BuildContext context) {
     if (items.isEmpty) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Notifications')),
-        body: const Center(
-          child: Text(
-            'No notifications yet 🔕',
-            style: TextStyle(color: Colors.grey),
-          ),
-        ),
+      return const Scaffold(
+        body: Center(child: Text('No notifications 🔕')),
       );
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Notifications'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.delete_outline),
-            onPressed: () async {
-              await NotificationStore.clear();
-              setState(() => items.clear());
-            },
-          ),
-        ],
-      ),
+      appBar: AppBar(title: const Text('Notifications')),
       body: ListView(
         children: [
-          _buildGroup('Today', _isToday),
-          _buildGroup('Yesterday', _isYesterday),
-          _buildGroup(
-            'Earlier',
-            (d) => !_isToday(d) && !_isYesterday(d),
-          ),
+          _group('Today', _isToday),
+          _group('Yesterday', _isYesterday),
+          _group('Earlier', (d) => !_isToday(d) && !_isYesterday(d)),
         ],
       ),
     );
   }
 
-  /// 🔹 Group builder
-  Widget _buildGroup(
-    String title,
-    bool Function(DateTime) matcher,
-  ) {
-    final group = items
-        .where((n) => matcher(DateTime.parse(n['time'])))
-        .toList();
+  Widget _group(String title, bool Function(DateTime) match) {
+    final g = items.where((n) => match(DateTime.parse(n['time']))).toList();
+    if (g.isEmpty) return const SizedBox();
 
-    if (group.isEmpty) return const SizedBox();
-
-    return Padding(
-      padding: const EdgeInsets.only(top: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Text(
-              title,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(12),
+          child: Text(title,
               style: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                color: Colors.grey,
-              ),
-            ),
-          ),
-          ...group.map((n) {
-            final timeObj = DateTime.parse(n['time']);
-            final time = _formatTime(timeObj);
-
-            return Dismissible(
+                  fontWeight: FontWeight.w600, color: Colors.grey)),
+        ),
+        ...g.map((n) => Dismissible(
               key: ValueKey(n['time']),
               direction: DismissDirection.endToStart,
               background: Container(
+                color: Colors.red,
                 alignment: Alignment.centerRight,
                 padding: const EdgeInsets.only(right: 20),
-                color: Colors.red,
                 child: const Icon(Icons.delete, color: Colors.white),
               ),
               onDismissed: (_) => _delete(n['time']),
               child: ListTile(
-                leading: const Icon(Icons.notifications),
                 title: Text(n['title']),
                 subtitle: Text(n['body']),
-                trailing: Text(
-                  time,
-                  style: const TextStyle(
-                      fontSize: 12, color: Colors.grey),
-                ),
+                trailing:
+                    Text(_formatTime(DateTime.parse(n['time']))),
               ),
-            );
-          }),
-        ],
-      ),
+            )),
+      ],
     );
   }
 }
