@@ -1,5 +1,5 @@
 name: studypulse
-description: Smart productivity tools for students
+description: A smart student utility app for exams, calculations, reminders & productivity.
 publish_to: 'none'
 
 version: 1.0.0+1
@@ -11,17 +11,35 @@ dependencies:
   flutter:
     sdk: flutter
 
+  # iOS style icons (safe to keep)
+  cupertino_icons: ^1.0.6
+
+  # Google AdMob
+  google_mobile_ads: ^5.3.1
+
   # Local storage
   shared_preferences: ^2.2.2
 
-  # Google AdMob
-  google_mobile_ads: ^5.0.0
-
   # Local notifications
-  flutter_local_notifications: ^17.0.0
+  flutter_local_notifications: ^17.2.4
 
-  # Internet availability checker
+  # Internet connectivity checker
   internet_connection_checker: ^1.0.0+1
+
+  # Android 13+ notification permission
+  permission_handler: ^11.3.0
+
+  # Open email / Instagram / external links
+  url_launcher: ^6.2.5
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^3.0.1
+
+  # 🔥 Launcher icon generator (REQUIRED)
+  flutter_launcher_icons: ^0.13.1
 
 flutter:
   uses-material-design: true
@@ -29,3 +47,14 @@ flutter:
   assets:
     - assets/logo.png
     - assets/quotes.txt
+    - assets/percentage.png
+    - assets/cgpa.png
+    - assets/exam.png
+
+# 🔥 APP ICON CONFIG (REPLACES FLUTTER LOGO)
+flutter_icons:
+  android: true
+  ios: false
+  image_path: "assets/logo.png"
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/logo.png"
