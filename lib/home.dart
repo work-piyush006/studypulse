@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -8,6 +9,7 @@ import 'tools/cgpa.dart';
 import 'tools/exam.dart';
 import 'screens/about.dart';
 import 'screens/settings.dart';
+import 'services/ads.dart'; // 🔥 ADS
 
 class Home extends StatefulWidget {
   const Home({super.key});
@@ -18,13 +20,15 @@ class Home extends StatefulWidget {
 
 class _HomeState extends State<Home> {
   int index = 0;
+  int _toolOpenCount = 0;
+
   DateTime? examDate;
   String dailyQuote = '';
 
   final pages = const [
-  _HomeMain(),
-  AboutPage(),
-  SettingsPage(),
+    _HomeMain(),
+    AboutPage(),
+    SettingsPage(),
   ];
 
   @override
@@ -44,7 +48,8 @@ class _HomeState extends State<Home> {
 
   Future<void> _loadDailyQuote() async {
     final data = await rootBundle.loadString('assets/quotes.txt');
-    final quotes = data.split('\n').where((e) => e.trim().isNotEmpty).toList();
+    final quotes =
+        data.split('\n').where((e) => e.trim().isNotEmpty).toList();
     setState(() {
       dailyQuote = quotes[Random().nextInt(quotes.length)];
     });
@@ -71,8 +76,10 @@ class _HomeState extends State<Home> {
         onTap: (i) => setState(() => index = i),
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.info_outline), label: 'About'),
-          BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Settings'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.info_outline), label: 'About'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.settings), label: 'Settings'),
         ],
       ),
     );
@@ -81,8 +88,41 @@ class _HomeState extends State<Home> {
 
 /* ================= HOME MAIN UI ================= */
 
-class _HomeMain extends StatelessWidget {
+class _HomeMain extends StatefulWidget {
   const _HomeMain();
+
+  @override
+  State<_HomeMain> createState() => _HomeMainState();
+}
+
+class _HomeMainState extends State<_HomeMain> {
+  late PageController _adController;
+  Timer? _autoSlideTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _adController = PageController(viewportFraction: 0.92);
+
+    // 🔥 Auto slide banner every 4 sec
+    _autoSlideTimer = Timer.periodic(const Duration(seconds: 4), (timer) {
+      if (_adController.hasClients) {
+        final next = (_adController.page?.round() ?? 0) + 1;
+        _adController.animateToPage(
+          next % 3,
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeInOut,
+        );
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _autoSlideTimer?.cancel();
+    _adController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -93,6 +133,30 @@ class _HomeMain extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
+        // 🔥 TOP AUTO SLIDING ADS (PhonePe style)
+        SizedBox(
+          height: 60,
+          child: PageView.builder(
+            controller: _adController,
+            itemCount: 3,
+            itemBuilder: (context, index) {
+              final banner = AdsService.createBannerAd()..load();
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    color: Theme.of(context).cardColor,
+                    child: AdWidget(ad: banner),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+
+        const SizedBox(height: 20),
+
         // HEADER
         Row(
           children: [
@@ -195,6 +259,16 @@ class _HomeMain extends StatelessWidget {
         title: Text(title),
         trailing: const Icon(Icons.arrow_forward_ios, size: 16),
         onTap: () {
+          final homeState =
+              context.findAncestorStateOfType<_HomeState>();
+
+          if (homeState != null) {
+            homeState._toolOpenCount++;
+            if (homeState._toolOpenCount % 3 == 0) {
+              AdsService.showInterstitial(); // 🔥
+            }
+          }
+
           Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => page),
