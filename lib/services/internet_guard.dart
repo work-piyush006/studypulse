@@ -18,7 +18,11 @@ class _InternetGuardState extends State<InternetGuard> {
     super.initState();
 
     _slowListener = () {
-      if (InternetService.isSlow.value && mounted) {
+      if (!mounted) return;
+
+      // 🔥 Show slow snackbar ONLY if internet is connected
+      if (InternetService.isConnected.value &&
+          InternetService.isSlow.value) {
         ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -45,11 +49,8 @@ class _InternetGuardState extends State<InternetGuard> {
       valueListenable: InternetService.isConnected,
       builder: (_, connected, __) {
         if (!connected) {
-          // ❌ Full app blocked
           return const NoInternetScreen();
         }
-
-        // ✅ Internet OK
         return widget.child;
       },
     );
