@@ -2,7 +2,8 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+
+import '../services/notification.dart';
 
 class ExamCountdownPage extends StatefulWidget {
   const ExamCountdownPage({super.key});
@@ -14,9 +15,6 @@ class ExamCountdownPage extends StatefulWidget {
 class _ExamCountdownPageState extends State<ExamCountdownPage> {
   DateTime? examDate;
   List<String> quotes = [];
-
-  final FlutterLocalNotificationsPlugin notifications =
-      FlutterLocalNotificationsPlugin();
 
   int get daysLeft =>
       examDate == null ? 0 : examDate!.difference(DateTime.now()).inDays;
@@ -33,6 +31,8 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
     _loadData();
   }
 
+  /* ================= LOAD SAVED DATA ================= */
+
   Future<void> _loadData() async {
     final prefs = await SharedPreferences.getInstance();
     final saved = prefs.getString('exam_date');
@@ -42,10 +42,16 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
     }
 
     final raw = await rootBundle.loadString('assets/quotes.txt');
-    quotes = raw.split('\n').where((e) => e.trim().isNotEmpty).toList();
+    quotes = raw
+        .split('\n')
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
 
     setState(() {});
   }
+
+  /* ================= DATE PICKER ================= */
 
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
@@ -62,28 +68,24 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
 
     setState(() => examDate = picked);
 
-    _sendInstantNotification();
+    await _sendInstantNotification();
   }
 
+  /* ================= IMMEDIATE NOTIFICATION ================= */
+
   Future<void> _sendInstantNotification() async {
-    if (quotes.isEmpty) return;
+    if (quotes.isEmpty || examDate == null) return;
 
     final quote = quotes[Random().nextInt(quotes.length)];
 
-    await notifications.show(
-      0,
-      '📚 Exam Countdown',
-      '$daysLeft days left\n$quote',
-      const NotificationDetails(
-        android: AndroidNotificationDetails(
-          'exam_channel',
-          'Exam Countdown',
-          importance: Importance.high,
-          priority: Priority.high,
-        ),
-      ),
+    // 🔥 SINGLE SOURCE OF TRUTH
+    await NotificationService.showInstant(
+      daysLeft: daysLeft,
+      quote: quote,
     );
   }
+
+  /* ================= UI ================= */
 
   @override
   Widget build(BuildContext context) {
