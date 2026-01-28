@@ -48,9 +48,13 @@ class _NotificationInboxScreenState
   @override
   Widget build(BuildContext context) {
     if (items.isEmpty) {
-      return const Scaffold(
-        appBar: AppBar(title: Text('Notifications')),
-        body: Center(child: Text('No notifications 🔕')),
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Notifications'),
+        ),
+        body: const Center(
+          child: Text('No notifications 🔕'),
+        ),
       );
     }
 
