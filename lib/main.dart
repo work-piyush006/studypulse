@@ -7,11 +7,15 @@ import 'services/internet.dart';
 import 'services/internet_guard.dart';
 import 'services/ads.dart';
 
+// 🔑 GLOBAL NAVIGATOR KEY
+final GlobalKey<NavigatorState> navigatorKey =
+    GlobalKey<NavigatorState>();
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await AdsService.initialize();
-  await NotificationService.init();
+  await NotificationService.init(navigatorKey);
   InternetService.startMonitoring();
 
   runApp(const StudyPulseApp());
@@ -54,6 +58,7 @@ class _StudyPulseAppState extends State<StudyPulseApp> {
     return ThemeController(
       toggleTheme: toggleTheme,
       child: MaterialApp(
+        navigatorKey: navigatorKey, // 🔥 IMPORTANT
         title: 'StudyPulse',
         debugShowCheckedModeBanner: false,
         themeMode: _themeMode,
@@ -71,11 +76,9 @@ class _StudyPulseAppState extends State<StudyPulseApp> {
           colorSchemeSeed: Colors.blue,
         ),
 
-        // 🔥🔥🔥 INTERNET HARD LOCK (GLOBAL) 🔥🔥🔥
+        // 🌐 HARD INTERNET LOCK
         builder: (context, child) {
-          return InternetGuard(
-            child: child ?? const SizedBox(),
-          );
+          return InternetGuard(child: child ?? const SizedBox());
         },
 
         home: const SplashScreen(),
