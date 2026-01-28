@@ -20,10 +20,17 @@ class NotificationStore {
       return [];
     }
 
-    final list =
+    final List<Map<String, dynamic>> list =
         List<Map<String, dynamic>>.from(jsonDecode(raw));
 
-    _autoDeleteOld(list);
+    // 🔥 REAL auto delete (30 days)
+    final changed = _autoDeleteOld(list);
+
+    // 💾 Persist if anything removed
+    if (changed) {
+      await prefs.setString(_key, jsonEncode(list));
+    }
+
     _updateUnread(list);
     return list;
   }
@@ -36,7 +43,7 @@ class NotificationStore {
   }) async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_key);
-    final list = raw == null ? [] : jsonDecode(raw);
+    final List list = raw == null ? [] : jsonDecode(raw);
 
     list.insert(0, {
       'title': title,
@@ -45,8 +52,10 @@ class NotificationStore {
       'read': false,
     });
 
-    await prefs.setString(_key, jsonEncode(list));
+    // 🔥 Auto delete old before save
     _autoDeleteOld(list);
+
+    await prefs.setString(_key, jsonEncode(list));
     _updateUnread(list);
   }
 
@@ -57,7 +66,7 @@ class NotificationStore {
     final raw = prefs.getString(_key);
     if (raw == null) return;
 
-    final list =
+    final List<Map<String, dynamic>> list =
         List<Map<String, dynamic>>.from(jsonDecode(raw));
 
     if (index < 0 || index >= list.length) return;
@@ -75,7 +84,7 @@ class NotificationStore {
     final raw = prefs.getString(_key);
     if (raw == null) return;
 
-    final list = jsonDecode(raw);
+    final List list = jsonDecode(raw);
     for (final n in list) {
       n['read'] = true;
     }
@@ -88,6 +97,9 @@ class NotificationStore {
 
   static Future<void> replace(List<Map<String, dynamic>> list) async {
     final prefs = await SharedPreferences.getInstance();
+
+    _autoDeleteOld(list);
+
     await prefs.setString(_key, jsonEncode(list));
     _updateUnread(list);
   }
@@ -102,28 +114,35 @@ class NotificationStore {
 
   /* ================= AUTO DELETE (30 DAYS) ================= */
 
-  static void _autoDeleteOld(List list) {
+  /// Returns true if anything was deleted
+  static bool _autoDeleteOld(List list) {
     final now = DateTime.now();
+    final before = list.length;
 
     list.removeWhere((n) {
       final time = DateTime.tryParse(n['time'] ?? '');
       if (time == null) return false;
       return now.difference(time).inDays >= 30;
     });
+
+    return list.length != before;
   }
 
   /* ================= BADGE + UNREAD ================= */
 
-  static void _updateUnread(List list) {
+  static Future<void> _updateUnread(List list) async {
     final unread =
         list.where((n) => n['read'] == false).length;
 
     unreadNotifier.value = unread;
 
-    if (unread == 0) {
-      FlutterAppBadger.removeBadge();
-    } else {
-      FlutterAppBadger.updateBadgeCount(unread);
+    // 🔐 Safe badge handling
+    if (await FlutterAppBadger.isAppBadgeSupported()) {
+      if (unread == 0) {
+        FlutterAppBadger.removeBadge();
+      } else {
+        FlutterAppBadger.updateBadgeCount(unread);
+      }
     }
   }
 }
