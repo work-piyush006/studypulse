@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'screens/splash.dart';
-import 'services/notification.dart'; // 🔥 ADD
-import 'services/internet.dart';     // 🔥 ADD (next step)
+import 'services/notification.dart';
+import 'services/internet.dart';
+import 'services/internet_guard.dart'; // 🔥 ADD
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -41,7 +42,6 @@ class _StudyPulseAppState extends State<StudyPulseApp> {
     });
   }
 
-  /// 🔥 NO CHANGE – already correct
   void toggleTheme(bool isDark) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('dark_mode', isDark);
@@ -72,14 +72,17 @@ class _StudyPulseAppState extends State<StudyPulseApp> {
           colorSchemeSeed: Colors.blue,
         ),
 
-        home: const SplashScreen(),
+        // 🔥 INTERNET GUARD APPLIED HERE
+        home: InternetGuard(
+          child: const SplashScreen(),
+        ),
       ),
     );
   }
 }
 
 ///
-/// Global Theme Controller (UNCHANGED – already clean)
+/// Global Theme Controller
 ///
 class ThemeController extends InheritedWidget {
   final void Function(bool) toggleTheme;
