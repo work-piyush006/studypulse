@@ -7,7 +7,7 @@ import 'package:timezone/timezone.dart' as tz;
 
 import 'notification_store.dart';
 
-/// 🔔 GLOBAL NOTIFICATION SERVICE
+/// 🔔 GLOBAL NOTIFICATION SERVICE (STABLE)
 class NotificationService {
   static final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
@@ -26,8 +26,9 @@ class NotificationService {
     await _plugin.initialize(
       settings,
       onDidReceiveNotificationResponse: (response) async {
-        // 🔔 Notification tapped → open inbox
-        await NotificationStore.markOpenedFromSystem();
+        // 🔔 System notification tapped
+        // Navigation handled in main.dart via navigatorKey (next step)
+        await NotificationStore.markAllRead();
       },
     );
 
@@ -46,17 +47,14 @@ class NotificationService {
     final enabled = prefs.getBool('notifications') ?? true;
     if (!enabled) return;
 
-    const title = '📘 Exam Countdown';
+    final title = '📘 Exam Countdown';
     final body = '$daysLeft days left\n$quote';
 
-    // 🔔 Save as UNREAD
-    await NotificationStore.save(
-      title: title,
-      body: body,
-    );
+    // 🔔 Save to inbox (UNREAD)
+    await NotificationStore.save(title: title, body: body);
 
     await _plugin.show(
-      100, // unique id
+      DateTime.now().millisecondsSinceEpoch ~/ 1000, // unique id
       title,
       body,
       const NotificationDetails(
@@ -126,7 +124,7 @@ class NotificationService {
       scheduled = scheduled.add(const Duration(days: 1));
     }
 
-    const title = '📚 StudyPulse Reminder';
+    final title = '📚 StudyPulse Reminder';
     final body = '$daysLeft days left\n$quote';
 
     await _plugin.zonedSchedule(
@@ -146,15 +144,7 @@ class NotificationService {
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
       matchDateTimeComponents: DateTimeComponents.time,
-      payload: 'daily', // 🔔 identify type
-    );
-
-    // 🔔 IMPORTANT:
-    // Inbox me tab save hoga jab notification FIRE karega
-    await NotificationStore.registerScheduled(
-      title: title,
-      body: body,
-      fireAt: scheduled,
+      payload: 'daily',
     );
   }
 
