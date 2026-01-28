@@ -5,18 +5,18 @@ import 'screens/splash.dart';
 import 'services/notification.dart';
 import 'services/internet.dart';
 import 'services/internet_guard.dart';
-import 'services/ads.dart'; // 🔥 ADD (IMPORTANT)
+import 'services/ads.dart'; // 🔥 ADS SERVICE
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 🔥 ADS INIT (MANDATORY – warna koi ad load nahi hota)
+  // 🔥 ADS INIT (MANDATORY – bina iske ads kabhi load nahi honge)
   await AdsService.initialize();
 
-  // 🔔 init notification service ONLY ONCE
+  // 🔔 Notification service (only once)
   await NotificationService.init();
 
-  // 🌐 start internet monitoring (global)
+  // 🌐 Internet monitoring (global – app fully online)
   InternetService.startMonitoring();
 
   runApp(const StudyPulseApp());
@@ -41,14 +41,17 @@ class _StudyPulseAppState extends State<StudyPulseApp> {
   Future<void> _loadTheme() async {
     final prefs = await SharedPreferences.getInstance();
     final isDark = prefs.getBool('dark_mode') ?? false;
+
     setState(() {
       _themeMode = isDark ? ThemeMode.dark : ThemeMode.light;
     });
   }
 
+  /// 🔥 Instant theme apply (no restart needed)
   void toggleTheme(bool isDark) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('dark_mode', isDark);
+
     setState(() {
       _themeMode = isDark ? ThemeMode.dark : ThemeMode.light;
     });
@@ -76,7 +79,7 @@ class _StudyPulseAppState extends State<StudyPulseApp> {
           colorSchemeSeed: Colors.blue,
         ),
 
-        // 🌐 INTERNET GUARD (global – app fully online)
+        // 🌐 INTERNET GUARD (no internet → full screen block)
         home: InternetGuard(
           child: const SplashScreen(),
         ),
@@ -86,7 +89,8 @@ class _StudyPulseAppState extends State<StudyPulseApp> {
 }
 
 ///
-/// Global Theme Controller (unchanged)
+/// 🌙 Global Theme Controller
+/// Allows instant dark/light toggle without restart
 ///
 class ThemeController extends InheritedWidget {
   final void Function(bool) toggleTheme;
