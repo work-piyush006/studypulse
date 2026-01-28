@@ -22,12 +22,16 @@ class _NotificationInboxScreenState
 
   Future<void> _load() async {
     final data = await NotificationStore.getAll();
+
+    // 👁 Inbox opened → mark all as READ
+    await NotificationStore.markAllRead();
+
     setState(() => items = data);
   }
 
   /// 🗑️ Delete single notification
-  Future<void> _delete(int index) async {
-    items.removeAt(index);
+  Future<void> _delete(String time) async {
+    items.removeWhere((n) => n['time'] == time);
     await NotificationStore.replace(items);
     setState(() {});
   }
@@ -115,11 +119,10 @@ class _NotificationInboxScreenState
               ),
             ),
           ),
-          ...group.asMap().entries.map((entry) {
-            final index = items.indexOf(entry.value);
-            final n = entry.value;
+          ...group.map((n) {
+            final timeObj = DateTime.parse(n['time']);
             final time =
-                DateFormat('hh:mm a').format(DateTime.parse(n['time']));
+                DateFormat('hh:mm a').format(timeObj);
 
             return Dismissible(
               key: ValueKey(n['time']),
@@ -130,7 +133,7 @@ class _NotificationInboxScreenState
                 color: Colors.red,
                 child: const Icon(Icons.delete, color: Colors.white),
               ),
-              onDismissed: (_) => _delete(index),
+              onDismissed: (_) => _delete(n['time']),
               child: ListTile(
                 leading: const Icon(Icons.notifications),
                 title: Text(n['title']),
