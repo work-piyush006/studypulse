@@ -12,13 +12,11 @@ class NotificationService {
   static final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
 
-  static late GlobalKey<NavigatorState> _navKey;
   static bool _initialized = false;
 
-  /// 🚀 INIT ONCE
+  /// 🚀 INIT (call once from main.dart)
   static Future<void> init(GlobalKey<NavigatorState> navKey) async {
     if (_initialized) return;
-    _navKey = navKey;
 
     tz.initializeTimeZones();
 
@@ -28,8 +26,8 @@ class NotificationService {
     await _plugin.initialize(
       settings,
       onDidReceiveNotificationResponse: (_) async {
-        // ❌ YAHAN SAVE NAHI
-        // Sirf inbox open
+        // 🔔 Notification TAP hua
+        // Sirf inbox open karo (save yahan nahi)
         const channel = MethodChannel('studypulse/notifications');
         await channel.invokeMethod('openInbox');
       },
@@ -38,7 +36,10 @@ class NotificationService {
     _initialized = true;
   }
 
-  /* ================= IMMEDIATE ================= */
+  /* =========================================================
+     🔥 IMMEDIATE NOTIFICATION
+     → APP ACTIVE → SAVE + SHOW (100% guaranteed)
+  ========================================================= */
 
   static Future<void> showInstant({
     required int daysLeft,
@@ -50,8 +51,11 @@ class NotificationService {
     final title = '📘 Exam Countdown';
     final body = '$daysLeft days left\n$quote';
 
-    // ✅ SAFE SAVE (app active hai)
-    await NotificationStore.save(title: title, body: body);
+    // ✅ GUARANTEED SAVE (app is running)
+    await NotificationStore.save(
+      title: title,
+      body: body,
+    );
 
     await _plugin.show(
       DateTime.now().millisecondsSinceEpoch ~/ 1000,
@@ -68,7 +72,10 @@ class NotificationService {
     );
   }
 
-  /* ================= SCHEDULED ================= */
+  /* =========================================================
+     🕘 SCHEDULED NOTIFICATIONS
+     → SAVE ONLY WHEN USER TAPS (REALISTIC)
+  ========================================================= */
 
   static Future<void> scheduleDaily({
     required DateTime examDate,
@@ -96,11 +103,8 @@ class NotificationService {
     final title = '📚 StudyPulse Reminder';
     final body = '$daysLeft days left\n$quote';
 
-    // ✅ SAVE AT SCHEDULE TIME (guaranteed)
-    await NotificationStore.save(title: title, body: body);
-
     final now = tz.TZDateTime.now(tz.local);
-    var time =
+    tz.TZDateTime time =
         tz.TZDateTime(tz.local, now.year, now.month, now.day, hour, minute);
 
     if (time.isBefore(now)) {
@@ -108,7 +112,7 @@ class NotificationService {
     }
 
     await _plugin.zonedSchedule(
-      hour,
+      hour, // unique ID
       title,
       body,
       time,
@@ -125,16 +129,29 @@ class NotificationService {
           UILocalNotificationDateInterpretation.absoluteTime,
       matchDateTimeComponents: DateTimeComponents.time,
     );
+
+    // ❌ YAHAN SAVE NAHI
+    // Scheduled notification → save only on TAP
   }
 
-  /* ================= CANCEL ================= */
+  /* =========================================================
+     ❌ CANCEL ALL
+  ========================================================= */
 
   static Future<void> cancelAll() async {
     await _plugin.cancelAll();
   }
 
+  /* =========================================================
+     📜 QUOTES
+  ========================================================= */
+
   static Future<List<String>> _loadQuotes() async {
     final raw = await rootBundle.loadString('assets/quotes.txt');
-    return raw.split('\n').where((e) => e.trim().isNotEmpty).toList();
+    return raw
+        .split('\n')
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
   }
 }
