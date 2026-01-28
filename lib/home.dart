@@ -22,9 +22,9 @@ class _HomeState extends State<Home> {
   String dailyQuote = '';
 
   final pages = const [
-    _HomeMain(),
-    AboutScreen(),
-    SettingsScreen(),
+  _HomeMain(),
+  AboutPage(),
+  SettingsPage(),
   ];
 
   @override
