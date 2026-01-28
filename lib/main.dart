@@ -2,9 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'screens/splash.dart';
+import 'services/notification.dart'; // 🔥 ADD
+import 'services/internet.dart';     // 🔥 ADD (next step)
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // 🔔 init notification service ONLY ONCE
+  await NotificationService.init();
+
+  // 🌐 start internet monitoring (global)
+  InternetService.startMonitoring();
+
   runApp(const StudyPulseApp());
 }
 
@@ -32,6 +41,7 @@ class _StudyPulseAppState extends State<StudyPulseApp> {
     });
   }
 
+  /// 🔥 NO CHANGE – already correct
   void toggleTheme(bool isDark) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('dark_mode', isDark);
@@ -48,17 +58,20 @@ class _StudyPulseAppState extends State<StudyPulseApp> {
         title: 'StudyPulse',
         debugShowCheckedModeBanner: false,
         themeMode: _themeMode,
+
         theme: ThemeData(
           useMaterial3: true,
           brightness: Brightness.light,
           colorSchemeSeed: Colors.blue,
           scaffoldBackgroundColor: const Color(0xFFF8FAFC),
         ),
+
         darkTheme: ThemeData(
           useMaterial3: true,
           brightness: Brightness.dark,
           colorSchemeSeed: Colors.blue,
         ),
+
         home: const SplashScreen(),
       ),
     );
@@ -66,7 +79,7 @@ class _StudyPulseAppState extends State<StudyPulseApp> {
 }
 
 ///
-/// Global Theme Controller (clean way)
+/// Global Theme Controller (UNCHANGED – already clean)
 ///
 class ThemeController extends InheritedWidget {
   final void Function(bool) toggleTheme;
