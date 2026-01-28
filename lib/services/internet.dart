@@ -1,78 +1,46 @@
 import 'dart:async';
-import 'package:flutter/material.dart';
 import 'package:internet_connection_checker/internet_connection_checker.dart';
 
-/// 🔥 Global Internet Service
-/// - Detects internet every second
-/// - Shows NO INTERNET screen immediately
-/// - Shows snackbar on SLOW connection
-/// - Works while app is running (not only at launch)
+/// 🌐 Global Internet Service (PRODUCTION SAFE)
 class InternetService {
   static final InternetConnectionChecker _checker =
       InternetConnectionChecker.createInstance(
-    checkInterval: const Duration(seconds: 1),
+    checkInterval: const Duration(seconds: 3),
   );
 
   static StreamSubscription<InternetConnectionStatus>? _subscription;
 
+  /// 🔌 Internet state
   static final ValueNotifier<bool> isConnected =
       ValueNotifier<bool>(true);
 
+  /// 🐢 Slow internet hint (ads / api)
   static final ValueNotifier<bool> isSlow =
       ValueNotifier<bool>(false);
 
-  /// Start monitoring (call in main.dart)
-  static void startMonitoring(BuildContext context) {
+  /// 🚀 Call once in main.dart
+  static void startMonitoring() {
     _subscription?.cancel();
 
-    _subscription = _checker.onStatusChange.listen((status) {
+    _subscription = _checker.onStatusChange.listen((status) async {
       final connected = status == InternetConnectionStatus.connected;
+      isConnected.value = connected;
 
       if (!connected) {
-        isConnected.value = false;
         isSlow.value = false;
         return;
       }
 
-      isConnected.value = true;
-      _checkSpeed(context);
+      // Lightweight slow check
+      final start = DateTime.now();
+      await _checker.hasConnection;
+      final diff = DateTime.now().difference(start).inMilliseconds;
+
+      isSlow.value = diff > 2500; // >2.5s = slow
     });
   }
 
-  /// Stop monitoring (optional)
-  static void stopMonitoring() {
+  static void stop() {
     _subscription?.cancel();
-  }
-
-  /// 🔍 Detect slow internet (ads ke liye important)
-  static Future<void> _checkSpeed(BuildContext context) async {
-    final stopwatch = Stopwatch()..start();
-
-    try {
-      await InternetConnectionChecker().hasConnection;
-      stopwatch.stop();
-
-      // ⚠️ 2.5 sec se zyada = slow
-      if (stopwatch.elapsedMilliseconds > 2500) {
-        isSlow.value = true;
-        _showSnack(context, '⚠️ Slow Internet Connection');
-      } else {
-        isSlow.value = false;
-      }
-    } catch (_) {
-      isSlow.value = true;
-    }
-  }
-
-  /// Snackbar (safe global)
-  static void _showSnack(BuildContext context, String text) {
-    ScaffoldMessenger.of(context).clearSnackBars();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(text),
-        duration: const Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
   }
 }
