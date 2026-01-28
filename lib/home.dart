@@ -1,15 +1,17 @@
-import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'dart:async';
 import 'dart:math';
+
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 import 'tools/percentage.dart';
 import 'tools/cgpa.dart';
 import 'tools/exam.dart';
 import 'screens/about.dart';
 import 'screens/settings.dart';
-import 'services/ads.dart'; // 🔥 ADS
+import 'services/ads.dart';
 
 class Home extends StatefulWidget {
   const Home({super.key});
@@ -67,26 +69,22 @@ class _HomeState extends State<Home> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('StudyPulse'),
-      ),
+      appBar: AppBar(title: const Text('StudyPulse')),
       body: IndexedStack(index: index, children: pages),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: index,
         onTap: (i) => setState(() => index = i),
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.info_outline), label: 'About'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.settings), label: 'Settings'),
+          BottomNavigationBarItem(icon: Icon(Icons.info_outline), label: 'About'),
+          BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Settings'),
         ],
       ),
     );
   }
 }
 
-/* ================= HOME MAIN UI ================= */
+/* ================= HOME MAIN ================= */
 
 class _HomeMain extends StatefulWidget {
   const _HomeMain();
@@ -96,29 +94,67 @@ class _HomeMain extends StatefulWidget {
 }
 
 class _HomeMainState extends State<_HomeMain> {
-  late PageController _adController;
+  final PageController _adController =
+      PageController(viewportFraction: 0.92);
+
   Timer? _autoSlideTimer;
+
+  late List<BannerAd> _topBanners;
+  bool _topAdsLoaded = false;
+
+  BannerAd? _squareBanner;
+  bool _squareLoaded = false;
+
+  static const int _topAdCount = 5; // 🔥 4–5 auto sliding ads
 
   @override
   void initState() {
     super.initState();
-    _adController = PageController(viewportFraction: 0.92);
 
-    // 🔥 Auto slide banner every 4 sec
-    _autoSlideTimer = Timer.periodic(const Duration(seconds: 4), (timer) {
+    /// 🔥 TOP SLIDER ADS
+    _topBanners = List.generate(_topAdCount, (_) {
+      final ad = AdsService.createBannerAd();
+      ad.load();
+      return ad;
+    });
+
+    Future.delayed(const Duration(milliseconds: 800), () {
+      if (mounted) {
+        setState(() => _topAdsLoaded = true);
+      }
+    });
+
+    _autoSlideTimer =
+        Timer.periodic(const Duration(seconds: 4), (timer) {
       if (_adController.hasClients) {
         final next = (_adController.page?.round() ?? 0) + 1;
         _adController.animateToPage(
-          next % 3,
+          next % _topAdCount,
           duration: const Duration(milliseconds: 400),
           curve: Curves.easeInOut,
         );
       }
     });
+
+    /// 🔥 SINGLE SQUARE AD (no empty space)
+    _squareBanner = AdsService.createBannerAd()
+      ..load()
+      ..listener = BannerAdListener(
+        onAdLoaded: (_) {
+          if (mounted) setState(() => _squareLoaded = true);
+        },
+        onAdFailedToLoad: (ad, error) {
+          ad.dispose();
+        },
+      );
   }
 
   @override
   void dispose() {
+    for (final ad in _topBanners) {
+      ad.dispose();
+    }
+    _squareBanner?.dispose();
     _autoSlideTimer?.cancel();
     _adController.dispose();
     super.dispose();
@@ -133,31 +169,26 @@ class _HomeMainState extends State<_HomeMain> {
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        // 🔥 TOP AUTO SLIDING ADS (PhonePe style)
-        SizedBox(
-          height: 60,
-          child: PageView.builder(
-            controller: _adController,
-            itemCount: 3,
-            itemBuilder: (context, index) {
-              final banner = AdsService.createBannerAd()..load();
-              return Padding(
+        /// 🔥 AUTO SLIDING BANNERS (TOP)
+        if (_topAdsLoaded)
+          SizedBox(
+            height: 60,
+            child: PageView.builder(
+              controller: _adController,
+              itemCount: _topAdCount,
+              itemBuilder: (_, i) => Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 6),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
-                  child: Container(
-                    color: Theme.of(context).cardColor,
-                    child: AdWidget(ad: banner),
-                  ),
+                  child: AdWidget(ad: _topBanners[i]),
                 ),
-              );
-            },
+              ),
+            ),
           ),
-        ),
 
         const SizedBox(height: 20),
 
-        // HEADER
+        /// HEADER
         Row(
           children: [
             Image.asset('assets/logo.png', height: 48),
@@ -165,25 +196,31 @@ class _HomeMainState extends State<_HomeMain> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: const [
-                Text(
-                  'StudyPulse',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text(
-                  'Focus • Track • Succeed',
-                  style: TextStyle(fontSize: 13, color: Colors.grey),
-                ),
+                Text('StudyPulse',
+                    style:
+                        TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                Text('Focus • Track • Succeed',
+                    style: TextStyle(fontSize: 13, color: Colors.grey)),
               ],
             ),
           ],
         ),
 
+        const SizedBox(height: 16),
+
+        /// 🔥 SINGLE SQUARE AD (NO EMPTY SPACE)
+        if (_squareLoaded && _squareBanner != null)
+          ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: SizedBox(
+              height: 90,
+              child: AdWidget(ad: _squareBanner!),
+            ),
+          ),
+
         const SizedBox(height: 20),
 
-        // QUOTE
+        /// QUOTE
         Card(
           elevation: 1,
           child: Padding(
@@ -197,7 +234,7 @@ class _HomeMainState extends State<_HomeMain> {
 
         const SizedBox(height: 20),
 
-        // DAYS LEFT
+        /// DAYS LEFT
         if (days > 0)
           Container(
             padding: const EdgeInsets.all(16),
@@ -209,39 +246,30 @@ class _HomeMainState extends State<_HomeMain> {
               children: [
                 Icon(Icons.timer, color: color),
                 const SizedBox(width: 10),
-                Text(
-                  '$days DAYS LEFT',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: color,
-                  ),
-                ),
+                Text('$days DAYS LEFT',
+                    style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: color)),
               ],
             ),
           ),
 
         const SizedBox(height: 30),
 
-        // FEATURES
-        _toolCard(
-          context,
-          title: 'Percentage Calculator',
-          image: 'assets/percentage.png',
-          page: const PercentagePage(),
-        ),
-        _toolCard(
-          context,
-          title: 'CGPA Calculator',
-          image: 'assets/cgpa.png',
-          page: const CGPAPage(),
-        ),
-        _toolCard(
-          context,
-          title: 'Exam Countdown',
-          image: 'assets/exam.png',
-          page: const ExamCountdownPage(),
-        ),
+        /// TOOLS
+        _toolCard(context,
+            title: 'Percentage Calculator',
+            image: 'assets/percentage.png',
+            page: const PercentagePage()),
+        _toolCard(context,
+            title: 'CGPA Calculator',
+            image: 'assets/cgpa.png',
+            page: const CGPAPage()),
+        _toolCard(context,
+            title: 'Exam Countdown',
+            image: 'assets/exam.png',
+            page: const ExamCountdownPage()),
       ],
     );
   }
@@ -265,7 +293,7 @@ class _HomeMainState extends State<_HomeMain> {
           if (homeState != null) {
             homeState._toolOpenCount++;
             if (homeState._toolOpenCount % 3 == 0) {
-              AdsService.showInterstitial(); // 🔥
+              AdsService.showInterstitial();
             }
           }
 
