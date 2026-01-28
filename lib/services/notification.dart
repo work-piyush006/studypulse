@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:math';
 
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -16,8 +15,8 @@ class NotificationService {
 
   static bool _initialized = false;
 
-  /// 🚀 INIT (call once from main.dart)
-  static Future<void> init(GlobalKey<NavigatorState> navKey) async {
+  /// 🚀 INIT
+  static Future<void> init() async {
     if (_initialized) return;
 
     tz.initializeTimeZones();
@@ -33,6 +32,7 @@ class NotificationService {
         try {
           final data = jsonDecode(response.payload!);
 
+          // ✅ SAVE ONLY FOR SCHEDULED (ON TAP)
           await NotificationStore.save(
             title: data['title'],
             body: data['body'],
@@ -40,9 +40,7 @@ class NotificationService {
 
           const channel = MethodChannel('studypulse/notifications');
           await channel.invokeMethod('openInbox');
-        } catch (_) {
-          // ignore corrupt payload safely
-        }
+        } catch (_) {}
       },
     );
 
@@ -51,7 +49,8 @@ class NotificationService {
 
   /* =========================================================
      🔥 IMMEDIATE NOTIFICATION
-     → APP ACTIVE → SAVE + SHOW
+     → SAVE IMMEDIATELY
+     → ❌ NO PAYLOAD (NO DOUBLE SAVE)
   ========================================================= */
 
   static Future<void> showInstant({
@@ -64,22 +63,17 @@ class NotificationService {
     final title = '📘 Exam Countdown';
     final body = '$daysLeft days left\n$quote';
 
-    // save immediately
+    // ✅ SAVE ONCE
     await NotificationStore.save(
       title: title,
       body: body,
     );
 
-    final payload = jsonEncode({
-      'title': title,
-      'body': body,
-    });
-
     await _plugin.show(
       DateTime.now().millisecondsSinceEpoch ~/ 1000,
       title,
       body,
-      NotificationDetails(
+      const NotificationDetails(
         android: AndroidNotificationDetails(
           'exam_now',
           'Exam Alerts',
@@ -87,13 +81,12 @@ class NotificationService {
           priority: Priority.high,
         ),
       ),
-      payload: payload,
     );
   }
 
   /* =========================================================
      🕘 SCHEDULED NOTIFICATIONS
-     → SAVE ONLY WHEN USER TAPS (NOW FIXED ✅)
+     → SAVE ONLY WHEN USER TAPS
   ========================================================= */
 
   static Future<void> scheduleDaily({
@@ -129,8 +122,8 @@ class NotificationService {
     });
 
     final now = tz.TZDateTime.now(tz.local);
-    tz.TZDateTime time =
-        tz.TZDateTime(tz.local, now.year, now.month, now.day, hour, minute);
+    var time = tz.TZDateTime(
+        tz.local, now.year, now.month, now.day, hour, minute);
 
     if (time.isBefore(now)) {
       time = time.add(const Duration(days: 1));
@@ -141,7 +134,7 @@ class NotificationService {
       title,
       body,
       time,
-      NotificationDetails(
+      const NotificationDetails(
         android: AndroidNotificationDetails(
           'exam_daily',
           'Daily Exam Reminders',
@@ -157,17 +150,9 @@ class NotificationService {
     );
   }
 
-  /* =========================================================
-     ❌ CANCEL ALL
-  ========================================================= */
-
   static Future<void> cancelAll() async {
     await _plugin.cancelAll();
   }
-
-  /* =========================================================
-     📜 QUOTES
-  ========================================================= */
 
   static Future<List<String>> _loadQuotes() async {
     final raw = await rootBundle.loadString('assets/quotes.txt');
