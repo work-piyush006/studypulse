@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_app_badger/flutter_app_badger.dart';
 
 class NotificationStore {
   static const _key = 'notifications';
@@ -15,12 +16,14 @@ class NotificationStore {
     final raw = prefs.getString(_key);
 
     if (raw == null) {
-      unreadNotifier.value = 0;
+      _updateUnread([]);
       return [];
     }
 
     final list =
         List<Map<String, dynamic>>.from(jsonDecode(raw));
+
+    _autoDeleteOld(list);
     _updateUnread(list);
     return list;
   }
@@ -43,6 +46,7 @@ class NotificationStore {
     });
 
     await prefs.setString(_key, jsonEncode(list));
+    _autoDeleteOld(list);
     _updateUnread(list);
   }
 
@@ -77,7 +81,7 @@ class NotificationStore {
     }
 
     await prefs.setString(_key, jsonEncode(list));
-    unreadNotifier.value = 0;
+    _updateUnread(list);
   }
 
   /* ================= REPLACE ================= */
@@ -93,13 +97,33 @@ class NotificationStore {
   static Future<void> clear() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_key);
-    unreadNotifier.value = 0;
+    _updateUnread([]);
   }
 
-  /* ================= UNREAD COUNT ================= */
+  /* ================= AUTO DELETE (30 DAYS) ================= */
+
+  static void _autoDeleteOld(List list) {
+    final now = DateTime.now();
+
+    list.removeWhere((n) {
+      final time = DateTime.tryParse(n['time'] ?? '');
+      if (time == null) return false;
+      return now.difference(time).inDays >= 30;
+    });
+  }
+
+  /* ================= BADGE + UNREAD ================= */
 
   static void _updateUnread(List list) {
-    unreadNotifier.value =
+    final unread =
         list.where((n) => n['read'] == false).length;
+
+    unreadNotifier.value = unread;
+
+    if (unread == 0) {
+      FlutterAppBadger.removeBadge();
+    } else {
+      FlutterAppBadger.updateBadgeCount(unread);
+    }
   }
 }
