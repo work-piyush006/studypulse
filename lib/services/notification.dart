@@ -1,22 +1,25 @@
 import 'dart:math';
 import 'package:flutter/services.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
+import '../screens/notification_inbox.dart';
 import 'notification_store.dart';
 
-/// 🔔 GLOBAL NOTIFICATION SERVICE (STABLE)
 class NotificationService {
   static final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
 
   static bool _initialized = false;
+  static late GlobalKey<NavigatorState> _navKey;
 
-  /// 🚀 CALL ONCE IN main()
-  static Future<void> init() async {
+  /// 🚀 INIT ONCE (with navigatorKey)
+  static Future<void> init(GlobalKey<NavigatorState> navKey) async {
     if (_initialized) return;
+    _navKey = navKey;
 
     tz.initializeTimeZones();
 
@@ -25,36 +28,38 @@ class NotificationService {
 
     await _plugin.initialize(
       settings,
-      onDidReceiveNotificationResponse: (response) async {
-        // 🔔 System notification tapped
-        // Navigation handled in main.dart via navigatorKey (next step)
+      onDidReceiveNotificationResponse: (_) async {
+        // 🔔 USER TAPPED NOTIFICATION
         await NotificationStore.markAllRead();
+
+        // ⏩ FORCE OPEN INBOX
+        _navKey.currentState?.push(
+          MaterialPageRoute(
+            builder: (_) => const NotificationInboxScreen(),
+          ),
+        );
       },
     );
 
     _initialized = true;
   }
 
-  /* ============================================================
-     🔥 INSTANT NOTIFICATION (Exam set hote hi)
-  ============================================================ */
+  /* ================= INSTANT ================= */
 
   static Future<void> showInstant({
     required int daysLeft,
     required String quote,
   }) async {
     final prefs = await SharedPreferences.getInstance();
-    final enabled = prefs.getBool('notifications') ?? true;
-    if (!enabled) return;
+    if (!(prefs.getBool('notifications') ?? true)) return;
 
     final title = '📘 Exam Countdown';
     final body = '$daysLeft days left\n$quote';
 
-    // 🔔 Save to inbox (UNREAD)
     await NotificationStore.save(title: title, body: body);
 
     await _plugin.show(
-      DateTime.now().millisecondsSinceEpoch ~/ 1000, // unique id
+      DateTime.now().millisecondsSinceEpoch ~/ 1000,
       title,
       body,
       const NotificationDetails(
@@ -68,22 +73,18 @@ class NotificationService {
     );
   }
 
-  /* ============================================================
-     🕘 DAILY NOTIFICATIONS (9:00 AM & 4:30 PM)
-  ============================================================ */
+  /* ================= DAILY ================= */
 
   static Future<void> scheduleDaily({
     required DateTime examDate,
   }) async {
     final prefs = await SharedPreferences.getInstance();
-    final enabled = prefs.getBool('notifications') ?? true;
-    if (!enabled) return;
+    if (!(prefs.getBool('notifications') ?? true)) return;
 
     await cancelAll();
 
     final quotes = await _loadQuotes();
     final random = Random();
-
     final daysLeft = examDate.difference(DateTime.now()).inDays;
     if (daysLeft < 0) return;
 
@@ -97,16 +98,12 @@ class NotificationService {
 
     await _schedule(
       id: 2,
-      hour: 16,
-      minute: 30,
+      hour: 19, // 🔥 7:00 PM FIXED
+      minute: 0,
       daysLeft: daysLeft,
       quote: quotes[random.nextInt(quotes.length)],
     );
   }
-
-  /* ============================================================
-     ⏰ INTERNAL SCHEDULER
-  ============================================================ */
 
   static Future<void> _schedule({
     required int id,
@@ -116,8 +113,7 @@ class NotificationService {
     required String quote,
   }) async {
     final now = tz.TZDateTime.now(tz.local);
-
-    tz.TZDateTime scheduled =
+    var scheduled =
         tz.TZDateTime(tz.local, now.year, now.month, now.day, hour, minute);
 
     if (scheduled.isBefore(now)) {
@@ -126,6 +122,8 @@ class NotificationService {
 
     final title = '📚 StudyPulse Reminder';
     final body = '$daysLeft days left\n$quote';
+
+    await NotificationStore.save(title: title, body: body);
 
     await _plugin.zonedSchedule(
       id,
@@ -144,21 +142,12 @@ class NotificationService {
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
       matchDateTimeComponents: DateTimeComponents.time,
-      payload: 'daily',
     );
   }
-
-  /* ============================================================
-     ❌ CANCEL
-  ============================================================ */
 
   static Future<void> cancelAll() async {
     await _plugin.cancelAll();
   }
-
-  /* ============================================================
-     📜 QUOTES
-  ============================================================ */
 
   static Future<List<String>> _loadQuotes() async {
     try {
