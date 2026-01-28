@@ -1,0 +1,132 @@
+import 'dart:math';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+
+class ExamCountdownPage extends StatefulWidget {
+  const ExamCountdownPage({super.key});
+
+  @override
+  State<ExamCountdownPage> createState() => _ExamCountdownPageState();
+}
+
+class _ExamCountdownPageState extends State<ExamCountdownPage> {
+  DateTime? examDate;
+  List<String> quotes = [];
+
+  final FlutterLocalNotificationsPlugin notifications =
+      FlutterLocalNotificationsPlugin();
+
+  int get daysLeft =>
+      examDate == null ? 0 : examDate!.difference(DateTime.now()).inDays;
+
+  Color get dayColor {
+    if (daysLeft > 30) return Colors.green;
+    if (daysLeft > 15) return Colors.orange;
+    return Colors.red;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString('exam_date');
+
+    if (saved != null) {
+      examDate = DateTime.parse(saved);
+    }
+
+    final raw = await rootBundle.loadString('assets/quotes.txt');
+    quotes = raw.split('\n').where((e) => e.trim().isNotEmpty).toList();
+
+    setState(() {});
+  }
+
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      firstDate: DateTime.now(),
+      lastDate: DateTime(DateTime.now().year + 5),
+      initialDate: DateTime.now().add(const Duration(days: 30)),
+    );
+
+    if (picked == null) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('exam_date', picked.toIso8601String());
+
+    setState(() => examDate = picked);
+
+    _sendInstantNotification();
+  }
+
+  Future<void> _sendInstantNotification() async {
+    if (quotes.isEmpty) return;
+
+    final quote = quotes[Random().nextInt(quotes.length)];
+
+    await notifications.show(
+      0,
+      '📚 Exam Countdown',
+      '$daysLeft days left\n$quote',
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'exam_channel',
+          'Exam Countdown',
+          importance: Importance.high,
+          priority: Priority.high,
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Exam Countdown')),
+      body: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  children: [
+                    const Text(
+                      'Days Remaining',
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      examDate == null ? '--' : '$daysLeft Days',
+                      style: TextStyle(
+                        fontSize: 36,
+                        fontWeight: FontWeight.bold,
+                        color: dayColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            ElevatedButton.icon(
+              icon: const Icon(Icons.calendar_today),
+              label: const Text('Select Exam Date'),
+              onPressed: _pickDate,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
