@@ -5,7 +5,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 class NotificationStore {
   static const _key = 'notifications';
 
-  /// 🔔 realtime unread counter
   static final ValueNotifier<int> unreadNotifier =
       ValueNotifier<int>(0);
 
@@ -28,7 +27,6 @@ class NotificationStore {
   }) async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_key);
-
     final list = raw == null ? [] : jsonDecode(raw);
 
     list.insert(0, {
