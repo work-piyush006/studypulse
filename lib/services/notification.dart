@@ -1,126 +1,144 @@
-import 'package:flutter/material.dart';
+import 'dart:math';
+import 'package:flutter/services.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../services/notification.dart';
-import '../home.dart';
+import 'package:timezone/data/latest.dart' as tz;
+import 'package:timezone/timezone.dart' as tz;
 
-class PermissionScreen extends StatefulWidget {
-  const PermissionScreen({super.key});
+class NotificationService {
+  static final FlutterLocalNotificationsPlugin _plugin =
+      FlutterLocalNotificationsPlugin();
 
-  @override
-  State<PermissionScreen> createState() => _PermissionScreenState();
-}
+  static bool _initialized = false;
 
-class _PermissionScreenState extends State<PermissionScreen> {
-  bool loading = false;
+  /// 🔔 INIT (call once in main.dart)
+  static Future<void> init() async {
+    if (_initialized) return;
 
-  @override
-  void initState() {
-    super.initState();
-    _autoCheck();
+    tz.initializeTimeZones();
+
+    const android = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const settings = InitializationSettings(android: android);
+
+    await _plugin.initialize(settings);
+    _initialized = true;
   }
 
-  /// 🔹 Auto skip if permission already handled
-  Future<void> _autoCheck() async {
+  /// 🔐 Ask permission ONLY ONCE (Android 13+)
+  static Future<void> requestPermissionOnce() async {
     final prefs = await SharedPreferences.getInstance();
     final asked = prefs.getBool('notif_permission_asked') ?? false;
 
-    if (asked) {
-      _goHome();
-    }
+    if (asked) return;
+
+    final android = _plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+
+    await android?.requestPermission();
+    await prefs.setBool('notif_permission_asked', true);
   }
 
-  /// 🔔 Ask notification permission ONLY ONCE
-  Future<void> _requestPermission() async {
-    setState(() => loading = true);
-
-    await NotificationService.requestPermissionOnce();
-
-    setState(() => loading = false);
-    _goHome();
-  }
-
-  void _goHome() {
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => const Home()),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // 🔔 ICON
-            Container(
-              height: 110,
-              width: 110,
-              decoration: BoxDecoration(
-                color: Colors.blue.withOpacity(0.1),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.notifications_active,
-                size: 60,
-                color: Colors.blue,
-              ),
-            ),
-
-            const SizedBox(height: 30),
-
-            // TITLE
-            const Text(
-              'Enable Notifications',
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-              ),
-              textAlign: TextAlign.center,
-            ),
-
-            const SizedBox(height: 12),
-
-            // DESCRIPTION
-            const Text(
-              'StudyPulse sends you exam reminders and daily motivation '
-              'so you never miss an important day.',
-              style: TextStyle(color: Colors.grey, height: 1.5),
-              textAlign: TextAlign.center,
-            ),
-
-            const SizedBox(height: 40),
-
-            // BUTTON
-            SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: ElevatedButton(
-                onPressed: loading ? null : _requestPermission,
-                child: loading
-                    ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text(
-                        'Allow Notifications',
-                        style: TextStyle(fontSize: 16),
-                      ),
-              ),
-            ),
-
-            const SizedBox(height: 14),
-
-            // SKIP
-            TextButton(
-              onPressed: loading ? null : _goHome,
-              child: const Text(
-                'Skip for now',
-                style: TextStyle(color: Colors.grey),
-              ),
-            ),
-          ],
+  /// ⚡ Immediate notification (exam set)
+  static Future<void> showInstant({
+    required int daysLeft,
+    required String quote,
+  }) async {
+    await _plugin.show(
+      0,
+      '📘 Exam Countdown',
+      '$daysLeft days left\n$quote',
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'exam_now',
+          'Exam Alerts',
+          importance: Importance.high,
+          priority: Priority.high,
         ),
       ),
     );
+  }
+
+  /// ⏰ Daily reminders
+  static Future<void> scheduleDaily({
+    required DateTime examDate,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final enabled = prefs.getBool('notifications') ?? true;
+    if (!enabled) return;
+
+    await cancelAll();
+
+    final quotes = await _loadQuotes();
+    final random = Random();
+    final daysLeft = examDate.difference(DateTime.now()).inDays;
+    if (daysLeft < 0) return;
+
+    await _schedule(
+      id: 1,
+      hour: 9,
+      minute: 0,
+      daysLeft: daysLeft,
+      quote: quotes[random.nextInt(quotes.length)],
+    );
+
+    await _schedule(
+      id: 2,
+      hour: 16,
+      minute: 30,
+      daysLeft: daysLeft,
+      quote: quotes[random.nextInt(quotes.length)],
+    );
+  }
+
+  static Future<void> _schedule({
+    required int id,
+    required int hour,
+    required int minute,
+    required int daysLeft,
+    required String quote,
+  }) async {
+    final now = tz.TZDateTime.now(tz.local);
+    tz.TZDateTime scheduled =
+        tz.TZDateTime(tz.local, now.year, now.month, now.day, hour, minute);
+
+    if (scheduled.isBefore(now)) {
+      scheduled = scheduled.add(const Duration(days: 1));
+    }
+
+    await _plugin.zonedSchedule(
+      id,
+      '📚 StudyPulse Reminder',
+      '$daysLeft days left\n$quote',
+      scheduled,
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'exam_daily',
+          'Daily Exam Reminders',
+          importance: Importance.high,
+          priority: Priority.high,
+        ),
+      ),
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
+      matchDateTimeComponents: DateTimeComponents.time,
+    );
+  }
+
+  static Future<void> cancelAll() async {
+    await _plugin.cancelAll();
+  }
+
+  static Future<List<String>> _loadQuotes() async {
+    try {
+      final raw = await rootBundle.loadString('assets/quotes.txt');
+      return raw
+          .split('\n')
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty)
+          .toList();
+    } catch (_) {
+      return ['Stay focused. Success is near.'];
+    }
   }
 }
