@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -27,6 +28,8 @@ class _HomeState extends State<Home> {
   DateTime? examDate;
   String dailyQuote = '';
 
+  int unreadCount = 0;
+
   final pages = const [
     _HomeMain(),
     AboutPage(),
@@ -38,6 +41,36 @@ class _HomeState extends State<Home> {
     super.initState();
     _loadExamDate();
     _loadDailyQuote();
+    _loadUnreadCount();
+  }
+
+  Future<void> _loadUnreadCount() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString('notifications');
+
+    if (raw == null) {
+      setState(() => unreadCount = 0);
+      return;
+    }
+
+    final List list = jsonDecode(raw);
+    final unread = list.where((n) => n['read'] == false).length;
+
+    setState(() => unreadCount = unread);
+  }
+
+  Future<void> _markAllRead() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString('notifications');
+    if (raw == null) return;
+
+    final List list = jsonDecode(raw);
+    for (final n in list) {
+      n['read'] = true;
+    }
+
+    await prefs.setString('notifications', jsonEncode(list));
+    setState(() => unreadCount = 0);
   }
 
   Future<void> _loadExamDate() async {
@@ -69,7 +102,48 @@ class _HomeState extends State<Home> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('StudyPulse')),
+      appBar: AppBar(
+        title: const Text('StudyPulse'),
+        actions: [
+          Stack(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.notifications_none_rounded),
+                onPressed: () async {
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const NotificationInbox(),
+                    ),
+                  );
+                  _markAllRead();
+                },
+              ),
+
+              if (unreadCount > 0)
+                Positioned(
+                  right: 10,
+                  top: 10,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(
+                      color: Colors.red,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Text(
+                      unreadCount.toString(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
       body: IndexedStack(index: index, children: pages),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: index,
@@ -102,16 +176,12 @@ class _HomeMainState extends State<_HomeMain> {
   late List<BannerAd> _topBanners;
   bool _topAdsLoaded = false;
 
-  BannerAd? _squareBanner;
-  bool _squareLoaded = false;
-
-  static const int _topAdCount = 5; // 🔥 4–5 auto sliding ads
+  static const int _topAdCount = 5;
 
   @override
   void initState() {
     super.initState();
 
-    /// 🔥 TOP SLIDER ADS
     _topBanners = List.generate(_topAdCount, (_) {
       final ad = AdsService.createBannerAd();
       ad.load();
@@ -119,9 +189,7 @@ class _HomeMainState extends State<_HomeMain> {
     });
 
     Future.delayed(const Duration(milliseconds: 800), () {
-      if (mounted) {
-        setState(() => _topAdsLoaded = true);
-      }
+      if (mounted) setState(() => _topAdsLoaded = true);
     });
 
     _autoSlideTimer =
@@ -135,18 +203,6 @@ class _HomeMainState extends State<_HomeMain> {
         );
       }
     });
-
-    /// 🔥 SINGLE SQUARE AD (no empty space)
-    _squareBanner = AdsService.createBannerAd()
-      ..load()
-      ..listener = BannerAdListener(
-        onAdLoaded: (_) {
-          if (mounted) setState(() => _squareLoaded = true);
-        },
-        onAdFailedToLoad: (ad, error) {
-          ad.dispose();
-        },
-      );
   }
 
   @override
@@ -154,7 +210,6 @@ class _HomeMainState extends State<_HomeMain> {
     for (final ad in _topBanners) {
       ad.dispose();
     }
-    _squareBanner?.dispose();
     _autoSlideTimer?.cancel();
     _adController.dispose();
     super.dispose();
@@ -169,7 +224,6 @@ class _HomeMainState extends State<_HomeMain> {
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        /// 🔥 AUTO SLIDING BANNERS (TOP)
         if (_topAdsLoaded)
           SizedBox(
             height: 60,
@@ -188,14 +242,13 @@ class _HomeMainState extends State<_HomeMain> {
 
         const SizedBox(height: 20),
 
-        /// HEADER
         Row(
           children: [
             Image.asset('assets/logo.png', height: 48),
             const SizedBox(width: 12),
-            Column(
+            const Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
+              children: [
                 Text('StudyPulse',
                     style:
                         TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
@@ -206,35 +259,8 @@ class _HomeMainState extends State<_HomeMain> {
           ],
         ),
 
-        const SizedBox(height: 16),
-
-        /// 🔥 SINGLE SQUARE AD (NO EMPTY SPACE)
-        if (_squareLoaded && _squareBanner != null)
-          ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: SizedBox(
-              height: 90,
-              child: AdWidget(ad: _squareBanner!),
-            ),
-          ),
-
         const SizedBox(height: 20),
 
-        /// QUOTE
-        Card(
-          elevation: 1,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Text(
-              homeState?.dailyQuote ?? '',
-              style: const TextStyle(fontStyle: FontStyle.italic),
-            ),
-          ),
-        ),
-
-        const SizedBox(height: 20),
-
-        /// DAYS LEFT
         if (days > 0)
           Container(
             padding: const EdgeInsets.all(16),
@@ -254,52 +280,46 @@ class _HomeMainState extends State<_HomeMain> {
               ],
             ),
           ),
-
-        const SizedBox(height: 30),
-
-        /// TOOLS
-        _toolCard(context,
-            title: 'Percentage Calculator',
-            image: 'assets/percentage.png',
-            page: const PercentagePage()),
-        _toolCard(context,
-            title: 'CGPA Calculator',
-            image: 'assets/cgpa.png',
-            page: const CGPAPage()),
-        _toolCard(context,
-            title: 'Exam Countdown',
-            image: 'assets/exam.png',
-            page: const ExamCountdownPage()),
       ],
     );
   }
+}
 
-  Widget _toolCard(
-    BuildContext context, {
-    required String title,
-    required String image,
-    required Widget page,
-  }) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      child: ListTile(
-        leading: Image.asset(image, width: 40),
-        title: Text(title),
-        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-        onTap: () {
-          final homeState =
-              context.findAncestorStateOfType<_HomeState>();
+/* ================= NOTIFICATION INBOX ================= */
 
-          if (homeState != null) {
-            homeState._toolOpenCount++;
-            if (homeState._toolOpenCount % 3 == 0) {
-              AdsService.showInterstitial();
-            }
+class NotificationInbox extends StatelessWidget {
+  const NotificationInbox({super.key});
+
+  Future<List<Map<String, dynamic>>> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString('notifications');
+    if (raw == null) return [];
+    return List<Map<String, dynamic>>.from(jsonDecode(raw));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Notifications')),
+      body: FutureBuilder(
+        future: _load(),
+        builder: (_, snap) {
+          if (!snap.hasData || (snap.data as List).isEmpty) {
+            return const Center(child: Text('No notifications yet'));
           }
 
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => page),
+          final list = snap.data as List<Map<String, dynamic>>;
+
+          return ListView.builder(
+            itemCount: list.length,
+            itemBuilder: (_, i) {
+              final n = list[i];
+              return ListTile(
+                leading: const Icon(Icons.notifications),
+                title: Text(n['title']),
+                subtitle: Text(n['body']),
+              );
+            },
           );
         },
       ),
