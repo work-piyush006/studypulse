@@ -1,6 +1,8 @@
+import 'dart:convert';
 import 'dart:math';
-import 'package:flutter/services.dart';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest.dart' as tz;
@@ -25,11 +27,22 @@ class NotificationService {
 
     await _plugin.initialize(
       settings,
-      onDidReceiveNotificationResponse: (_) async {
-        // 🔔 Notification TAP hua
-        // Sirf inbox open karo (save yahan nahi)
-        const channel = MethodChannel('studypulse/notifications');
-        await channel.invokeMethod('openInbox');
+      onDidReceiveNotificationResponse: (response) async {
+        if (response.payload == null) return;
+
+        try {
+          final data = jsonDecode(response.payload!);
+
+          await NotificationStore.save(
+            title: data['title'],
+            body: data['body'],
+          );
+
+          const channel = MethodChannel('studypulse/notifications');
+          await channel.invokeMethod('openInbox');
+        } catch (_) {
+          // ignore corrupt payload safely
+        }
       },
     );
 
@@ -38,7 +51,7 @@ class NotificationService {
 
   /* =========================================================
      🔥 IMMEDIATE NOTIFICATION
-     → APP ACTIVE → SAVE + SHOW (100% guaranteed)
+     → APP ACTIVE → SAVE + SHOW
   ========================================================= */
 
   static Future<void> showInstant({
@@ -51,17 +64,22 @@ class NotificationService {
     final title = '📘 Exam Countdown';
     final body = '$daysLeft days left\n$quote';
 
-    // ✅ GUARANTEED SAVE (app is running)
+    // save immediately
     await NotificationStore.save(
       title: title,
       body: body,
     );
 
+    final payload = jsonEncode({
+      'title': title,
+      'body': body,
+    });
+
     await _plugin.show(
       DateTime.now().millisecondsSinceEpoch ~/ 1000,
       title,
       body,
-      const NotificationDetails(
+      NotificationDetails(
         android: AndroidNotificationDetails(
           'exam_now',
           'Exam Alerts',
@@ -69,12 +87,13 @@ class NotificationService {
           priority: Priority.high,
         ),
       ),
+      payload: payload,
     );
   }
 
   /* =========================================================
      🕘 SCHEDULED NOTIFICATIONS
-     → SAVE ONLY WHEN USER TAPS (REALISTIC)
+     → SAVE ONLY WHEN USER TAPS (NOW FIXED ✅)
   ========================================================= */
 
   static Future<void> scheduleDaily({
@@ -85,13 +104,14 @@ class NotificationService {
 
     await cancelAll();
 
-    await _schedule(hour: 9, minute: 0, examDate: examDate);
-    await _schedule(hour: 19, minute: 0, examDate: examDate);
+    await _schedule(hour: 9, minute: 0, examDate: examDate, id: 9);
+    await _schedule(hour: 19, minute: 0, examDate: examDate, id: 19);
   }
 
   static Future<void> _schedule({
     required int hour,
     required int minute,
+    required int id,
     required DateTime examDate,
   }) async {
     final daysLeft = examDate.difference(DateTime.now()).inDays;
@@ -103,6 +123,11 @@ class NotificationService {
     final title = '📚 StudyPulse Reminder';
     final body = '$daysLeft days left\n$quote';
 
+    final payload = jsonEncode({
+      'title': title,
+      'body': body,
+    });
+
     final now = tz.TZDateTime.now(tz.local);
     tz.TZDateTime time =
         tz.TZDateTime(tz.local, now.year, now.month, now.day, hour, minute);
@@ -112,11 +137,11 @@ class NotificationService {
     }
 
     await _plugin.zonedSchedule(
-      hour, // unique ID
+      id,
       title,
       body,
       time,
-      const NotificationDetails(
+      NotificationDetails(
         android: AndroidNotificationDetails(
           'exam_daily',
           'Daily Exam Reminders',
@@ -124,14 +149,12 @@ class NotificationService {
           priority: Priority.high,
         ),
       ),
+      payload: payload,
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
       matchDateTimeComponents: DateTimeComponents.time,
     );
-
-    // ❌ YAHAN SAVE NAHI
-    // Scheduled notification → save only on TAP
   }
 
   /* =========================================================
