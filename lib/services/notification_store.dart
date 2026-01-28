@@ -8,18 +8,24 @@ class NotificationStore {
   static final ValueNotifier<int> unreadNotifier =
       ValueNotifier<int>(0);
 
+  /* ================= GET ALL ================= */
+
   static Future<List<Map<String, dynamic>>> getAll() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_key);
+
     if (raw == null) {
       unreadNotifier.value = 0;
       return [];
     }
 
-    final list = List<Map<String, dynamic>>.from(jsonDecode(raw));
+    final list =
+        List<Map<String, dynamic>>.from(jsonDecode(raw));
     _updateUnread(list);
     return list;
   }
+
+  /* ================= SAVE ================= */
 
   static Future<void> save({
     required String title,
@@ -40,6 +46,26 @@ class NotificationStore {
     _updateUnread(list);
   }
 
+  /* ================= DELETE ONE ================= */
+
+  static Future<void> deleteAt(int index) async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_key);
+    if (raw == null) return;
+
+    final list =
+        List<Map<String, dynamic>>.from(jsonDecode(raw));
+
+    if (index < 0 || index >= list.length) return;
+
+    list.removeAt(index);
+
+    await prefs.setString(_key, jsonEncode(list));
+    _updateUnread(list);
+  }
+
+  /* ================= MARK ALL READ ================= */
+
   static Future<void> markAllRead() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_key);
@@ -54,17 +80,23 @@ class NotificationStore {
     unreadNotifier.value = 0;
   }
 
+  /* ================= REPLACE ================= */
+
   static Future<void> replace(List<Map<String, dynamic>> list) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_key, jsonEncode(list));
     _updateUnread(list);
   }
 
+  /* ================= CLEAR ALL ================= */
+
   static Future<void> clear() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_key);
     unreadNotifier.value = 0;
   }
+
+  /* ================= UNREAD COUNT ================= */
 
   static void _updateUnread(List list) {
     unreadNotifier.value =
