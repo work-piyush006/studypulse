@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import '../services/notification_store.dart';
 
 class NotificationInboxScreen extends StatefulWidget {
@@ -21,21 +20,31 @@ class _NotificationInboxScreenState
   }
 
   Future<void> _load() async {
+    final data = await NotificationStore.getAll();
+
     // 👁 Inbox opened → mark all as READ
     await NotificationStore.markAllRead();
 
-    // 🔄 Reload fresh data
-    final data = await NotificationStore.getAll();
     setState(() => items = data);
   }
 
-  /// 🗑️ Delete single notification (swipe left)
-  Future<void> _delete(String time, String title) async {
-    items.removeWhere(
-      (n) => n['time'] == time && n['title'] == title,
-    );
+  /// 🗑️ Delete single notification
+  Future<void> _delete(String time) async {
+    items.removeWhere((n) => n['time'] == time);
     await NotificationStore.replace(items);
     setState(() {});
+  }
+
+  /// ⏰ Manual time formatter (NO intl)
+  String _formatTime(DateTime t) {
+    int hour = t.hour;
+    final minute = t.minute.toString().padLeft(2, '0');
+    final suffix = hour >= 12 ? 'PM' : 'AM';
+
+    hour = hour % 12;
+    if (hour == 0) hour = 12;
+
+    return '$hour:$minute $suffix';
   }
 
   /// 📅 Date helpers
@@ -123,11 +132,10 @@ class _NotificationInboxScreenState
           ),
           ...group.map((n) {
             final timeObj = DateTime.parse(n['time']);
-            final time =
-                DateFormat('hh:mm a').format(timeObj);
+            final time = _formatTime(timeObj);
 
             return Dismissible(
-              key: ValueKey(n['time'] + n['title']), // 🔥 SAFE KEY
+              key: ValueKey(n['time']),
               direction: DismissDirection.endToStart,
               background: Container(
                 alignment: Alignment.centerRight,
@@ -135,8 +143,7 @@ class _NotificationInboxScreenState
                 color: Colors.red,
                 child: const Icon(Icons.delete, color: Colors.white),
               ),
-              onDismissed: (_) =>
-                  _delete(n['time'], n['title']),
+              onDismissed: (_) => _delete(n['time']),
               child: ListTile(
                 leading: const Icon(Icons.notifications),
                 title: Text(n['title']),
@@ -144,9 +151,7 @@ class _NotificationInboxScreenState
                 trailing: Text(
                   time,
                   style: const TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey,
-                  ),
+                      fontSize: 12, color: Colors.grey),
                 ),
               ),
             );
