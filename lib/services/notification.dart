@@ -16,7 +16,7 @@ class NotificationService {
   static late GlobalKey<NavigatorState> _navKey;
   static bool _initialized = false;
 
-  /// 🚀 INIT (call once from main.dart)
+  /// 🚀 INIT (ONLY ONCE)
   static Future<void> init(GlobalKey<NavigatorState> navKey) async {
     if (_initialized) return;
     _navKey = navKey;
@@ -29,11 +29,26 @@ class NotificationService {
     await _plugin.initialize(
       settings,
       onDidReceiveNotificationResponse: (res) async {
-        // 🔔 User tapped notification → open inbox
-        _navKey.currentState?.push(
+        final payload = res.payload;
+
+        // ✅ SAVE SCHEDULED NOTIFICATION WHEN IT FIRES
+        if (payload != null) {
+          final parts = payload.split('|');
+          await NotificationStore.save(
+            title: parts[0],
+            body: parts[1],
+          );
+
+          // 🔥 FLAG → OPEN INBOX AFTER SPLASH
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setBool('open_inbox', true);
+        }
+
+        _navKey.currentState?.pushAndRemoveUntil(
           MaterialPageRoute(
             builder: (_) => const NotificationInboxScreen(),
           ),
+          (_) => false,
         );
       },
     );
@@ -41,10 +56,7 @@ class NotificationService {
     _initialized = true;
   }
 
-  /* ============================================================
-     🔥 IMMEDIATE NOTIFICATION
-     → SHOW + SAVE instantly
-  ============================================================ */
+  /* ================= IMMEDIATE ================= */
 
   static Future<void> showInstant({
     required int daysLeft,
@@ -56,7 +68,7 @@ class NotificationService {
     final title = '📘 Exam Countdown';
     final body = '$daysLeft days left\n$quote';
 
-    // ✅ SAVE IMMEDIATELY TO INBOX
+    // ✅ SAVE IMMEDIATELY
     await NotificationStore.save(title: title, body: body);
 
     await _plugin.show(
@@ -74,10 +86,7 @@ class NotificationService {
     );
   }
 
-  /* ============================================================
-     🕘 DAILY SCHEDULED NOTIFICATIONS
-     → SAVE ONLY WHEN THEY FIRE
-  ============================================================ */
+  /* ================= SCHEDULED ================= */
 
   static Future<void> scheduleDaily({
     required DateTime examDate,
@@ -85,10 +94,10 @@ class NotificationService {
     final prefs = await SharedPreferences.getInstance();
     if (!(prefs.getBool('notifications') ?? true)) return;
 
-    await cancelAll(); // avoid duplicates
+    await cancelAll();
 
     await _schedule(hour: 9, minute: 0, examDate: examDate);
-    await _schedule(hour: 19, minute: 0, examDate: examDate); // 7:00 PM
+    await _schedule(hour: 19, minute: 0, examDate: examDate);
   }
 
   static Future<void> _schedule({
@@ -106,7 +115,7 @@ class NotificationService {
     final body = '$daysLeft days left\n$quote';
 
     final now = tz.TZDateTime.now(tz.local);
-    tz.TZDateTime time =
+    var time =
         tz.TZDateTime(tz.local, now.year, now.month, now.day, hour, minute);
 
     if (time.isBefore(now)) {
@@ -114,7 +123,7 @@ class NotificationService {
     }
 
     await _plugin.zonedSchedule(
-      hour, // unique per schedule
+      hour,
       title,
       body,
       time,
@@ -126,41 +135,24 @@ class NotificationService {
           priority: Priority.high,
         ),
       ),
-      payload: '$title|$body', // payload only for info
+      payload: '$title|$body',
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
       matchDateTimeComponents: DateTimeComponents.time,
     );
-
-    // ⚠️ IMPORTANT:
-    // Scheduled notification inbox save will happen
-    // ONLY when it fires (handled by showInstant logic style)
-    await NotificationStore.save(title: title, body: body);
   }
 
-  /* ============================================================
-     ❌ CANCEL ALL (Settings toggle fix)
-  ============================================================ */
+  /* ================= CANCEL ================= */
 
   static Future<void> cancelAll() async {
     await _plugin.cancelAll();
   }
 
-  /* ============================================================
-     📜 LOAD QUOTES
-  ============================================================ */
+  /* ================= QUOTES ================= */
 
   static Future<List<String>> _loadQuotes() async {
-    try {
-      final raw = await rootBundle.loadString('assets/quotes.txt');
-      return raw
-          .split('\n')
-          .map((e) => e.trim())
-          .where((e) => e.isNotEmpty)
-          .toList();
-    } catch (_) {
-      return ['Stay focused. Success is near.'];
-    }
+    final raw = await rootBundle.loadString('assets/quotes.txt');
+    return raw.split('\n').where((e) => e.trim().isNotEmpty).toList();
   }
 }
