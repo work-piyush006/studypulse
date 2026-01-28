@@ -21,17 +21,19 @@ class _NotificationInboxScreenState
   }
 
   Future<void> _load() async {
-    final data = await NotificationStore.getAll();
-
     // 👁 Inbox opened → mark all as READ
     await NotificationStore.markAllRead();
 
+    // 🔄 Reload fresh data
+    final data = await NotificationStore.getAll();
     setState(() => items = data);
   }
 
-  /// 🗑️ Delete single notification
-  Future<void> _delete(String time) async {
-    items.removeWhere((n) => n['time'] == time);
+  /// 🗑️ Delete single notification (swipe left)
+  Future<void> _delete(String time, String title) async {
+    items.removeWhere(
+      (n) => n['time'] == time && n['title'] == title,
+    );
     await NotificationStore.replace(items);
     setState(() {});
   }
@@ -80,8 +82,8 @@ class _NotificationInboxScreenState
       ),
       body: ListView(
         children: [
-          _buildGroup('Today', (d) => _isToday(d)),
-          _buildGroup('Yesterday', (d) => _isYesterday(d)),
+          _buildGroup('Today', _isToday),
+          _buildGroup('Yesterday', _isYesterday),
           _buildGroup(
             'Earlier',
             (d) => !_isToday(d) && !_isYesterday(d),
@@ -125,7 +127,7 @@ class _NotificationInboxScreenState
                 DateFormat('hh:mm a').format(timeObj);
 
             return Dismissible(
-              key: ValueKey(n['time']),
+              key: ValueKey(n['time'] + n['title']), // 🔥 SAFE KEY
               direction: DismissDirection.endToStart,
               background: Container(
                 alignment: Alignment.centerRight,
@@ -133,7 +135,8 @@ class _NotificationInboxScreenState
                 color: Colors.red,
                 child: const Icon(Icons.delete, color: Colors.white),
               ),
-              onDismissed: (_) => _delete(n['time']),
+              onDismissed: (_) =>
+                  _delete(n['time'], n['title']),
               child: ListTile(
                 leading: const Icon(Icons.notifications),
                 title: Text(n['title']),
@@ -141,7 +144,9 @@ class _NotificationInboxScreenState
                 trailing: Text(
                   time,
                   style: const TextStyle(
-                      fontSize: 12, color: Colors.grey),
+                    fontSize: 12,
+                    color: Colors.grey,
+                  ),
                 ),
               ),
             );
