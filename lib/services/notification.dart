@@ -11,7 +11,7 @@ class NotificationService {
 
   static bool _initialized = false;
 
-  /// 🔔 INIT (call once in main.dart)
+  /// Call ONCE in main()
   static Future<void> init() async {
     if (_initialized) return;
 
@@ -24,21 +24,7 @@ class NotificationService {
     _initialized = true;
   }
 
-  /// 🔐 Ask permission ONLY ONCE (Android 13+)
-  static Future<void> requestPermissionOnce() async {
-    final prefs = await SharedPreferences.getInstance();
-    final asked = prefs.getBool('notif_permission_asked') ?? false;
-
-    if (asked) return;
-
-    final android = _plugin.resolvePlatformSpecificImplementation<
-        AndroidFlutterLocalNotificationsPlugin>();
-
-    await android?.requestPermission();
-    await prefs.setBool('notif_permission_asked', true);
-  }
-
-  /// ⚡ Immediate notification (exam set)
+  /// 🔥 Instant notification (exam set hote hi)
   static Future<void> showInstant({
     required int daysLeft,
     required String quote,
@@ -58,7 +44,7 @@ class NotificationService {
     );
   }
 
-  /// ⏰ Daily reminders
+  /// 🕘 Daily notifications (9:00 AM & 4:30 PM)
   static Future<void> scheduleDaily({
     required DateTime examDate,
   }) async {
@@ -98,6 +84,7 @@ class NotificationService {
     required String quote,
   }) async {
     final now = tz.TZDateTime.now(tz.local);
+
     tz.TZDateTime scheduled =
         tz.TZDateTime(tz.local, now.year, now.month, now.day, hour, minute);
 
