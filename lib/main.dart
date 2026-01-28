@@ -15,7 +15,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await AdsService.initialize();
-  await NotificationService.init(navigatorKey);
+  await NotificationService.init();
   InternetService.startMonitoring();
 
   runApp(const StudyPulseApp());
