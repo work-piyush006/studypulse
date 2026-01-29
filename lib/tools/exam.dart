@@ -2,8 +2,11 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 import '../services/notification.dart';
+import '../services/ads.dart';
+import '../services/ad_click_tracker.dart';
 
 class ExamCountdownPage extends StatefulWidget {
   const ExamCountdownPage({super.key});
@@ -15,6 +18,9 @@ class ExamCountdownPage extends StatefulWidget {
 class _ExamCountdownPageState extends State<ExamCountdownPage> {
   DateTime? examDate;
   List<String> quotes = [];
+
+  late final BannerAd _bannerAd;
+  bool _bannerLoaded = false;
 
   int get daysLeft =>
       examDate == null ? 0 : examDate!.difference(DateTime.now()).inDays;
@@ -29,6 +35,17 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
   void initState() {
     super.initState();
     _loadData();
+
+    /// 🔥 TOOL BOTTOM BANNER
+    _bannerAd = AdsService.createBanner()
+      ..listener = BannerAdListener(
+        onAdLoaded: (_) {
+          setState(() => _bannerLoaded = true);
+        },
+        onAdFailedToLoad: (ad, error) {
+          ad.dispose();
+        },
+      );
   }
 
   /* ================= LOAD DATA ================= */
@@ -54,6 +71,8 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
   /* ================= DATE PICKER ================= */
 
   Future<void> _pickDate() async {
+    AdClickTracker.registerClick(); // 🔔 TOOL USE COUNT
+
     final picked = await showDatePicker(
       context: context,
       firstDate: DateTime.now(),
@@ -78,7 +97,7 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
     await prefs.setString('exam_date', picked.toIso8601String());
     setState(() => examDate = picked);
 
-    // 🔥 REAL FIX: DAYS LEFT COMPARISON
+    // 🔥 SAME LOGIC (UNCHANGED)
     final shouldNotify =
         oldDaysLeft == null || oldDaysLeft != newDaysLeft;
 
@@ -103,47 +122,74 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
     );
   }
 
+  @override
+  void dispose() {
+    _bannerAd.dispose();
+    super.dispose();
+  }
+
   /* ================= UI ================= */
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Exam Countdown')),
-      body: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  children: [
-                    const Text(
-                      'Days Remaining',
-                      style: TextStyle(color: Colors.grey),
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      examDate == null ? '--' : '$daysLeft Days',
-                      style: TextStyle(
-                        fontSize: 36,
-                        fontWeight: FontWeight.bold,
-                        color: dayColor,
+      body: Column(
+        children: [
+          /// ================= CONTENT =================
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        children: [
+                          const Text(
+                            'Days Remaining',
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            examDate == null
+                                ? '--'
+                                : '$daysLeft Days',
+                            style: TextStyle(
+                              fontSize: 36,
+                              fontWeight: FontWeight.bold,
+                              color: dayColor,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ],
-                ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.calendar_today),
+                    label: const Text('Select Exam Date'),
+                    onPressed: _pickDate,
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 20),
-            ElevatedButton.icon(
-              icon: const Icon(Icons.calendar_today),
-              label: const Text('Select Exam Date'),
-              onPressed: _pickDate,
+          ),
+
+          /// ================= BOTTOM BANNER =================
+          if (_bannerLoaded)
+            SafeArea(
+              child: SizedBox(
+                height: _bannerAd.size.height.toDouble(),
+                width: _bannerAd.size.width.toDouble(),
+                child: AdWidget(ad: _bannerAd),
+              ),
             ),
-          ],
-        ),
+        ],
       ),
     );
   }
