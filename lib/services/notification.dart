@@ -15,6 +15,20 @@ class NotificationService {
 
   static bool _initialized = false;
 
+  static const _instantChannel = AndroidNotificationChannel(
+    'exam_now',
+    'Exam Alerts',
+    description: 'Instant exam countdown alerts',
+    importance: Importance.high,
+  );
+
+  static const _dailyChannel = AndroidNotificationChannel(
+    'exam_daily',
+    'Daily Exam Reminders',
+    description: 'Daily study reminders',
+    importance: Importance.high,
+  );
+
   /* ================= INIT ================= */
 
   static Future<void> init() async {
@@ -33,33 +47,28 @@ class NotificationService {
         try {
           final data = jsonDecode(response.payload!);
 
-          // ✅ SAVE ONLY WHEN USER TAPS
           await NotificationStore.save(
             title: data['title'],
             body: data['body'],
           );
 
-          // ✅ SINGLE SOURCE OF TRUTH FOR ROUTING
           final prefs = await SharedPreferences.getInstance();
           await prefs.setBool('open_inbox', true);
-
-          // ❌ NO METHOD CHANNEL
-          // ❌ NO NATIVE ROUTING
-          // Flutter splash will handle navigation
-
-        } catch (_) {
-          // fail silently
-        }
+        } catch (_) {}
       },
     );
+
+    final androidPlugin =
+        _plugin.resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
+
+    await androidPlugin?.createNotificationChannel(_instantChannel);
+    await androidPlugin?.createNotificationChannel(_dailyChannel);
 
     _initialized = true;
   }
 
-  /* =========================================================
-     🔔 INSTANT NOTIFICATION
-     → SAVE IMMEDIATELY (BY DESIGN)
-  ========================================================= */
+  /* ================= INSTANT ================= */
 
   static Future<void> showInstant({
     required int daysLeft,
@@ -71,20 +80,17 @@ class NotificationService {
     final title = '📘 Exam Countdown';
     final body = '$daysLeft days left\n$quote';
 
-    // ✅ SAVE ONCE (IMMEDIATE NOTIFICATION)
-    await NotificationStore.save(
-      title: title,
-      body: body,
-    );
+    await NotificationStore.save(title: title, body: body);
 
     await _plugin.show(
       DateTime.now().millisecondsSinceEpoch ~/ 1000,
       title,
       body,
-      const NotificationDetails(
+      NotificationDetails(
         android: AndroidNotificationDetails(
-          'exam_now',
-          'Exam Alerts',
+          _instantChannel.id,
+          _instantChannel.name,
+          channelDescription: _instantChannel.description,
           importance: Importance.high,
           priority: Priority.high,
         ),
@@ -92,10 +98,7 @@ class NotificationService {
     );
   }
 
-  /* =========================================================
-     ⏰ DAILY SCHEDULED NOTIFICATIONS
-     → SAVE ONLY ON TAP
-  ========================================================= */
+  /* ================= DAILY ================= */
 
   static Future<void> scheduleDaily({
     required DateTime examDate,
@@ -105,8 +108,8 @@ class NotificationService {
 
     await cancelAll();
 
-    await _schedule(hour: 9, minute: 0, examDate: examDate, id: 9);
-    await _schedule(hour: 19, minute: 0, examDate: examDate, id: 19);
+    await _schedule(hour: 9, minute: 0, id: 9, examDate: examDate);
+    await _schedule(hour: 19, minute: 0, id: 19, examDate: examDate);
   }
 
   static Future<void> _schedule({
@@ -126,10 +129,7 @@ class NotificationService {
     final title = '📚 StudyPulse Reminder';
     final body = '$daysLeft days left\n$quote';
 
-    final payload = jsonEncode({
-      'title': title,
-      'body': body,
-    });
+    final payload = jsonEncode({'title': title, 'body': body});
 
     final now = tz.TZDateTime.now(tz.local);
     var time = tz.TZDateTime(
@@ -150,10 +150,11 @@ class NotificationService {
       title,
       body,
       time,
-      const NotificationDetails(
+      NotificationDetails(
         android: AndroidNotificationDetails(
-          'exam_daily',
-          'Daily Exam Reminders',
+          _dailyChannel.id,
+          _dailyChannel.name,
+          channelDescription: _dailyChannel.description,
           importance: Importance.high,
           priority: Priority.high,
         ),
@@ -165,8 +166,6 @@ class NotificationService {
       matchDateTimeComponents: DateTimeComponents.time,
     );
   }
-
-  /* ================= UTIL ================= */
 
   static Future<void> cancelAll() async {
     await _plugin.cancelAll();
