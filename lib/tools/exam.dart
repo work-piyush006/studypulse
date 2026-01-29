@@ -27,7 +27,7 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
     super.initState();
     _loadData();
 
-    /// 🔔 Bottom banner
+    /// 🔔 Static bottom banner (safe)
     _bannerAd = BannerAd(
       adUnitId: AdsService.bannerId,
       size: AdSize.mediumRectangle,
@@ -41,14 +41,21 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
     )..load();
   }
 
-  int get daysLeft =>
-      examDate == null ? 0 : examDate!.difference(DateTime.now()).inDays;
+  /* ================= DAYS LOGIC ================= */
+
+  int get daysLeft {
+    if (examDate == null) return 0;
+    final diff = examDate!.difference(DateTime.now()).inDays;
+    return diff < 0 ? 0 : diff;
+  }
 
   Color get dayColor {
     if (daysLeft >= 45) return Colors.green;
     if (daysLeft >= 30) return Colors.orange;
     return Colors.red;
   }
+
+  /* ================= LOAD DATA ================= */
 
   Future<void> _loadData() async {
     final prefs = await SharedPreferences.getInstance();
@@ -58,18 +65,26 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
     }
 
     final raw = await rootBundle.loadString('assets/quotes.txt');
-    quotes = raw.split('\n').where((e) => e.trim().isNotEmpty).toList();
+    quotes = raw
+        .split('\n')
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
 
-    setState(() {});
+    if (mounted) setState(() {});
   }
+
+  /* ================= PICK DATE ================= */
 
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
       context: context,
       firstDate: DateTime.now(),
       lastDate: DateTime(DateTime.now().year + 5),
-      initialDate: examDate ?? DateTime.now().add(const Duration(days: 30)),
+      initialDate:
+          examDate ?? DateTime.now().add(const Duration(days: 30)),
     );
+
     if (picked == null) return;
 
     final prefs = await SharedPreferences.getInstance();
@@ -77,28 +92,30 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
     final oldDate =
         oldDateStr == null ? null : DateTime.parse(oldDateStr);
 
-    final oldDays =
-        oldDate == null ? null : oldDate.difference(DateTime.now()).inDays;
-    final newDays = picked.difference(DateTime.now()).inDays;
+    /// ✅ REAL FIX → compare DATE, not days
+    final isDateChanged =
+        oldDate == null || !oldDate.isAtSameMomentAs(picked);
+
+    if (!isDateChanged) return;
 
     await prefs.setString('exam_date', picked.toIso8601String());
     setState(() => examDate = picked);
 
-    /// 🔥 Count click ONLY if date actually changed
-    if (oldDays == null || oldDays != newDays) {
-      AdClickTracker.registerClick();
+    /// 🔥 Count click ONLY on real change
+    AdClickTracker.registerClick();
 
-      if (quotes.isNotEmpty) {
-        await NotificationService.showInstant(
-          daysLeft: daysLeft,
-          quote: quotes[Random().nextInt(quotes.length)],
-        );
-      }
-
-      await NotificationService.scheduleDaily(
-        examDate: picked,
+    /// 🔔 Instant notification
+    if (quotes.isNotEmpty) {
+      await NotificationService.showInstant(
+        daysLeft: daysLeft,
+        quote: quotes[Random().nextInt(quotes.length)],
       );
     }
+
+    /// 🔔 Daily schedule (3:30 PM & 8:30 PM)
+    await NotificationService.scheduleDaily(
+      examDate: picked,
+    );
   }
 
   @override
@@ -106,6 +123,8 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
     _bannerAd?.dispose();
     super.dispose();
   }
+
+  /* ================= UI ================= */
 
   @override
   Widget build(BuildContext context) {
@@ -115,45 +134,42 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
     return Scaffold(
       appBar: AppBar(title: const Text('Exam Countdown')),
       body: SafeArea(
-        child: Column(
-          children: [
-            /// ================= MAIN CARD =================
-            Expanded(
-              child: Center(
-                child: Card(
-                  elevation: 2,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(30),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text(
-                          'Days Remaining',
-                          style: TextStyle(color: Colors.grey),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              /// ================= MAIN CARD =================
+              Card(
+                elevation: 2,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(30),
+                  child: Column(
+                    children: [
+                      const Text(
+                        'Days Remaining',
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        examDate == null ? '--' : '$daysLeft Days',
+                        style: TextStyle(
+                          fontSize: 36,
+                          fontWeight: FontWeight.bold,
+                          color: dayColor,
                         ),
-                        const SizedBox(height: 12),
-                        Text(
-                          examDate == null ? '--' : '$daysLeft Days',
-                          style: TextStyle(
-                            fontSize: 36,
-                            fontWeight: FontWeight.bold,
-                            color: dayColor,
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               ),
-            ),
 
-            /// ================= SELECT DATE BUTTON =================
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: ElevatedButton.icon(
+              const SizedBox(height: 24),
+
+              /// ================= SELECT DATE =================
+              ElevatedButton.icon(
                 onPressed: _pickDate,
                 icon: const Icon(Icons.calendar_today),
                 label: const Text('Select Exam Date'),
@@ -161,18 +177,18 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
                   minimumSize: const Size.fromHeight(50),
                 ),
               ),
-            ),
 
-            const SizedBox(height: 12),
+              const SizedBox(height: 20),
 
-            /// ================= BANNER =================
-            if (_bannerLoaded && _bannerAd != null && !isKeyboardOpen)
-              SizedBox(
-                height: _bannerAd!.size.height.toDouble(),
-                width: _bannerAd!.size.width.toDouble(),
-                child: AdWidget(ad: _bannerAd!),
-              ),
-          ],
+              /// ================= BANNER =================
+              if (_bannerLoaded && _bannerAd != null && !isKeyboardOpen)
+                SizedBox(
+                  height: _bannerAd!.size.height.toDouble(),
+                  width: _bannerAd!.size.width.toDouble(),
+                  child: AdWidget(ad: _bannerAd!),
+                ),
+            ],
+          ),
         ),
       ),
     );
