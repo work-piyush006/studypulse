@@ -10,22 +10,21 @@ class AdsService {
   static InterstitialAd? _interstitialAd;
   static int _interstitialLoadAttempts = 0;
 
-  /// 🚨 IMPORTANT
-  /// Play Store ke liye ALWAYS false
+  /// 🚨 MUST BE FALSE FOR PLAY STORE
   static const bool useTestAds = false;
 
   /* ===================== AD UNIT IDS ===================== */
 
   static String get _bannerId {
     return useTestAds
-        ? 'ca-app-pub-3940256099942544/6300978111' // test
-        : 'ca-app-pub-2139593035914184/9260573924'; // REAL
+        ? 'ca-app-pub-3940256099942544/6300978111'
+        : 'ca-app-pub-2139593035914184/9260573924';
   }
 
   static String get _interstitialId {
     return useTestAds
-        ? 'ca-app-pub-3940256099942544/1033173712' // test
-        : 'ca-app-pub-2139593035914184/1908697513'; // REAL
+        ? 'ca-app-pub-3940256099942544/1033173712'
+        : 'ca-app-pub-2139593035914184/1908697513';
   }
 
   /* ===================== INIT ===================== */
@@ -48,15 +47,10 @@ class AdsService {
       request: const AdRequest(),
       listener: BannerAdListener(
         onAdLoaded: (_) {
-          if (kDebugMode) {
-            debugPrint('✅ Banner Ad Loaded');
-          }
+          if (kDebugMode) debugPrint('Banner loaded');
         },
         onAdFailedToLoad: (ad, error) {
           ad.dispose();
-          if (kDebugMode) {
-            debugPrint('❌ Banner failed: $error');
-          }
         },
       ),
     );
@@ -68,8 +62,7 @@ class AdsService {
   /* ===================== INTERSTITIAL ===================== */
 
   static Future<void> loadInterstitial() async {
-    final hasInternet =
-        await InternetConnectionChecker().hasConnection;
+    final hasInternet = await InternetConnectionChecker().hasConnection;
     if (!hasInternet) return;
 
     InterstitialAd.load(
@@ -80,19 +73,10 @@ class AdsService {
           _interstitialAd = ad;
           _interstitialLoadAttempts = 0;
           ad.setImmersiveMode(true);
-
-          if (kDebugMode) {
-            debugPrint('✅ Interstitial Loaded');
-          }
         },
         onAdFailedToLoad: (error) {
           _interstitialLoadAttempts++;
           _interstitialAd = null;
-
-          if (kDebugMode) {
-            debugPrint('❌ Interstitial failed: $error');
-          }
-
           if (_interstitialLoadAttempts < 3) {
             loadInterstitial();
           }
