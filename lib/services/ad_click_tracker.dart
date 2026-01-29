@@ -3,12 +3,16 @@ import 'ads.dart';
 class AdClickTracker {
   static int _clickCount = 0;
 
+  /// Call ONLY on successful tool use / real navigation
   static void registerClick() {
     _clickCount++;
 
-    // 🔥 Har 4th click par
-    if (_clickCount % 4 == 0) {
-      AdsService.showInterstitial(); // safe call
+    // 🔥 Exactly every 4th real click
+    if (_clickCount >= 4) {
+      if (AdsService.isInterstitialReady) {
+        AdsService.showInterstitial();
+        _clickCount = 0; // reset ONLY after ad shown
+      }
     }
   }
 

@@ -8,9 +8,10 @@ class AdsService {
   static bool _initialized = false;
 
   static InterstitialAd? _interstitialAd;
+  static bool _isInterstitialReady = false;
   static int _loadAttempts = 0;
 
-  /// 🚨 PLAY STORE KE LIYE HAMESHA FALSE
+  /// 🚨 MUST BE FALSE FOR PLAY STORE
   static const bool useTestAds = false;
 
   /* ================= AD UNIT IDS ================= */
@@ -41,10 +42,18 @@ class AdsService {
   static BannerAd createBanner() {
     final ad = BannerAd(
       adUnitId: bannerId,
-      size: AdSize.mediumRectangle, // 🔥 Square banner
+      size: AdSize.mediumRectangle,
       request: const AdRequest(),
       listener: BannerAdListener(
-        onAdFailedToLoad: (ad, _) => ad.dispose(),
+        onAdLoaded: (_) {
+          if (kDebugMode) debugPrint('✅ Banner loaded');
+        },
+        onAdFailedToLoad: (ad, error) {
+          ad.dispose();
+          if (kDebugMode) {
+            debugPrint('❌ Banner failed: $error');
+          }
+        },
       ),
     );
 
@@ -53,6 +62,9 @@ class AdsService {
   }
 
   /* ================= INTERSTITIAL ================= */
+
+  static bool get isInterstitialReady =>
+      _isInterstitialReady && _interstitialAd != null;
 
   static Future<void> loadInterstitial() async {
     final hasInternet =
@@ -65,36 +77,52 @@ class AdsService {
       adLoadCallback: InterstitialAdLoadCallback(
         onAdLoaded: (ad) {
           _interstitialAd = ad;
+          _isInterstitialReady = true;
           _loadAttempts = 0;
           ad.setImmersiveMode(true);
+
+          if (kDebugMode) {
+            debugPrint('✅ Interstitial loaded');
+          }
         },
-        onAdFailedToLoad: (_) {
-          _loadAttempts++;
+        onAdFailedToLoad: (error) {
           _interstitialAd = null;
-          if (_loadAttempts < 3) loadInterstitial();
+          _isInterstitialReady = false;
+          _loadAttempts++;
+
+          if (kDebugMode) {
+            debugPrint('❌ Interstitial failed: $error');
+          }
+
+          if (_loadAttempts < 3) {
+            loadInterstitial();
+          }
         },
       ),
     );
   }
 
   static void showInterstitial() {
-    if (_interstitialAd == null) return;
+    if (!isInterstitialReady) return;
 
     _interstitialAd!.fullScreenContentCallback =
         FullScreenContentCallback(
       onAdDismissedFullScreenContent: (ad) {
         ad.dispose();
         _interstitialAd = null;
+        _isInterstitialReady = false;
         loadInterstitial();
       },
-      onAdFailedToShowFullScreenContent: (ad, _) {
+      onAdFailedToShowFullScreenContent: (ad, error) {
         ad.dispose();
         _interstitialAd = null;
+        _isInterstitialReady = false;
         loadInterstitial();
       },
     );
 
     _interstitialAd!.show();
     _interstitialAd = null;
+    _isInterstitialReady = false;
   }
 }
