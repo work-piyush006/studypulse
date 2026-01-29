@@ -31,7 +31,7 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
     _loadData();
   }
 
-  /* ================= LOAD SAVED DATA ================= */
+  /* ================= LOAD DATA ================= */
 
   Future<void> _loadData() async {
     final prefs = await SharedPreferences.getInstance();
@@ -58,27 +58,45 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
       context: context,
       firstDate: DateTime.now(),
       lastDate: DateTime(DateTime.now().year + 5),
-      initialDate: DateTime.now().add(const Duration(days: 30)),
+      initialDate: examDate ?? DateTime.now().add(const Duration(days: 30)),
     );
 
     if (picked == null) return;
 
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('exam_date', picked.toIso8601String());
+    final oldDateStr = prefs.getString('exam_date');
+    final oldDate =
+        oldDateStr == null ? null : DateTime.parse(oldDateStr);
 
+    final oldDaysLeft =
+        oldDate == null ? null : oldDate.difference(DateTime.now()).inDays;
+
+    final newDaysLeft =
+        picked.difference(DateTime.now()).inDays;
+
+    // SAVE DATE
+    await prefs.setString('exam_date', picked.toIso8601String());
     setState(() => examDate = picked);
 
-    await _sendInstantNotification();
+    // 🔥 REAL FIX: DAYS LEFT COMPARISON
+    final shouldNotify =
+        oldDaysLeft == null || oldDaysLeft != newDaysLeft;
+
+    if (shouldNotify) {
+      await _sendInstantNotification();
+      await NotificationService.scheduleDaily(
+        examDate: picked,
+      );
+    }
   }
 
-  /* ================= IMMEDIATE NOTIFICATION ================= */
+  /* ================= INSTANT NOTIFICATION ================= */
 
   Future<void> _sendInstantNotification() async {
     if (quotes.isEmpty || examDate == null) return;
 
     final quote = quotes[Random().nextInt(quotes.length)];
 
-    // 🔥 SINGLE SOURCE OF TRUTH
     await NotificationService.showInstant(
       daysLeft: daysLeft,
       quote: quote,
@@ -118,9 +136,7 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
                 ),
               ),
             ),
-
             const SizedBox(height: 20),
-
             ElevatedButton.icon(
               icon: const Icon(Icons.calendar_today),
               label: const Text('Select Exam Date'),
