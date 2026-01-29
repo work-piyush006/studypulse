@@ -15,7 +15,7 @@ class NotificationService {
 
   static bool _initialized = false;
 
-  // 🔔 CHANNELS (ANDROID 8+)
+  // 🔔 CHANNELS
   static const AndroidNotificationChannel _instantChannel =
       AndroidNotificationChannel(
     'exam_now',
@@ -42,44 +42,45 @@ class NotificationService {
     const android = AndroidInitializationSettings('@mipmap/ic_launcher');
     const settings = InitializationSettings(android: android);
 
-    await _plugin.initialize(
-      settings,
-      onDidReceiveNotificationResponse: (response) async {
-        if (response.payload == null) return;
-
-        try {
-          final data = jsonDecode(response.payload!);
-
-          // ✅ SAVE ONLY WHEN USER TAPS (SCHEDULED NOTIFICATIONS)
-          await NotificationStore.save(
-            title: data['title'],
-            body: data['body'],
-          );
-
-          // 🔑 FLAG FOR SPLASH ROUTING
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setBool('open_inbox', true);
-        } catch (_) {
-          // fail silently (never crash)
-        }
-      },
-    );
-
     final androidPlugin =
         _plugin.resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>();
 
-    // ✅ CREATE CHANNELS EXPLICITLY
+    // 🔥 ANDROID 13+ PERMISSION (CRITICAL)
+    await androidPlugin?.requestPermission();
+
+    await _plugin.initialize(
+      settings,
+      onDidReceiveNotificationResponse: _onTap,
+    );
+
+    // 🔔 CREATE CHANNELS
     await androidPlugin?.createNotificationChannel(_instantChannel);
     await androidPlugin?.createNotificationChannel(_dailyChannel);
 
     _initialized = true;
   }
 
-  /* =========================================================
-     🔔 INSTANT NOTIFICATION
-     → SAVE IMMEDIATELY (ONCE)
-  ========================================================= */
+  static Future<void> _onTap(NotificationResponse response) async {
+    if (response.payload == null) return;
+
+    try {
+      final data = jsonDecode(response.payload!);
+
+      // ✅ SAVE ONLY WHEN USER TAPS
+      await NotificationStore.save(
+        title: data['title'],
+        body: data['body'],
+      );
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('open_inbox', true);
+    } catch (_) {
+      // never crash
+    }
+  }
+
+  /* ================= INSTANT ================= */
 
   static Future<void> showInstant({
     required int daysLeft,
@@ -91,7 +92,7 @@ class NotificationService {
     final title = '📘 Exam Countdown';
     final body = '$daysLeft days left\n$quote';
 
-    // ✅ SAVE IMMEDIATELY (ONLY HERE)
+    // ✅ SAVE IMMEDIATELY (DESIGN DECISION)
     await NotificationStore.save(title: title, body: body);
 
     await _plugin.show(
@@ -110,10 +111,7 @@ class NotificationService {
     );
   }
 
-  /* =========================================================
-     ⏰ DAILY SCHEDULED NOTIFICATIONS
-     → SAVE ONLY ON TAP
-  ========================================================= */
+  /* ================= DAILY ================= */
 
   static Future<void> scheduleDaily({
     required DateTime examDate,
@@ -121,7 +119,9 @@ class NotificationService {
     final prefs = await SharedPreferences.getInstance();
     if (!(prefs.getBool('notifications') ?? true)) return;
 
-    await cancelAll();
+    // ❗ Cancel ONLY exam notifications
+    await _plugin.cancel(9);
+    await _plugin.cancel(19);
 
     await _schedule(hour: 9, minute: 0, id: 9, examDate: examDate);
     await _schedule(hour: 19, minute: 0, id: 19, examDate: examDate);
@@ -133,34 +133,34 @@ class NotificationService {
     required int id,
     required DateTime examDate,
   }) async {
-    final daysLeft =
-        examDate.difference(DateTime.now()).inHours ~/ 24;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final target =
+        DateTime(examDate.year, examDate.month, examDate.day);
+
+    final daysLeft = target.difference(today).inDays;
     if (daysLeft < 0) return;
 
     final quotes = await _loadQuotes();
     if (quotes.isEmpty) return;
 
     final quote = quotes[Random().nextInt(quotes.length)];
-
     final title = '📚 StudyPulse Reminder';
     final body = '$daysLeft days left\n$quote';
 
-    final payload = jsonEncode({
-      'title': title,
-      'body': body,
-    });
+    final payload = jsonEncode({'title': title, 'body': body});
 
-    final now = tz.TZDateTime.now(tz.local);
+    final tzNow = tz.TZDateTime.now(tz.local);
     var time = tz.TZDateTime(
       tz.local,
-      now.year,
-      now.month,
-      now.day,
+      tzNow.year,
+      tzNow.month,
+      tzNow.day,
       hour,
       minute,
     );
 
-    if (time.isBefore(now)) {
+    if (time.isBefore(tzNow)) {
       time = time.add(const Duration(days: 1));
     }
 
@@ -184,12 +184,6 @@ class NotificationService {
           UILocalNotificationDateInterpretation.absoluteTime,
       matchDateTimeComponents: DateTimeComponents.time,
     );
-  }
-
-  /* ================= UTIL ================= */
-
-  static Future<void> cancelAll() async {
-    await _plugin.cancelAll();
   }
 
   static Future<List<String>> _loadQuotes() async {
