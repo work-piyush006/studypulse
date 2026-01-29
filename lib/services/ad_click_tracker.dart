@@ -7,12 +7,14 @@ class AdClickTracker {
   static void registerClick() {
     _clickCount++;
 
-    // 🔥 Exactly every 4th real click
-    if (_clickCount >= 4) {
-      if (AdsService.isInterstitialReady) {
-        AdsService.showInterstitial();
-        _clickCount = 0; // reset ONLY after ad shown
-      }
+    // 🔥 Show ad exactly on every 4th real action
+    if (_clickCount % 4 == 0) {
+      AdsService.showInterstitial();
+    }
+
+    // 🔒 Safety: never let counter grow infinitely
+    if (_clickCount >= 1000) {
+      _clickCount = _clickCount % 4;
     }
   }
 

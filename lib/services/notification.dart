@@ -80,7 +80,6 @@ class NotificationService {
     final title = '📘 Exam Countdown';
     final body = '$daysLeft days left\n$quote';
 
-    // save to inbox
     await NotificationStore.save(title: title, body: body);
 
     await _plugin.show(
@@ -99,43 +98,33 @@ class NotificationService {
     );
   }
 
-  /* ================= DAILY SCHEDULE ================= */
+  /* ================= DAILY ================= */
 
-  /// 🔔 DAILY NOTIFICATIONS
-  /// ⏰ 3:30 PM & 8:30 PM
+  /// ⏰ DAILY AT 3:30 PM & 8:30 PM
   static Future<void> scheduleDaily({
     required DateTime examDate,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     if (!(prefs.getBool('notifications') ?? true)) return;
 
-    // 🔥 remove old schedules
     await cancelAll();
 
-    // ✅ 3:30 PM
-    await _schedule(
-      id: 15,
-      hour: 15,
-      minute: 30,
-      examDate: examDate,
-    );
-
-    // ✅ 8:30 PM
-    await _schedule(
-      id: 20,
-      hour: 20,
-      minute: 30,
-      examDate: examDate,
-    );
+    await _schedule(hour: 15, minute: 30, id: 1530, examDate: examDate);
+    await _schedule(hour: 20, minute: 30, id: 2030, examDate: examDate);
   }
 
   static Future<void> _schedule({
-    required int id,
     required int hour,
     required int minute,
+    required int id,
     required DateTime examDate,
   }) async {
-    final daysLeft = examDate.difference(DateTime.now()).inDays;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final target =
+        DateTime(examDate.year, examDate.month, examDate.day);
+
+    final daysLeft = target.difference(today).inDays;
     if (daysLeft < 0) return;
 
     final quotes = await _loadQuotes();
@@ -146,23 +135,19 @@ class NotificationService {
     final title = '📚 StudyPulse Reminder';
     final body = '$daysLeft days left\n$quote';
 
-    final payload = jsonEncode({
-      'title': title,
-      'body': body,
-    });
+    final payload = jsonEncode({'title': title, 'body': body});
 
-    final now = tz.TZDateTime.now(tz.local);
+    final tzNow = tz.TZDateTime.now(tz.local);
     var scheduled = tz.TZDateTime(
       tz.local,
-      now.year,
-      now.month,
-      now.day,
+      tzNow.year,
+      tzNow.month,
+      tzNow.day,
       hour,
       minute,
     );
 
-    // if time already passed → next day
-    if (scheduled.isBefore(now)) {
+    if (scheduled.isBefore(tzNow)) {
       scheduled = scheduled.add(const Duration(days: 1));
     }
 
@@ -184,7 +169,7 @@ class NotificationService {
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
-      matchDateTimeComponents: DateTimeComponents.time, // 🔥 DAILY
+      matchDateTimeComponents: DateTimeComponents.time,
     );
   }
 

@@ -12,7 +12,7 @@ class AdsService {
   static int _loadAttempts = 0;
 
   /// 🚨 MUST BE FALSE FOR PLAY STORE
-  static const bool useTestAds = true;
+  static const bool useTestAds = false;
 
   /* ================= AD UNIT IDS ================= */
 
@@ -38,8 +38,11 @@ class AdsService {
   }
 
   /* ================= BANNER ================= */
-
-  static BannerAd createBanner() {
+  /// UI must decide what to show if ad fails
+  static BannerAd createBanner({
+    required VoidCallback onLoaded,
+    required VoidCallback onFailed,
+  }) {
     final ad = BannerAd(
       adUnitId: bannerId,
       size: AdSize.mediumRectangle,
@@ -47,12 +50,12 @@ class AdsService {
       listener: BannerAdListener(
         onAdLoaded: (_) {
           if (kDebugMode) debugPrint('✅ Banner loaded');
+          onLoaded();
         },
         onAdFailedToLoad: (ad, error) {
           ad.dispose();
-          if (kDebugMode) {
-            debugPrint('❌ Banner failed: $error');
-          }
+          if (kDebugMode) debugPrint('❌ Banner failed: $error');
+          onFailed();
         },
       ),
     );
@@ -81,18 +84,14 @@ class AdsService {
           _loadAttempts = 0;
           ad.setImmersiveMode(true);
 
-          if (kDebugMode) {
-            debugPrint('✅ Interstitial loaded');
-          }
+          if (kDebugMode) debugPrint('✅ Interstitial loaded');
         },
         onAdFailedToLoad: (error) {
           _interstitialAd = null;
           _isInterstitialReady = false;
           _loadAttempts++;
 
-          if (kDebugMode) {
-            debugPrint('❌ Interstitial failed: $error');
-          }
+          if (kDebugMode) debugPrint('❌ Interstitial failed: $error');
 
           if (_loadAttempts < 3) {
             loadInterstitial();
@@ -113,7 +112,7 @@ class AdsService {
         _isInterstitialReady = false;
         loadInterstitial();
       },
-      onAdFailedToShowFullScreenContent: (ad, error) {
+      onAdFailedToShowFullScreenContent: (ad, _) {
         ad.dispose();
         _interstitialAd = null;
         _isInterstitialReady = false;
