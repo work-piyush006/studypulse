@@ -38,24 +38,26 @@ class AdsService {
   }
 
   /* ================= BANNER ================= */
-  /// UI must decide what to show if ad fails
+
+  /// ✅ SAFE FOR HOME + TOOLS
+  /// onLoaded is OPTIONAL
   static BannerAd createBanner({
-    required VoidCallback onLoaded,
-    required VoidCallback onFailed,
+    VoidCallback? onLoaded,
   }) {
     final ad = BannerAd(
       adUnitId: bannerId,
-      size: AdSize.mediumRectangle,
+      size: AdSize.mediumRectangle, // square banner
       request: const AdRequest(),
       listener: BannerAdListener(
         onAdLoaded: (_) {
           if (kDebugMode) debugPrint('✅ Banner loaded');
-          onLoaded();
+          onLoaded?.call();
         },
         onAdFailedToLoad: (ad, error) {
           ad.dispose();
-          if (kDebugMode) debugPrint('❌ Banner failed: $error');
-          onFailed();
+          if (kDebugMode) {
+            debugPrint('❌ Banner failed: $error');
+          }
         },
       ),
     );
@@ -82,16 +84,21 @@ class AdsService {
           _interstitialAd = ad;
           _isInterstitialReady = true;
           _loadAttempts = 0;
+
           ad.setImmersiveMode(true);
 
-          if (kDebugMode) debugPrint('✅ Interstitial loaded');
+          if (kDebugMode) {
+            debugPrint('✅ Interstitial loaded');
+          }
         },
         onAdFailedToLoad: (error) {
           _interstitialAd = null;
           _isInterstitialReady = false;
           _loadAttempts++;
 
-          if (kDebugMode) debugPrint('❌ Interstitial failed: $error');
+          if (kDebugMode) {
+            debugPrint('❌ Interstitial failed: $error');
+          }
 
           if (_loadAttempts < 3) {
             loadInterstitial();
@@ -112,7 +119,7 @@ class AdsService {
         _isInterstitialReady = false;
         loadInterstitial();
       },
-      onAdFailedToShowFullScreenContent: (ad, _) {
+      onAdFailedToShowFullScreenContent: (ad, error) {
         ad.dispose();
         _interstitialAd = null;
         _isInterstitialReady = false;
