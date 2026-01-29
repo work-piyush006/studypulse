@@ -73,8 +73,8 @@ class _HomeState extends State<Home> {
       examDate == null ? 0 : examDate!.difference(DateTime.now()).inDays;
 
   Color get dayColor {
-    if (daysLeft >= 30) return Colors.green;
-    if (daysLeft >= 15) return Colors.orange;
+    if (daysLeft >= 45) return Colors.green;
+    if (daysLeft >= 30) return Colors.orange;
     return Colors.red;
   }
 
@@ -84,7 +84,7 @@ class _HomeState extends State<Home> {
       appBar: AppBar(
         title: const Text('StudyPulse'),
         actions: [
-          /// 🔔 NOTIFICATION BADGE
+          /// 🔔 NOTIFICATIONS (NO AD CLICK HERE)
           ValueListenableBuilder<int>(
             valueListenable: NotificationStore.unreadNotifier,
             builder: (_, count, __) {
@@ -93,7 +93,6 @@ class _HomeState extends State<Home> {
                   IconButton(
                     icon: const Icon(Icons.notifications_none_rounded),
                     onPressed: () async {
-                      AdClickTracker.registerClick();
                       await Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -129,12 +128,17 @@ class _HomeState extends State<Home> {
           ),
         ],
       ),
+
       body: IndexedStack(index: index, children: pages),
+
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: index,
         onTap: (i) {
-          AdClickTracker.registerClick();
-          setState(() => index = i);
+          if (i != index) {
+            /// ✅ COUNT ONLY REAL NAVIGATION
+            AdClickTracker.registerClick();
+            setState(() => index = i);
+          }
         },
         items: const [
           BottomNavigationBarItem(
@@ -169,7 +173,7 @@ class _HomeMainState extends State<_HomeMain> {
   void initState() {
     super.initState();
 
-    /// 🔥 5 QUEUED BANNERS (NO AUTO SLIDE)
+    /// 🔥 5 QUEUED BANNERS (MANUAL SWIPE ONLY)
     _homeBanners =
         List.generate(_bannerCount, (_) => AdsService.createBanner());
   }
@@ -187,26 +191,30 @@ class _HomeMainState extends State<_HomeMain> {
   Widget build(BuildContext context) {
     final home = context.findAncestorStateOfType<_HomeState>();
 
+    final isKeyboardOpen =
+        MediaQuery.of(context).viewInsets.bottom > 0;
+
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        /// 🔥 HOME BANNER QUEUE (MANUAL SWIPE)
-        SizedBox(
-          height: 260,
-          child: PageView.builder(
-            controller: _bannerController,
-            itemCount: _homeBanners.length,
-            itemBuilder: (_, i) => Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 6),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: AdWidget(ad: _homeBanners[i]),
+        /// 🔥 HOME BANNERS (HIDDEN WHEN KEYBOARD OPEN)
+        if (!isKeyboardOpen)
+          SizedBox(
+            height: 260,
+            child: PageView.builder(
+              controller: _bannerController,
+              itemCount: _homeBanners.length,
+              itemBuilder: (_, i) => Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: AdWidget(ad: _homeBanners[i]),
+                ),
               ),
             ),
           ),
-        ),
 
-        const SizedBox(height: 20),
+        if (!isKeyboardOpen) const SizedBox(height: 20),
 
         /// HEADER
         Row(
@@ -296,6 +304,7 @@ class _HomeMainState extends State<_HomeMain> {
         trailing:
             const Icon(Icons.arrow_forward_ios, size: 16),
         onTap: () {
+          /// ✅ TOOL OPEN = CLICK
           AdClickTracker.registerClick();
           Navigator.push(
             context,
