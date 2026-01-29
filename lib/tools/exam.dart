@@ -24,12 +24,26 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
   BannerAd? _bannerAd;
   bool _bannerLoaded = false;
 
+  bool _notificationReady = false;
+
   @override
   void initState() {
     super.initState();
-    _loadData();
+    _bootstrap(); // 🔥 SINGLE ENTRY
+  }
+
+  /* ================= BOOTSTRAP ================= */
+
+  Future<void> _bootstrap() async {
+    // 🔥 ABSOLUTE REQUIREMENT (OEM SAFE)
+    await NotificationService.init();
+    _notificationReady = true;
+
+    await _loadData();
     _loadBanner();
   }
+
+  /* ================= LOAD DATA ================= */
 
   Future<void> _loadData() async {
     final prefs = await SharedPreferences.getInstance();
@@ -50,6 +64,8 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
     if (mounted) setState(() {});
   }
 
+  /* ================= BANNER ================= */
+
   void _loadBanner() {
     _bannerAd = BannerAd(
       adUnitId: AdsService.bannerId,
@@ -63,6 +79,8 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
       ),
     )..load();
   }
+
+  /* ================= PICK DATE ================= */
 
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
@@ -81,18 +99,21 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('exam_date', normalized.toIso8601String());
 
+    // 🔥 SINGLE SOURCE OF TRUTH
     setState(() => examDate = normalized);
     ExamState.update(normalized);
 
     AdClickTracker.registerClick();
 
-    if (quotes.isNotEmpty) {
+    // 🔥 GUARANTEED NOTIFICATION FIRE
+    if (_notificationReady && quotes.isNotEmpty) {
       await NotificationService.showInstant(
         daysLeft: ExamState.daysLeft.value,
         quote: quotes[Random().nextInt(quotes.length)],
       );
     }
 
+    // 🔔 DAILY (OEM SAFE)
     await NotificationService.scheduleDaily(examDate: normalized);
 
     if (mounted) Navigator.pop(context, true);
@@ -103,6 +124,8 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
     _bannerAd?.dispose();
     super.dispose();
   }
+
+  /* ================= UI ================= */
 
   @override
   Widget build(BuildContext context) {
@@ -124,18 +147,22 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
                   padding: const EdgeInsets.all(30),
                   child: Column(
                     children: [
-                      const Text('Days Remaining',
-                          style: TextStyle(color: Colors.grey)),
+                      const Text(
+                        'Days Remaining',
+                        style: TextStyle(color: Colors.grey),
+                      ),
                       const SizedBox(height: 12),
                       ValueListenableBuilder<int>(
                         valueListenable: ExamState.daysLeft,
                         builder: (_, d, __) {
                           return Text(
                             '$d Days',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 36,
                               fontWeight: FontWeight.bold,
-                              color: Colors.red,
+                              color: d >= 30
+                                  ? Colors.orange
+                                  : Colors.red,
                             ),
                           );
                         },
@@ -144,7 +171,9 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
                   ),
                 ),
               ),
+
               const SizedBox(height: 24),
+
               ElevatedButton.icon(
                 onPressed: _pickDate,
                 icon: const Icon(Icons.calendar_today),
@@ -153,7 +182,9 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
                   minimumSize: const Size.fromHeight(50),
                 ),
               ),
+
               const SizedBox(height: 20),
+
               if (!isKeyboardOpen)
                 SizedBox(
                   height: 250,
