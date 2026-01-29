@@ -27,6 +27,7 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
     super.initState();
     _loadData();
 
+    /// 🔔 Bottom banner
     _bannerAd = BannerAd(
       adUnitId: AdsService.bannerId,
       size: AdSize.mediumRectangle,
@@ -52,7 +53,9 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
   Future<void> _loadData() async {
     final prefs = await SharedPreferences.getInstance();
     final saved = prefs.getString('exam_date');
-    if (saved != null) examDate = DateTime.parse(saved);
+    if (saved != null) {
+      examDate = DateTime.parse(saved);
+    }
 
     final raw = await rootBundle.loadString('assets/quotes.txt');
     quotes = raw.split('\n').where((e) => e.trim().isNotEmpty).toList();
@@ -81,14 +84,16 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
     await prefs.setString('exam_date', picked.toIso8601String());
     setState(() => examDate = picked);
 
+    /// 🔥 Count click ONLY if date actually changed
     if (oldDays == null || oldDays != newDays) {
-      /// ✅ COUNT CLICK ONLY ON CHANGE
       AdClickTracker.registerClick();
 
-      await NotificationService.showInstant(
-        daysLeft: daysLeft,
-        quote: quotes[Random().nextInt(quotes.length)],
-      );
+      if (quotes.isNotEmpty) {
+        await NotificationService.showInstant(
+          daysLeft: daysLeft,
+          quote: quotes[Random().nextInt(quotes.length)],
+        );
+      }
 
       await NotificationService.scheduleDaily(
         examDate: picked,
@@ -109,50 +114,66 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Exam Countdown')),
-      body: Column(
-        children: [
-          Expanded(
-            child: Center(
-              child: Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(30),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text(
-                        'Days Remaining',
-                        style: TextStyle(color: Colors.grey),
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        examDate == null ? '--' : '$daysLeft Days',
-                        style: TextStyle(
-                          fontSize: 36,
-                          fontWeight: FontWeight.bold,
-                          color: dayColor,
+      body: SafeArea(
+        child: Column(
+          children: [
+            /// ================= MAIN CARD =================
+            Expanded(
+              child: Center(
+                child: Card(
+                  elevation: 2,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(30),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          'Days Remaining',
+                          style: TextStyle(color: Colors.grey),
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 12),
+                        Text(
+                          examDate == null ? '--' : '$daysLeft Days',
+                          style: TextStyle(
+                            fontSize: 36,
+                            fontWeight: FontWeight.bold,
+                            color: dayColor,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-          ElevatedButton.icon(
-            onPressed: _pickDate,
-            icon: const Icon(Icons.calendar_today),
-            label: const Text('Select Exam Date'),
-          ),
 
-          if (_bannerLoaded && _bannerAd != null && !isKeyboardOpen)
-            SafeArea(
-              child: SizedBox(
+            /// ================= SELECT DATE BUTTON =================
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: ElevatedButton.icon(
+                onPressed: _pickDate,
+                icon: const Icon(Icons.calendar_today),
+                label: const Text('Select Exam Date'),
+                style: ElevatedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(50),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            /// ================= BANNER =================
+            if (_bannerLoaded && _bannerAd != null && !isKeyboardOpen)
+              SizedBox(
                 height: _bannerAd!.size.height.toDouble(),
                 width: _bannerAd!.size.width.toDouble(),
                 child: AdWidget(ad: _bannerAd!),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
