@@ -13,6 +13,7 @@ class CGPAPage extends StatefulWidget {
 
 class _CGPAPageState extends State<CGPAPage> {
   final TextEditingController cgpaCtrl = TextEditingController();
+
   String result = '';
   bool calculated = false;
 
@@ -23,6 +24,7 @@ class _CGPAPageState extends State<CGPAPage> {
   void initState() {
     super.initState();
 
+    /// 🔥 TOOL OPEN CLICK
     AdClickTracker.registerClick();
 
     _bannerAd = BannerAd(
@@ -33,18 +35,39 @@ class _CGPAPageState extends State<CGPAPage> {
         onAdLoaded: (_) {
           if (mounted) setState(() => _bannerLoaded = true);
         },
-        onAdFailedToLoad: (ad, error) {
-          ad.dispose();
-        },
+        onAdFailedToLoad: (ad, _) => ad.dispose(),
       ),
     )..load();
   }
 
-  void _calculate() {
-    AdClickTracker.registerClick();
+  void _showError(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: Colors.redAccent,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
 
+  void _calculate() {
     final cgpa = double.tryParse(cgpaCtrl.text.trim());
-    if (cgpa == null || cgpa <= 0 || cgpa > 10) return;
+
+    if (cgpa == null) {
+      _showError('Enter a valid CGPA number');
+      return;
+    }
+    if (cgpa <= 0) {
+      _showError('CGPA must be greater than 0');
+      return;
+    }
+    if (cgpa > 10) {
+      _showError('CGPA cannot be more than 10');
+      return;
+    }
+
+    /// ✅ COUNT ONLY ON SUCCESS
+    AdClickTracker.registerClick();
 
     setState(() {
       calculated = true;
@@ -61,6 +84,9 @@ class _CGPAPageState extends State<CGPAPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isKeyboardOpen =
+        MediaQuery.of(context).viewInsets.bottom > 0;
+
     return Scaffold(
       appBar: AppBar(title: const Text('CGPA Calculator')),
       body: Column(
@@ -69,24 +95,58 @@ class _CGPAPageState extends State<CGPAPage> {
             child: Padding(
               padding: const EdgeInsets.all(20),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  TextField(
-                    controller: cgpaCtrl,
-                    keyboardType: TextInputType.number,
-                    decoration:
-                        const InputDecoration(labelText: 'Enter CGPA'),
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: TextField(
+                        controller: cgpaCtrl,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'Enter CGPA (0 – 10)',
+                          prefixIcon: Icon(Icons.school),
+                        ),
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 20),
                   ElevatedButton(
                     onPressed: _calculate,
-                    child: const Text('Convert'),
+                    child: const Text('Convert to Percentage'),
                   ),
-                  if (calculated) Text('$result %'),
+                  const SizedBox(height: 30),
+                  if (calculated)
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        children: [
+                          const Text(
+                            'Equivalent Percentage',
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            '$result %',
+                            style: const TextStyle(
+                              fontSize: 32,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.green,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                 ],
               ),
             ),
           ),
-          if (_bannerLoaded && _bannerAd != null)
+
+          if (_bannerLoaded && _bannerAd != null && !isKeyboardOpen)
             SafeArea(
               child: SizedBox(
                 height: _bannerAd!.size.height.toDouble(),

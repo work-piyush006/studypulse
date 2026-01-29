@@ -25,31 +25,27 @@ class _PercentagePageState extends State<PercentagePage> {
   void initState() {
     super.initState();
 
-    /// 🔥 TOOL OPEN CLICK
+    /// 🔥 TOOL OPEN CLICK (counted once)
     AdClickTracker.registerClick();
 
-    /// 🔔 BOTTOM BANNER
+    /// 🔔 Bottom banner
     _bannerAd = BannerAd(
       adUnitId: AdsService.bannerId,
       size: AdSize.mediumRectangle,
       request: const AdRequest(),
       listener: BannerAdListener(
         onAdLoaded: (_) {
-          if (mounted) {
-            setState(() => _bannerLoaded = true);
-          }
+          if (mounted) setState(() => _bannerLoaded = true);
         },
-        onAdFailedToLoad: (ad, error) {
-          ad.dispose();
-        },
+        onAdFailedToLoad: (ad, _) => ad.dispose(),
       ),
     )..load();
   }
 
-  void _showError(String message) {
+  void _showError(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message),
+        content: Text(msg),
         behavior: SnackBarBehavior.floating,
         backgroundColor: Colors.redAccent,
       ),
@@ -57,9 +53,6 @@ class _PercentagePageState extends State<PercentagePage> {
   }
 
   void _calculatePercentage() {
-    /// 🔥 TOOL USE CLICK
-    AdClickTracker.registerClick();
-
     final obtained = double.tryParse(obtainedCtrl.text.trim());
     final total = double.tryParse(totalCtrl.text.trim());
 
@@ -80,8 +73,10 @@ class _PercentagePageState extends State<PercentagePage> {
       return;
     }
 
-    final percent = (obtained / total) * 100;
+    /// ✅ COUNT CLICK ONLY ON SUCCESS
+    AdClickTracker.registerClick();
 
+    final percent = (obtained / total) * 100;
     setState(() {
       calculated = true;
       result = percent.toStringAsFixed(2);
@@ -98,6 +93,9 @@ class _PercentagePageState extends State<PercentagePage> {
 
   @override
   Widget build(BuildContext context) {
+    final isKeyboardOpen =
+        MediaQuery.of(context).viewInsets.bottom > 0;
+
     return Scaffold(
       appBar: AppBar(title: const Text('Percentage Calculator')),
       body: Column(
@@ -165,7 +163,9 @@ class _PercentagePageState extends State<PercentagePage> {
               ),
             ),
           ),
-          if (_bannerLoaded && _bannerAd != null)
+
+          /// ✅ BANNER ONLY WHEN KEYBOARD CLOSED
+          if (_bannerLoaded && _bannerAd != null && !isKeyboardOpen)
             SafeArea(
               child: SizedBox(
                 height: _bannerAd!.size.height.toDouble(),
