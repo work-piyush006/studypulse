@@ -37,13 +37,16 @@ class _PercentagePageState extends State<PercentagePage> {
       duration: const Duration(seconds: 2),
     );
 
-    /// 🔔 Banner via AdsService (single source of truth)
-    _bannerAd = AdsService.createBanner(
-      onState: (loaded) {
-        if (!mounted) return;
-        setState(() => _bannerLoaded = loaded);
-      },
-    );
+    /// 🔔 Adaptive banner (correct API)
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      _bannerAd = await AdsService.createAdaptiveBanner(
+        context: context,
+        onState: (loaded) {
+          if (!mounted) return;
+          setState(() => _bannerLoaded = loaded);
+        },
+      );
+    });
   }
 
   void _showError(String msg) {
@@ -64,39 +67,24 @@ class _PercentagePageState extends State<PercentagePage> {
       _showError('Please enter valid numbers');
       return;
     }
-    if (total <= 0) {
-      _showError('Total marks must be greater than 0');
-      return;
-    }
-    if (obtained < 0) {
-      _showError('Obtained marks cannot be negative');
-      return;
-    }
-    if (obtained > total) {
-      _showError('Obtained marks cannot exceed total marks');
+    if (total <= 0 || obtained < 0 || obtained > total) {
+      _showError('Invalid marks entered');
       return;
     }
 
-    /// ✅ Count click ONLY on success
     AdClickTracker.registerClick();
 
     final percent = (obtained / total) * 100;
     final value = percent.toStringAsFixed(2);
 
-    /// 🧠 Result-based messaging + confetti
     String msg;
-    if (percent >= 90) {
-      msg = 'Outstanding performance! 🔥';
-      _confetti.play();
-    } else if (percent >= 75) {
-      msg = 'Great job, keep pushing 💪';
+    if (percent >= 75) {
+      msg = 'Great job! 🎉';
       _confetti.play();
     } else if (percent >= 60) {
-      msg = 'Good effort, you can do better 👍';
-    } else if (percent >= 40) {
-      msg = 'Needs improvement, don’t give up 📚';
+      msg = 'Good effort 👍';
     } else {
-      msg = 'Tough result, but this is not the end 🚀';
+      msg = 'Keep practicing 💪';
     }
 
     setState(() {
@@ -125,12 +113,10 @@ class _PercentagePageState extends State<PercentagePage> {
       body: Stack(
         alignment: Alignment.topCenter,
         children: [
-          /// 🎉 CONFETTI
           ConfettiWidget(
             confettiController: _confetti,
             blastDirectionality: BlastDirectionality.explosive,
             shouldLoop: false,
-            numberOfParticles: 25,
           ),
 
           Column(
@@ -139,83 +125,33 @@ class _PercentagePageState extends State<PercentagePage> {
                 child: Padding(
                   padding: const EdgeInsets.all(20),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            children: [
-                              TextField(
-                                controller: obtainedCtrl,
-                                keyboardType: TextInputType.number,
-                                decoration: const InputDecoration(
-                                  labelText: 'Obtained Marks',
-                                  prefixIcon: Icon(Icons.edit),
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              TextField(
-                                controller: totalCtrl,
-                                keyboardType: TextInputType.number,
-                                decoration: const InputDecoration(
-                                  labelText: 'Total Marks',
-                                  prefixIcon:
-                                      Icon(Icons.assignment),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+                      TextField(
+                        controller: obtainedCtrl,
+                        decoration:
+                            const InputDecoration(labelText: 'Obtained Marks'),
                       ),
-
+                      TextField(
+                        controller: totalCtrl,
+                        decoration:
+                            const InputDecoration(labelText: 'Total Marks'),
+                      ),
                       const SizedBox(height: 20),
-
                       ElevatedButton(
                         onPressed: _calculatePercentage,
-                        child: const Text('Calculate Percentage'),
+                        child: const Text('Calculate'),
                       ),
-
-                      const SizedBox(height: 30),
-
                       if (calculated)
-                        Container(
-                          padding: const EdgeInsets.all(20),
-                          decoration: BoxDecoration(
-                            color:
-                                Colors.blue.withOpacity(0.08),
-                            borderRadius:
-                                BorderRadius.circular(12),
-                          ),
-                          child: Column(
-                            children: [
-                              Text(
-                                message,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              const SizedBox(height: 10),
-                              Text(
-                                '$result %',
-                                style: const TextStyle(
-                                  fontSize: 36,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.blue,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+                        Text('$result %\n$message',
+                            textAlign: TextAlign.center),
                     ],
                   ),
                 ),
               ),
 
-              /// 🔔 Banner OR Placeholder
               if (!isKeyboardOpen)
                 SizedBox(
-                  height: 250,
+                  height: 90,
                   child: _bannerLoaded && _bannerAd != null
                       ? AdWidget(ad: _bannerAd!)
                       : const AdPlaceholder(),

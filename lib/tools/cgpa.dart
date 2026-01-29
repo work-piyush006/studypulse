@@ -36,13 +36,16 @@ class _CGPAPageState extends State<CGPAPage> {
       duration: const Duration(seconds: 2),
     );
 
-    /// 🔔 Banner via AdsService (single source of truth)
-    _bannerAd = AdsService.createBanner(
-      onLoaded: () {
-        if (!mounted) return;
-        setState(() => _bannerLoaded = true);
-      },
-    );
+    /// 🔔 Adaptive banner (correct + release-safe)
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      _bannerAd = await AdsService.createAdaptiveBanner(
+        context: context,
+        onState: (loaded) {
+          if (!mounted) return;
+          setState(() => _bannerLoaded = loaded);
+        },
+      );
+    });
   }
 
   void _showError(String msg) {
@@ -58,16 +61,8 @@ class _CGPAPageState extends State<CGPAPage> {
   void _calculate() {
     final cgpa = double.tryParse(cgpaCtrl.text.trim());
 
-    if (cgpa == null) {
-      _showError('Enter a valid CGPA number');
-      return;
-    }
-    if (cgpa <= 0) {
-      _showError('CGPA must be greater than 0');
-      return;
-    }
-    if (cgpa > 10) {
-      _showError('CGPA cannot be more than 10');
+    if (cgpa == null || cgpa <= 0 || cgpa > 10) {
+      _showError('Enter a valid CGPA between 0 and 10');
       return;
     }
 
@@ -77,7 +72,6 @@ class _CGPAPageState extends State<CGPAPage> {
     final percent = cgpa * 9.5;
     final value = percent.toStringAsFixed(2);
 
-    /// 🧠 Result-based messaging + confetti
     String msg;
     if (cgpa >= 9) {
       msg = 'Excellent academic performance 🌟';
@@ -118,7 +112,6 @@ class _CGPAPageState extends State<CGPAPage> {
       body: Stack(
         alignment: Alignment.topCenter,
         children: [
-          /// 🎉 CONFETTI
           ConfettiWidget(
             confettiController: _confetti,
             blastDirectionality: BlastDirectionality.explosive,
@@ -193,7 +186,7 @@ class _CGPAPageState extends State<CGPAPage> {
               /// 🔔 Banner OR Placeholder
               if (!isKeyboardOpen)
                 SizedBox(
-                  height: 250,
+                  height: 90,
                   child: _bannerLoaded && _bannerAd != null
                       ? AdWidget(ad: _bannerAd!)
                       : const AdPlaceholder(),
