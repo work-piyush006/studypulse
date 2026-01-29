@@ -16,7 +16,7 @@ class NotificationStore {
     final raw = prefs.getString(_key);
 
     if (raw == null) {
-      _updateUnread([]);
+      await _updateUnread([]);
       return [];
     }
 
@@ -28,7 +28,7 @@ class NotificationStore {
       await prefs.setString(_key, jsonEncode(list));
     }
 
-    _updateUnread(list);
+    await _updateUnread(list);
     return list;
   }
 
@@ -40,7 +40,9 @@ class NotificationStore {
   }) async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_key);
-    final List list = raw == null ? [] : jsonDecode(raw);
+
+    final List<Map<String, dynamic>> list =
+        raw == null ? [] : List<Map<String, dynamic>>.from(jsonDecode(raw));
 
     list.insert(0, {
       'title': title,
@@ -52,7 +54,7 @@ class NotificationStore {
     _autoDeleteOld(list);
 
     await prefs.setString(_key, jsonEncode(list));
-    _updateUnread(list);
+    await _updateUnread(list);
   }
 
   /* ================= DELETE ================= */
@@ -69,7 +71,7 @@ class NotificationStore {
 
     list.removeAt(index);
     await prefs.setString(_key, jsonEncode(list));
-    _updateUnread(list);
+    await _updateUnread(list);
   }
 
   /* ================= MARK ALL READ ================= */
@@ -79,31 +81,33 @@ class NotificationStore {
     final raw = prefs.getString(_key);
     if (raw == null) return;
 
-    final List list = jsonDecode(raw);
+    final List<Map<String, dynamic>> list =
+        List<Map<String, dynamic>>.from(jsonDecode(raw));
+
     for (final n in list) {
       n['read'] = true;
     }
 
     await prefs.setString(_key, jsonEncode(list));
-    _updateUnread(list);
+    await _updateUnread(list);
   }
 
   static Future<void> replace(List<Map<String, dynamic>> list) async {
     final prefs = await SharedPreferences.getInstance();
     _autoDeleteOld(list);
     await prefs.setString(_key, jsonEncode(list));
-    _updateUnread(list);
+    await _updateUnread(list);
   }
 
   static Future<void> clear() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_key);
-    _updateUnread([]);
+    await _updateUnread([]);
   }
 
-  /* ================= AUTO DELETE ================= */
+  /* ================= AUTO DELETE (30 DAYS) ================= */
 
-  static bool _autoDeleteOld(List list) {
+  static bool _autoDeleteOld(List<Map<String, dynamic>> list) {
     final now = DateTime.now();
     final before = list.length;
 
@@ -118,20 +122,17 @@ class NotificationStore {
 
   /* ================= BADGE ================= */
 
-  static void _updateUnread(List list) {
+  static Future<void> _updateUnread(
+      List<Map<String, dynamic>> list) async {
     final unread =
         list.where((n) => n['read'] == false).length;
 
     unreadNotifier.value = unread;
 
     try {
-      if (unread == 0) {
-        AppBadgePlus.removeBadge();
-      } else {
-        AppBadgePlus.updateBadge(unread);
-      }
+      AppBadgePlus.updateBadge(unread);
     } catch (_) {
-      // launcher does not support badges → ignore safely
+      // Badge not supported — ignore safely
     }
   }
 }
