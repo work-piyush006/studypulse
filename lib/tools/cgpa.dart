@@ -16,68 +16,46 @@ class _CGPAPageState extends State<CGPAPage> {
   String result = '';
   bool calculated = false;
 
-  late final BannerAd _bannerAd;
+  BannerAd? _bannerAd;
   bool _bannerLoaded = false;
 
   @override
   void initState() {
     super.initState();
 
-    /// 🔥 TOOL BOTTOM BANNER (SINGLE)
-    _bannerAd = AdsService.createBanner()
-      ..listener = BannerAdListener(
+    AdClickTracker.registerClick();
+
+    _bannerAd = BannerAd(
+      adUnitId: AdsService.bannerId,
+      size: AdSize.mediumRectangle,
+      request: const AdRequest(),
+      listener: BannerAdListener(
         onAdLoaded: (_) {
-          setState(() => _bannerLoaded = true);
+          if (mounted) setState(() => _bannerLoaded = true);
         },
         onAdFailedToLoad: (ad, error) {
           ad.dispose();
         },
-      );
-  }
-
-  void _showError(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(msg),
-        backgroundColor: Colors.redAccent,
-        behavior: SnackBarBehavior.floating,
       ),
-    );
+    )..load();
   }
 
   void _calculate() {
-    AdClickTracker.registerClick(); // 🔔 COUNT TOOL USE
+    AdClickTracker.registerClick();
 
     final cgpa = double.tryParse(cgpaCtrl.text.trim());
-
-    // ❌ Validation (UNCHANGED)
-    if (cgpa == null) {
-      _showError('Enter a valid CGPA number');
-      return;
-    }
-
-    if (cgpa <= 0) {
-      _showError('CGPA must be greater than 0');
-      return;
-    }
-
-    if (cgpa > 10) {
-      _showError('CGPA cannot be more than 10');
-      return;
-    }
-
-    final percentage = cgpa * 9.5;
+    if (cgpa == null || cgpa <= 0 || cgpa > 10) return;
 
     setState(() {
       calculated = true;
-      result = percentage.toStringAsFixed(2);
+      result = (cgpa * 9.5).toStringAsFixed(2);
     });
   }
 
   @override
   void dispose() {
     cgpaCtrl.dispose();
-    _bannerAd.dispose();
+    _bannerAd?.dispose();
     super.dispose();
   }
 
@@ -87,73 +65,33 @@ class _CGPAPageState extends State<CGPAPage> {
       appBar: AppBar(title: const Text('CGPA Calculator')),
       body: Column(
         children: [
-          /// ================= CONTENT =================
           Expanded(
             child: Padding(
               padding: const EdgeInsets.all(20),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: TextField(
-                        controller: cgpaCtrl,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'Enter CGPA (0 – 10)',
-                          prefixIcon: Icon(Icons.school),
-                        ),
-                      ),
-                    ),
+                  TextField(
+                    controller: cgpaCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration:
+                        const InputDecoration(labelText: 'Enter CGPA'),
                   ),
-
                   const SizedBox(height: 20),
-
                   ElevatedButton(
                     onPressed: _calculate,
-                    child: const Text('Convert to Percentage'),
+                    child: const Text('Convert'),
                   ),
-
-                  const SizedBox(height: 30),
-
-                  if (calculated)
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: Colors.green.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Column(
-                        children: [
-                          const Text(
-                            'Equivalent Percentage',
-                            style: TextStyle(color: Colors.grey),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            '$result %',
-                            style: const TextStyle(
-                              fontSize: 32,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.green,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                  if (calculated) Text('$result %'),
                 ],
               ),
             ),
           ),
-
-          /// ================= BOTTOM BANNER =================
-          if (_bannerLoaded)
+          if (_bannerLoaded && _bannerAd != null)
             SafeArea(
               child: SizedBox(
-                height: _bannerAd.size.height.toDouble(),
-                width: _bannerAd.size.width.toDouble(),
-                child: AdWidget(ad: _bannerAd),
+                height: _bannerAd!.size.height.toDouble(),
+                width: _bannerAd!.size.width.toDouble(),
+                child: AdWidget(ad: _bannerAd!),
               ),
             ),
         ],

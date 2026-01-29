@@ -18,26 +18,32 @@ class _PercentagePageState extends State<PercentagePage> {
   String result = '';
   bool calculated = false;
 
-  late final BannerAd _bannerAd;
+  BannerAd? _bannerAd;
   bool _bannerLoaded = false;
 
   @override
   void initState() {
     super.initState();
 
-    /// 🔥 TOOL OPEN = CLICK COUNT
+    /// 🔥 TOOL OPEN CLICK
     AdClickTracker.registerClick();
 
-    /// 🔔 BOTTOM BANNER (1 ONLY)
-    _bannerAd = AdsService.createBanner()
-      ..listener = BannerAdListener(
+    /// 🔔 BOTTOM BANNER
+    _bannerAd = BannerAd(
+      adUnitId: AdsService.bannerId,
+      size: AdSize.mediumRectangle,
+      request: const AdRequest(),
+      listener: BannerAdListener(
         onAdLoaded: (_) {
-          setState(() => _bannerLoaded = true);
+          if (mounted) {
+            setState(() => _bannerLoaded = true);
+          }
         },
         onAdFailedToLoad: (ad, error) {
           ad.dispose();
         },
-      );
+      ),
+    )..load();
   }
 
   void _showError(String message) {
@@ -57,22 +63,18 @@ class _PercentagePageState extends State<PercentagePage> {
     final obtained = double.tryParse(obtainedCtrl.text.trim());
     final total = double.tryParse(totalCtrl.text.trim());
 
-    // ❌ Validation (UNCHANGED)
     if (obtained == null || total == null) {
       _showError('Please enter valid numbers');
       return;
     }
-
     if (total <= 0) {
       _showError('Total marks must be greater than 0');
       return;
     }
-
     if (obtained < 0) {
       _showError('Obtained marks cannot be negative');
       return;
     }
-
     if (obtained > total) {
       _showError('Obtained marks cannot exceed total marks');
       return;
@@ -90,28 +92,23 @@ class _PercentagePageState extends State<PercentagePage> {
   void dispose() {
     obtainedCtrl.dispose();
     totalCtrl.dispose();
-    _bannerAd.dispose();
+    _bannerAd?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Percentage Calculator'),
-      ),
+      appBar: AppBar(title: const Text('Percentage Calculator')),
       body: Column(
         children: [
-          /// ================= CONTENT =================
           Expanded(
             child: Padding(
               padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // INPUT CARD
                   Card(
-                    elevation: 1,
                     child: Padding(
                       padding: const EdgeInsets.all(16),
                       child: Column(
@@ -137,25 +134,12 @@ class _PercentagePageState extends State<PercentagePage> {
                       ),
                     ),
                   ),
-
                   const SizedBox(height: 20),
-
-                  // CALCULATE BUTTON
                   ElevatedButton(
                     onPressed: _calculatePercentage,
-                    style: ElevatedButton.styleFrom(
-                      padding:
-                          const EdgeInsets.symmetric(vertical: 14),
-                    ),
-                    child: const Text(
-                      'Calculate Percentage',
-                      style: TextStyle(fontSize: 16),
-                    ),
+                    child: const Text('Calculate Percentage'),
                   ),
-
                   const SizedBox(height: 30),
-
-                  // RESULT
                   if (calculated)
                     Container(
                       padding: const EdgeInsets.all(20),
@@ -165,20 +149,13 @@ class _PercentagePageState extends State<PercentagePage> {
                       ),
                       child: Column(
                         children: [
-                          const Text(
-                            'Your Percentage',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey,
-                            ),
-                          ),
+                          const Text('Your Percentage'),
                           const SizedBox(height: 8),
                           Text(
                             '$result %',
                             style: const TextStyle(
                               fontSize: 34,
                               fontWeight: FontWeight.bold,
-                              color: Colors.blue,
                             ),
                           ),
                         ],
@@ -188,14 +165,12 @@ class _PercentagePageState extends State<PercentagePage> {
               ),
             ),
           ),
-
-          /// ================= BOTTOM BANNER =================
-          if (_bannerLoaded)
+          if (_bannerLoaded && _bannerAd != null)
             SafeArea(
               child: SizedBox(
-                height: _bannerAd.size.height.toDouble(),
-                width: _bannerAd.size.width.toDouble(),
-                child: AdWidget(ad: _bannerAd),
+                height: _bannerAd!.size.height.toDouble(),
+                width: _bannerAd!.size.width.toDouble(),
+                child: AdWidget(ad: _bannerAd!),
               ),
             ),
         ],
