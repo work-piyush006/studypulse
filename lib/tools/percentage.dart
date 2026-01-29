@@ -30,28 +30,20 @@ class _PercentagePageState extends State<PercentagePage> {
   void initState() {
     super.initState();
 
-    /// 🔥 TOOL OPEN CLICK (once)
+    /// 🔥 Tool open = one click
     AdClickTracker.registerClick();
 
     _confetti = ConfettiController(
       duration: const Duration(seconds: 2),
     );
 
-    /// 🔔 Bottom banner
-    _bannerAd = BannerAd(
-      adUnitId: AdsService.bannerId,
-      size: AdSize.mediumRectangle,
-      request: const AdRequest(),
-      listener: BannerAdListener(
-        onAdLoaded: (_) {
-          if (mounted) setState(() => _bannerLoaded = true);
-        },
-        onAdFailedToLoad: (ad, _) {
-          ad.dispose();
-          setState(() => _bannerLoaded = false);
-        },
-      ),
-    )..load();
+    /// 🔔 Banner via AdsService (single source of truth)
+    _bannerAd = AdsService.createBanner(
+      onState: (loaded) {
+        if (!mounted) return;
+        setState(() => _bannerLoaded = loaded);
+      },
+    );
   }
 
   void _showError(String msg) {
@@ -85,13 +77,13 @@ class _PercentagePageState extends State<PercentagePage> {
       return;
     }
 
-    /// ✅ COUNT CLICK ONLY ON SUCCESS
+    /// ✅ Count click ONLY on success
     AdClickTracker.registerClick();
 
     final percent = (obtained / total) * 100;
     final value = percent.toStringAsFixed(2);
 
-    // 🧠 RESULT MESSAGE LOGIC
+    /// 🧠 Result-based messaging + confetti
     String msg;
     if (percent >= 90) {
       msg = 'Outstanding performance! 🔥';
@@ -220,7 +212,7 @@ class _PercentagePageState extends State<PercentagePage> {
                 ),
               ),
 
-              /// 🔔 BANNER OR PLACEHOLDER
+              /// 🔔 Banner OR Placeholder
               if (!isKeyboardOpen)
                 SizedBox(
                   height: 250,
