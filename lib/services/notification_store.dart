@@ -37,7 +37,6 @@ class NotificationStore {
         ? <Map<String, dynamic>>[]
         : List<Map<String, dynamic>>.from(jsonDecode(raw));
 
-    // 🔥 DEDUPE: same title + body
     final alreadyExists = list.any(
       (n) => n['title'] == title && n['body'] == body,
     );
@@ -51,6 +50,15 @@ class NotificationStore {
       });
     }
 
+    _autoDeleteOld(list);
+    await _sync(list);
+  }
+
+  /* ================= REPLACE (🔥 FIX) ================= */
+
+  /// Used by NotificationInbox
+  static Future<void> replace(
+      List<Map<String, dynamic>> list) async {
     _autoDeleteOld(list);
     await _sync(list);
   }
@@ -88,6 +96,8 @@ class NotificationStore {
     await _sync(list);
   }
 
+  /* ================= CLEAR ================= */
+
   static Future<void> clear() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_key);
@@ -96,7 +106,8 @@ class NotificationStore {
 
   /* ================= INTERNAL ================= */
 
-  static Future<void> _sync(List<Map<String, dynamic>> list) async {
+  static Future<void> _sync(
+      List<Map<String, dynamic>> list) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_key, jsonEncode(list));
     await _updateUnread(list);
@@ -123,6 +134,8 @@ class NotificationStore {
 
     try {
       await AppBadgePlus.updateBadge(unread);
-    } catch (_) {}
+    } catch (_) {
+      // launcher doesn't support badges
+    }
   }
 }

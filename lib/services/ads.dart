@@ -12,7 +12,7 @@ class AdsService {
   static bool _isInterstitialReady = false;
   static int _loadAttempts = 0;
 
-  /// 🚨 MUST BE FALSE FOR PLAY STORE
+  /// 🚨 MUST BE FALSE FOR PLAY STORE RELEASE
   static const bool useTestAds = false;
 
   /* ================= AD UNIT IDS ================= */
@@ -31,36 +31,36 @@ class AdsService {
 
   static Future<void> initialize() async {
     if (_initialized) return;
+
     await MobileAds.instance.initialize();
     _initialized = true;
+
     loadInterstitial();
   }
 
-  /* ================= BASIC BANNER (SAFE) ================= */
+  /* ================= BASIC BANNER ================= */
 
-  /// ✅ BACKWARD-COMPATIBLE
-  /// Used by Home, Percentage, CGPA, Exam
-  static BannerAd? createBanner({
-    VoidCallback? onLoaded,
+  /// ✅ SAFE, RELEASE-READY
+  /// UI decides placeholder vs widget
+  static BannerAd createBanner({
+    required void Function(bool loaded) onState,
     AdSize size = AdSize.mediumRectangle,
   }) {
-    BannerAd? banner;
-
-    banner = BannerAd(
+    final banner = BannerAd(
       adUnitId: bannerId,
       size: size,
       request: const AdRequest(),
       listener: BannerAdListener(
         onAdLoaded: (_) {
           if (kDebugMode) debugPrint('✅ Banner loaded');
-          onLoaded?.call();
+          onState(true);
         },
         onAdFailedToLoad: (ad, error) {
           if (kDebugMode) {
             debugPrint('❌ Banner failed: $error');
           }
           ad.dispose();
-          banner = null;
+          onState(false);
         },
       ),
     );
@@ -69,10 +69,10 @@ class AdsService {
     return banner;
   }
 
-  /* ================= ADAPTIVE BANNER (OPTIONAL) ================= */
+  /* ================= ADAPTIVE BANNER ================= */
 
-  /// 🔥 HIGHER FILL RATE + RPM
-  /// Use only where context is available
+  /// 🔥 Higher fill rate & RPM
+  /// Call AFTER first frame (context needed)
   static Future<BannerAd?> createAdaptiveBanner({
     required BuildContext context,
     required void Function(bool loaded) onState,
@@ -118,7 +118,7 @@ class AdsService {
       ),
     );
 
-    await banner.load();
+    banner.load();
     return banner;
   }
 
@@ -141,14 +141,23 @@ class AdsService {
           _isInterstitialReady = true;
           _loadAttempts = 0;
           ad.setImmersiveMode(true);
-          if (kDebugMode) debugPrint('✅ Interstitial loaded');
+
+          if (kDebugMode) {
+            debugPrint('✅ Interstitial loaded');
+          }
         },
         onAdFailedToLoad: (error) {
           _interstitialAd = null;
           _isInterstitialReady = false;
           _loadAttempts++;
-          if (kDebugMode) debugPrint('❌ Interstitial failed: $error');
-          if (_loadAttempts < 3) loadInterstitial();
+
+          if (kDebugMode) {
+            debugPrint('❌ Interstitial failed: $error');
+          }
+
+          if (_loadAttempts < 3) {
+            loadInterstitial();
+          }
         },
       ),
     );

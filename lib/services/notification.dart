@@ -59,7 +59,7 @@ class NotificationService {
       },
     );
 
-    // 🔥 ANDROID 13+ PERMISSION (CORRECT WAY)
+    // 🔥 ANDROID 13+ PERMISSION (CORRECT & SAFE)
     final status = await Permission.notification.status;
     if (!status.isGranted) {
       await Permission.notification.request();
@@ -77,7 +77,7 @@ class NotificationService {
 
   /* ================= INSTANT ================= */
 
-  /// 🔔 Fires on REAL exam date change
+  /// 🔔 Fires only on REAL exam date change
   static Future<void> showInstant({
     required int daysLeft,
     required String quote,
@@ -115,7 +115,7 @@ class NotificationService {
     final prefs = await SharedPreferences.getInstance();
     if (!(prefs.getBool('notifications') ?? true)) return;
 
-    // Cancel only our own daily IDs
+    // Cancel only our known IDs
     await _plugin.cancel(1530);
     await _plugin.cancel(2030);
 
@@ -146,7 +146,7 @@ class NotificationService {
         DateTime(examDate.year, examDate.month, examDate.day);
 
     final daysLeft = end.difference(start).inDays;
-    if (daysLeft < 0) return; // exam passed
+    if (daysLeft < 0) return;
 
     final quotes = await _loadQuotes();
     if (quotes.isEmpty) return;
@@ -201,6 +201,13 @@ class NotificationService {
           UILocalNotificationDateInterpretation.absoluteTime,
       matchDateTimeComponents: DateTimeComponents.time,
     );
+  }
+
+  /* ================= CANCEL ALL (🔥 FIX) ================= */
+
+  /// Used by Settings toggle
+  static Future<void> cancelAll() async {
+    await _plugin.cancelAll();
   }
 
   /* ================= UTIL ================= */
