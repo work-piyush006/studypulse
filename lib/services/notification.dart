@@ -15,7 +15,8 @@ class NotificationService {
 
   static bool _initialized = false;
 
-  /// 🚀 INIT
+  /* ================= INIT ================= */
+
   static Future<void> init() async {
     if (_initialized) return;
 
@@ -32,15 +33,23 @@ class NotificationService {
         try {
           final data = jsonDecode(response.payload!);
 
-          // ✅ SAVE ONLY FOR SCHEDULED (ON TAP)
+          // ✅ SAVE ONLY WHEN USER TAPS
           await NotificationStore.save(
             title: data['title'],
             body: data['body'],
           );
 
-          const channel = MethodChannel('studypulse/notifications');
-          await channel.invokeMethod('openInbox');
-        } catch (_) {}
+          // ✅ SINGLE SOURCE OF TRUTH FOR ROUTING
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setBool('open_inbox', true);
+
+          // ❌ NO METHOD CHANNEL
+          // ❌ NO NATIVE ROUTING
+          // Flutter splash will handle navigation
+
+        } catch (_) {
+          // fail silently
+        }
       },
     );
 
@@ -48,9 +57,8 @@ class NotificationService {
   }
 
   /* =========================================================
-     🔥 IMMEDIATE NOTIFICATION
-     → SAVE IMMEDIATELY
-     → ❌ NO PAYLOAD (NO DOUBLE SAVE)
+     🔔 INSTANT NOTIFICATION
+     → SAVE IMMEDIATELY (BY DESIGN)
   ========================================================= */
 
   static Future<void> showInstant({
@@ -63,7 +71,7 @@ class NotificationService {
     final title = '📘 Exam Countdown';
     final body = '$daysLeft days left\n$quote';
 
-    // ✅ SAVE ONCE
+    // ✅ SAVE ONCE (IMMEDIATE NOTIFICATION)
     await NotificationStore.save(
       title: title,
       body: body,
@@ -85,8 +93,8 @@ class NotificationService {
   }
 
   /* =========================================================
-     🕘 SCHEDULED NOTIFICATIONS
-     → SAVE ONLY WHEN USER TAPS
+     ⏰ DAILY SCHEDULED NOTIFICATIONS
+     → SAVE ONLY ON TAP
   ========================================================= */
 
   static Future<void> scheduleDaily({
@@ -111,6 +119,8 @@ class NotificationService {
     if (daysLeft < 0) return;
 
     final quotes = await _loadQuotes();
+    if (quotes.isEmpty) return;
+
     final quote = quotes[Random().nextInt(quotes.length)];
 
     final title = '📚 StudyPulse Reminder';
@@ -123,7 +133,13 @@ class NotificationService {
 
     final now = tz.TZDateTime.now(tz.local);
     var time = tz.TZDateTime(
-        tz.local, now.year, now.month, now.day, hour, minute);
+      tz.local,
+      now.year,
+      now.month,
+      now.day,
+      hour,
+      minute,
+    );
 
     if (time.isBefore(now)) {
       time = time.add(const Duration(days: 1));
@@ -149,6 +165,8 @@ class NotificationService {
       matchDateTimeComponents: DateTimeComponents.time,
     );
   }
+
+  /* ================= UTIL ================= */
 
   static Future<void> cancelAll() async {
     await _plugin.cancelAll();
