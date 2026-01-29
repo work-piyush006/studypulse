@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
@@ -58,16 +59,15 @@ class NotificationService {
       },
     );
 
+    // 🔥 ANDROID 13+ PERMISSION (CORRECT WAY)
+    final status = await Permission.notification.status;
+    if (!status.isGranted) {
+      await Permission.notification.request();
+    }
+
     final androidPlugin =
         _plugin.resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>();
-
-    // 🔥 ANDROID 13+ PERMISSION GUARD (CRITICAL)
-    final granted =
-        await androidPlugin?.areNotificationsEnabled() ?? false;
-    if (!granted) {
-      await androidPlugin?.requestPermission();
-    }
 
     await androidPlugin?.createNotificationChannel(_instantChannel);
     await androidPlugin?.createNotificationChannel(_dailyChannel);
@@ -77,7 +77,7 @@ class NotificationService {
 
   /* ================= INSTANT ================= */
 
-  /// 🔔 Always fires on REAL date change (if permission granted)
+  /// 🔔 Fires on REAL exam date change
   static Future<void> showInstant({
     required int daysLeft,
     required String quote,
@@ -94,11 +94,11 @@ class NotificationService {
       DateTime.now().millisecondsSinceEpoch.remainder(100000),
       title,
       body,
-      NotificationDetails(
+      const NotificationDetails(
         android: AndroidNotificationDetails(
-          _instantChannel.id,
-          _instantChannel.name,
-          channelDescription: _instantChannel.description,
+          'exam_now',
+          'Exam Alerts',
+          channelDescription: 'Instant exam countdown alerts',
           importance: Importance.high,
           priority: Priority.high,
         ),
@@ -115,7 +115,7 @@ class NotificationService {
     final prefs = await SharedPreferences.getInstance();
     if (!(prefs.getBool('notifications') ?? true)) return;
 
-    // ❗ Cancel only our daily IDs
+    // Cancel only our own daily IDs
     await _plugin.cancel(1530);
     await _plugin.cancel(2030);
 
@@ -146,7 +146,7 @@ class NotificationService {
         DateTime(examDate.year, examDate.month, examDate.day);
 
     final daysLeft = end.difference(start).inDays;
-    if (daysLeft < 0) return; // ❌ exam passed
+    if (daysLeft < 0) return; // exam passed
 
     final quotes = await _loadQuotes();
     if (quotes.isEmpty) return;
