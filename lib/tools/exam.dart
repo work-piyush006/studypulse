@@ -69,7 +69,7 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
 
   /* ================= DAYS ================= */
 
-  int _calculateDaysLeft(DateTime date) {
+  int _daysLeftFrom(DateTime date) {
     final now = DateTime.now();
     final start = DateTime(now.year, now.month, now.day);
     final end = DateTime(date.year, date.month, date.day);
@@ -78,7 +78,7 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
   }
 
   int get daysLeft =>
-      examDate == null ? 0 : _calculateDaysLeft(examDate!);
+      examDate == null ? 0 : _daysLeftFrom(examDate!);
 
   Color get dayColor {
     if (daysLeft >= 45) return Colors.green;
@@ -107,13 +107,16 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
 
     if (old == normalized.toIso8601String()) return;
 
+    /// 🔥 SAVE DATE
     await prefs.setString('exam_date', normalized.toIso8601String());
     setState(() => examDate = normalized);
 
     AdClickTracker.registerClick();
 
-    final freshDaysLeft = _calculateDaysLeft(normalized);
+    /// 🔥 ALWAYS calculate fresh value
+    final freshDaysLeft = _daysLeftFrom(normalized);
 
+    /// 🔔 INSTANT notification (EVERY CHANGE)
     if (quotes.isNotEmpty) {
       await NotificationService.showInstant(
         daysLeft: freshDaysLeft,
@@ -121,10 +124,12 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
       );
     }
 
+    /// 🔔 DAILY reschedule
     await NotificationService.scheduleDaily(examDate: normalized);
 
+    /// 🔥 TELL HOME: REFRESH NOW
     if (mounted) {
-      Navigator.pop(context, true); // 🔥 SIGNAL HOME TO REFRESH
+      Navigator.pop(context, true);
     }
   }
 
