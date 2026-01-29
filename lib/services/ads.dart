@@ -12,7 +12,7 @@ class AdsService {
   static int _loadAttempts = 0;
 
   /// 🚨 MUST BE FALSE FOR PLAY STORE
-  static const bool useTestAds = false;
+  static const bool useTestAds = true;
 
   /* ================= AD UNIT IDS ================= */
 
