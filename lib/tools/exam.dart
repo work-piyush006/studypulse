@@ -25,6 +25,10 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
   @override
   void initState() {
     super.initState();
+
+    /// 🔔 Ensure notification system is ready
+    NotificationService.init();
+
     _loadData();
     _loadBanner();
   }
@@ -38,9 +42,13 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
       request: const AdRequest(),
       listener: BannerAdListener(
         onAdLoaded: (_) {
-          if (mounted) setState(() => _bannerLoaded = true);
+          if (mounted) {
+            setState(() => _bannerLoaded = true);
+          }
         },
-        onAdFailedToLoad: (ad, _) => ad.dispose(),
+        onAdFailedToLoad: (ad, _) {
+          ad.dispose();
+        },
       ),
     )..load();
   }
@@ -70,6 +78,7 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
   Future<void> _loadData() async {
     final prefs = await SharedPreferences.getInstance();
     final saved = prefs.getString('exam_date');
+
     if (saved != null) {
       examDate = DateTime.parse(saved);
     }
@@ -114,7 +123,9 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
     if (!isDateChanged) return;
 
     await prefs.setString(
-        'exam_date', normalizedPicked.toIso8601String());
+      'exam_date',
+      normalizedPicked.toIso8601String(),
+    );
 
     setState(() => examDate = normalizedPicked);
 
@@ -133,6 +144,15 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
     await NotificationService.scheduleDaily(
       examDate: normalizedPicked,
     );
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Exam date saved successfully'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   @override
@@ -209,7 +229,7 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
                         height: 250,
                         child: Center(
                           child: Text(
-                            'Loading sponsored content…',
+                            'Sponsor content loading…',
                             style: TextStyle(color: Colors.grey),
                           ),
                         ),

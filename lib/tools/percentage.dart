@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:confetti/confetti.dart';
 
 import '../services/ads.dart';
 import '../services/ad_click_tracker.dart';
+import '../widgets/ad_placeholder.dart';
 
 class PercentagePage extends StatefulWidget {
   const PercentagePage({super.key});
@@ -16,17 +18,24 @@ class _PercentagePageState extends State<PercentagePage> {
   final TextEditingController totalCtrl = TextEditingController();
 
   String result = '';
+  String message = '';
   bool calculated = false;
 
   BannerAd? _bannerAd;
   bool _bannerLoaded = false;
 
+  late final ConfettiController _confetti;
+
   @override
   void initState() {
     super.initState();
 
-    /// 🔥 TOOL OPEN CLICK (counted once)
+    /// 🔥 TOOL OPEN CLICK (once)
     AdClickTracker.registerClick();
+
+    _confetti = ConfettiController(
+      duration: const Duration(seconds: 2),
+    );
 
     /// 🔔 Bottom banner
     _bannerAd = BannerAd(
@@ -37,7 +46,10 @@ class _PercentagePageState extends State<PercentagePage> {
         onAdLoaded: (_) {
           if (mounted) setState(() => _bannerLoaded = true);
         },
-        onAdFailedToLoad: (ad, _) => ad.dispose(),
+        onAdFailedToLoad: (ad, _) {
+          ad.dispose();
+          setState(() => _bannerLoaded = false);
+        },
       ),
     )..load();
   }
@@ -46,8 +58,8 @@ class _PercentagePageState extends State<PercentagePage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(msg),
-        behavior: SnackBarBehavior.floating,
         backgroundColor: Colors.redAccent,
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }
@@ -77,9 +89,28 @@ class _PercentagePageState extends State<PercentagePage> {
     AdClickTracker.registerClick();
 
     final percent = (obtained / total) * 100;
+    final value = percent.toStringAsFixed(2);
+
+    // 🧠 RESULT MESSAGE LOGIC
+    String msg;
+    if (percent >= 90) {
+      msg = 'Outstanding performance! 🔥';
+      _confetti.play();
+    } else if (percent >= 75) {
+      msg = 'Great job, keep pushing 💪';
+      _confetti.play();
+    } else if (percent >= 60) {
+      msg = 'Good effort, you can do better 👍';
+    } else if (percent >= 40) {
+      msg = 'Needs improvement, don’t give up 📚';
+    } else {
+      msg = 'Tough result, but this is not the end 🚀';
+    }
+
     setState(() {
       calculated = true;
-      result = percent.toStringAsFixed(2);
+      result = value;
+      message = msg;
     });
   }
 
@@ -88,6 +119,7 @@ class _PercentagePageState extends State<PercentagePage> {
     obtainedCtrl.dispose();
     totalCtrl.dispose();
     _bannerAd?.dispose();
+    _confetti.dispose();
     super.dispose();
   }
 
@@ -98,81 +130,106 @@ class _PercentagePageState extends State<PercentagePage> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Percentage Calculator')),
-      body: Column(
+      body: Stack(
+        alignment: Alignment.topCenter,
         children: [
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        children: [
-                          TextField(
-                            controller: obtainedCtrl,
-                            keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(
-                              labelText: 'Obtained Marks',
-                              prefixIcon: Icon(Icons.edit),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          TextField(
-                            controller: totalCtrl,
-                            keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(
-                              labelText: 'Total Marks',
-                              prefixIcon: Icon(Icons.assignment),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  ElevatedButton(
-                    onPressed: _calculatePercentage,
-                    child: const Text('Calculate Percentage'),
-                  ),
-                  const SizedBox(height: 30),
-                  if (calculated)
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: Colors.blue.withOpacity(0.08),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Column(
-                        children: [
-                          const Text('Your Percentage'),
-                          const SizedBox(height: 8),
-                          Text(
-                            '$result %',
-                            style: const TextStyle(
-                              fontSize: 34,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
-              ),
-            ),
+          /// 🎉 CONFETTI
+          ConfettiWidget(
+            confettiController: _confetti,
+            blastDirectionality: BlastDirectionality.explosive,
+            shouldLoop: false,
+            numberOfParticles: 25,
           ),
 
-          /// ✅ BANNER ONLY WHEN KEYBOARD CLOSED
-          if (_bannerLoaded && _bannerAd != null && !isKeyboardOpen)
-            SafeArea(
-              child: SizedBox(
-                height: _bannerAd!.size.height.toDouble(),
-                width: _bannerAd!.size.width.toDouble(),
-                child: AdWidget(ad: _bannerAd!),
+          Column(
+            children: [
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            children: [
+                              TextField(
+                                controller: obtainedCtrl,
+                                keyboardType: TextInputType.number,
+                                decoration: const InputDecoration(
+                                  labelText: 'Obtained Marks',
+                                  prefixIcon: Icon(Icons.edit),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              TextField(
+                                controller: totalCtrl,
+                                keyboardType: TextInputType.number,
+                                decoration: const InputDecoration(
+                                  labelText: 'Total Marks',
+                                  prefixIcon:
+                                      Icon(Icons.assignment),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 20),
+
+                      ElevatedButton(
+                        onPressed: _calculatePercentage,
+                        child: const Text('Calculate Percentage'),
+                      ),
+
+                      const SizedBox(height: 30),
+
+                      if (calculated)
+                        Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color:
+                                Colors.blue.withOpacity(0.08),
+                            borderRadius:
+                                BorderRadius.circular(12),
+                          ),
+                          child: Column(
+                            children: [
+                              Text(
+                                message,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Text(
+                                '$result %',
+                                style: const TextStyle(
+                                  fontSize: 36,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.blue,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
               ),
-            ),
+
+              /// 🔔 BANNER OR PLACEHOLDER
+              if (!isKeyboardOpen)
+                SizedBox(
+                  height: 250,
+                  child: _bannerLoaded && _bannerAd != null
+                      ? AdWidget(ad: _bannerAd!)
+                      : const AdPlaceholder(),
+                ),
+            ],
+          ),
         ],
       ),
     );
