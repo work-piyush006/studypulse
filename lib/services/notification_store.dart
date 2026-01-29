@@ -72,7 +72,7 @@ class NotificationStore {
     _updateUnread(list);
   }
 
-  /* ================= MARK READ ================= */
+  /* ================= MARK ALL READ ================= */
 
   static Future<void> markAllRead() async {
     final prefs = await SharedPreferences.getInstance();
@@ -124,7 +124,14 @@ class NotificationStore {
 
     unreadNotifier.value = unread;
 
-    // app_badge_plus correct usage
-    AppBadgePlus.updateBadge(unread);
+    try {
+      if (unread == 0) {
+        AppBadgePlus.removeBadge();
+      } else {
+        AppBadgePlus.updateBadge(unread);
+      }
+    } catch (_) {
+      // launcher does not support badges → ignore safely
+    }
   }
 }
