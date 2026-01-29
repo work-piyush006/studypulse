@@ -17,6 +17,8 @@ import 'services/ads.dart';
 import 'services/ad_click_tracker.dart';
 import 'services/notification_store.dart';
 
+import 'widgets/ad_placeholder.dart';
+
 class Home extends StatefulWidget {
   const Home({super.key});
 
@@ -41,42 +43,43 @@ class _HomeState extends State<Home> {
   @override
   void initState() {
     super.initState();
-    _loadExamDate();
-    _loadDailyQuote();
+    _reloadAll();
   }
 
-  /* ================= LOAD EXAM DATE ================= */
+  Future<void> _reloadAll() async {
+    await _loadExamDate();
+    await _loadDailyQuote();
+  }
 
   Future<void> _loadExamDate() async {
     final prefs = await SharedPreferences.getInstance();
     final d = prefs.getString('exam_date');
-    if (d != null && mounted) {
-      setState(() => examDate = DateTime.parse(d));
-    }
+    if (!mounted) return;
+    setState(() {
+      examDate = d == null ? null : DateTime.parse(d);
+    });
   }
-
-  /* ================= LOAD DAILY QUOTE ================= */
 
   Future<void> _loadDailyQuote() async {
     final data = await rootBundle.loadString('assets/quotes.txt');
     final quotes =
         data.split('\n').where((e) => e.trim().isNotEmpty).toList();
 
-    if (quotes.isEmpty) return;
+    if (!mounted || quotes.isEmpty) return;
 
     setState(() {
       dailyQuote = quotes[Random().nextInt(quotes.length)];
     });
   }
 
-  /* ================= DAYS LOGIC (NORMALIZED) ================= */
-
   int get daysLeft {
     if (examDate == null) return 0;
+
     final today = DateTime.now();
     final start = DateTime(today.year, today.month, today.day);
     final end =
         DateTime(examDate!.year, examDate!.month, examDate!.day);
+
     final diff = end.difference(start).inDays;
     return diff < 0 ? 0 : diff;
   }
@@ -93,7 +96,6 @@ class _HomeState extends State<Home> {
       appBar: AppBar(
         title: const Text('StudyPulse'),
         actions: [
-          /// 🔔 NOTIFICATIONS (NO AD CLICK)
           ValueListenableBuilder<int>(
             valueListenable: NotificationStore.unreadNotifier,
             builder: (_, count, __) {
@@ -137,11 +139,9 @@ class _HomeState extends State<Home> {
           ),
         ],
       ),
-
       body: SafeArea(
         child: IndexedStack(index: index, children: pages),
       ),
-
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: index,
         onTap: (i) {
@@ -175,23 +175,39 @@ class _HomeMain extends StatefulWidget {
 class _HomeMainState extends State<_HomeMain> {
   static const int _bannerCount = 5;
 
-  late final List<BannerAd> _homeBanners;
-  final PageController _bannerController =
+  late final List<BannerAd> _banners;
+  late final List<bool> _loaded;
+
+  final PageController _controller =
       PageController(viewportFraction: 0.92);
 
   @override
   void initState() {
     super.initState();
-    _homeBanners =
-        List.generate(_bannerCount, (_) => AdsService.createBanner());
+
+    _loaded = List.filled(_bannerCount, false);
+    _banners = List.generate(_bannerCount, (i) {
+      final ad = AdsService.createBanner();
+      ad.listener = BannerAdListener(
+        onAdLoaded: (_) {
+          if (!mounted) return;
+          setState(() => _loaded[i] = true);
+        },
+        onAdFailedToLoad: (ad, _) {
+          ad.dispose();
+        },
+      );
+      ad.load();
+      return ad;
+    });
   }
 
   @override
   void dispose() {
-    for (final ad in _homeBanners) {
+    for (final ad in _banners) {
       ad.dispose();
     }
-    _bannerController.dispose();
+    _controller.dispose();
     super.dispose();
   }
 
@@ -208,13 +224,15 @@ class _HomeMainState extends State<_HomeMain> {
           SizedBox(
             height: 260,
             child: PageView.builder(
-              controller: _bannerController,
-              itemCount: _homeBanners.length,
+              controller: _controller,
+              itemCount: _bannerCount,
               itemBuilder: (_, i) => Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 6),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
-                  child: AdWidget(ad: _homeBanners[i]),
+                  child: _loaded[i]
+                      ? AdWidget(ad: _banners[i])
+                      : const AdPlaceholder(),
                 ),
               ),
             ),
@@ -222,7 +240,6 @@ class _HomeMainState extends State<_HomeMain> {
 
         if (!isKeyboardOpen) const SizedBox(height: 20),
 
-        /// HEADER
         Row(
           children: [
             Image.asset('assets/logo.png', height: 48),
@@ -247,7 +264,6 @@ class _HomeMainState extends State<_HomeMain> {
 
         const SizedBox(height: 16),
 
-        /// DAILY QUOTE (NOW USED)
         if (home != null && home.dailyQuote.isNotEmpty)
           Text(
             '“${home.dailyQuote}”',
@@ -307,12 +323,18 @@ class _HomeMainState extends State<_HomeMain> {
         title: Text(title),
         trailing:
             const Icon(Icons.arrow_forward_ios, size: 16),
-        onTap: () {
+        onTap: () async {
           AdClickTracker.registerClick();
-          Navigator.push(
+          await Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => page),
           );
+
+          if (mounted) {
+            context
+                .findAncestorStateOfType<_HomeState>()
+                ?._reloadAll();
+          }
         },
       ),
     );
