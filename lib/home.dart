@@ -28,7 +28,7 @@ class Home extends StatefulWidget {
 
 /* ================= HOME ROOT ================= */
 
-class _HomeState extends State<Home> {
+class _HomeState extends State<Home> with WidgetsBindingObserver {
   int index = 0;
 
   DateTime? examDate;
@@ -43,12 +43,27 @@ class _HomeState extends State<Home> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _reloadAll();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// 🔥 Called when app comes foreground (WPS / recent apps)
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _reloadAll();
+    }
   }
 
   Future<void> _reloadAll() async {
     await _loadExamDate();
-    await _loadDailyQuote();
+    await _loadNextQuote();
   }
 
   Future<void> _loadExamDate() async {
@@ -60,15 +75,45 @@ class _HomeState extends State<Home> {
     });
   }
 
-  Future<void> _loadDailyQuote() async {
-    final data = await rootBundle.loadString('assets/quotes.txt');
-    final quotes =
-        data.split('\n').where((e) => e.trim().isNotEmpty).toList();
+  /* ================= QUOTE ROTATION (🔥 CORE FIX) ================= */
 
-    if (!mounted || quotes.isEmpty) return;
+  Future<void> _loadNextQuote() async {
+    final prefs = await SharedPreferences.getInstance();
 
+    final raw = await rootBundle.loadString('assets/quotes.txt');
+    final allQuotes = raw
+        .split('\n')
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+
+    if (allQuotes.isEmpty || !mounted) return;
+
+    List<String> order;
+    int index = prefs.getInt('quote_index') ?? 0;
+
+    final savedOrder = prefs.getStringList('quotes_order');
+
+    if (savedOrder == null || savedOrder.length != allQuotes.length) {
+      order = List<String>.from(allQuotes)..shuffle();
+      index = 0;
+    } else {
+      order = savedOrder;
+    }
+
+    if (index >= order.length) {
+      order.shuffle();
+      index = 0;
+    }
+
+    final quote = order[index];
+
+    await prefs.setStringList('quotes_order', order);
+    await prefs.setInt('quote_index', index + 1);
+
+    if (!mounted) return;
     setState(() {
-      dailyQuote = quotes[Random().nextInt(quotes.length)];
+      dailyQuote = quote;
     });
   }
 
@@ -111,6 +156,7 @@ class _HomeState extends State<Home> {
                               const NotificationInboxScreen(),
                         ),
                       );
+                      _reloadAll(); // 🔥 new quote after return
                     },
                   ),
                   if (count > 0)
@@ -148,6 +194,7 @@ class _HomeState extends State<Home> {
           if (i != index) {
             AdClickTracker.registerClick();
             setState(() => index = i);
+            _loadNextQuote(); // 🔥 every tab switch → new quote
           }
         },
         items: const [
@@ -180,7 +227,6 @@ class _HomeMainState extends State<_HomeMain> {
   void initState() {
     super.initState();
 
-    /// 🔔 SINGLE adaptive banner
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       _bannerAd = await AdsService.createAdaptiveBanner(
         context: context,
@@ -207,7 +253,6 @@ class _HomeMainState extends State<_HomeMain> {
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        /// 🔔 TOP BANNER
         if (!isKeyboardOpen)
           SizedBox(
             height: 90,
@@ -216,7 +261,7 @@ class _HomeMainState extends State<_HomeMain> {
                 : const AdPlaceholder(),
           ),
 
-        if (!isKeyboardOpen) const SizedBox(height: 20),
+        const SizedBox(height: 20),
 
         Row(
           children: [
@@ -288,7 +333,6 @@ class _HomeMainState extends State<_HomeMain> {
     );
   }
 
-  /// 🔥 FINAL FIXED TOOL NAVIGATION
   Widget _tool(
     BuildContext context,
     String title,
@@ -310,7 +354,6 @@ class _HomeMainState extends State<_HomeMain> {
             MaterialPageRoute(builder: (_) => page),
           );
 
-          /// 🔥 Reload ONLY if exam date actually changed
           if (changed == true && mounted) {
             context
                 .findAncestorStateOfType<_HomeState>()
