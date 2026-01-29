@@ -180,7 +180,7 @@ class _HomeMainState extends State<_HomeMain> {
   void initState() {
     super.initState();
 
-    /// 🔔 SINGLE adaptive banner (correct usage)
+    /// 🔔 SINGLE adaptive banner
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       _bannerAd = await AdsService.createAdaptiveBanner(
         context: context,
@@ -288,6 +288,7 @@ class _HomeMainState extends State<_HomeMain> {
     );
   }
 
+  /// 🔥 FINAL FIXED TOOL NAVIGATION
   Widget _tool(
     BuildContext context,
     String title,
@@ -303,12 +304,14 @@ class _HomeMainState extends State<_HomeMain> {
             const Icon(Icons.arrow_forward_ios, size: 16),
         onTap: () async {
           AdClickTracker.registerClick();
-          await Navigator.push(
+
+          final changed = await Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => page),
           );
 
-          if (mounted) {
+          /// 🔥 Reload ONLY if exam date actually changed
+          if (changed == true && mounted) {
             context
                 .findAncestorStateOfType<_HomeState>()
                 ?._reloadAll();
