@@ -1,4 +1,3 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
@@ -17,7 +16,7 @@ import 'services/ad_click_tracker.dart';
 import 'services/notification_store.dart';
 
 import 'widgets/ad_placeholder.dart';
-import 'state/exam_state.dart'; // 🔥 SYNC CORE
+import 'state/exam_state.dart';
 
 class Home extends StatefulWidget {
   const Home({super.key});
@@ -32,6 +31,7 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
   int index = 0;
 
   DateTime? examDate;
+  int daysLeft = 0;
   String dailyQuote = '';
 
   final pages = const [
@@ -40,18 +40,23 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
     SettingsPage(),
   ];
 
+  late final VoidCallback _examListener;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
 
-    /// 🔥 LIVE EXAM DATE LISTENER (NO DELAY, NO RESTART)
-    ExamState.examDate.addListener(() {
+    _examListener = () {
       if (!mounted) return;
       setState(() {
         examDate = ExamState.examDate.value;
+        daysLeft = ExamState.daysLeft.value;
       });
-    });
+    };
+
+    ExamState.examDate.addListener(_examListener);
+    ExamState.daysLeft.addListener(_examListener);
 
     _reloadAll();
   }
@@ -59,10 +64,11 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    ExamState.examDate.removeListener(_examListener);
+    ExamState.daysLeft.removeListener(_examListener);
     super.dispose();
   }
 
-  /// 🔥 App foreground sync
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
@@ -70,26 +76,18 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
     }
   }
 
-  /* ================= MASTER RELOAD ================= */
-
   Future<void> _reloadAll() async {
     await _loadExamDate();
     await _loadNextQuote();
   }
 
-  /* ================= EXAM DATE ================= */
-
   Future<void> _loadExamDate() async {
     final prefs = await SharedPreferences.getInstance();
     final d = prefs.getString('exam_date');
-
-    if (!mounted) return;
-    setState(() {
-      examDate = d == null ? null : DateTime.parse(d);
-    });
+    if (d != null) {
+      ExamState.update(DateTime.parse(d));
+    }
   }
-
-  /* ================= QUOTE ROTATION (NO REPEAT) ================= */
 
   Future<void> _loadNextQuote() async {
     final prefs = await SharedPreferences.getInstance();
@@ -105,7 +103,6 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
 
     List<String> order;
     int idx = prefs.getInt('quote_index') ?? 0;
-
     final savedOrder = prefs.getStringList('quotes_order');
 
     if (savedOrder == null || savedOrder.length != allQuotes.length) {
@@ -120,29 +117,11 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
       idx = 0;
     }
 
-    final quote = order[idx];
-
     await prefs.setStringList('quotes_order', order);
     await prefs.setInt('quote_index', idx + 1);
 
     if (!mounted) return;
-    setState(() {
-      dailyQuote = quote;
-    });
-  }
-
-  /* ================= DAYS LEFT ================= */
-
-  int get daysLeft {
-    if (examDate == null) return 0;
-
-    final today = DateTime.now();
-    final start = DateTime(today.year, today.month, today.day);
-    final end =
-        DateTime(examDate!.year, examDate!.month, examDate!.day);
-
-    final diff = end.difference(start).inDays;
-    return diff < 0 ? 0 : diff;
+    setState(() => dailyQuote = order[idx]);
   }
 
   Color get dayColor {
@@ -150,8 +129,6 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
     if (daysLeft >= 30) return Colors.orange;
     return Colors.red;
   }
-
-  /* ================= UI ================= */
 
   @override
   Widget build(BuildContext context) {
@@ -170,8 +147,7 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
                       await Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) =>
-                              const NotificationInboxScreen(),
+                          builder: (_) => const NotificationInboxScreen(),
                         ),
                       );
                       _reloadAll();
@@ -212,16 +188,13 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
           if (i != index) {
             AdClickTracker.registerClick();
             setState(() => index = i);
-            _loadNextQuote(); // 🔥 every tab → new quote
+            _loadNextQuote();
           }
         },
         items: const [
-          BottomNavigationBarItem(
-              icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.info_outline), label: 'About'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.settings), label: 'Settings'),
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+          BottomNavigationBarItem(icon: Icon(Icons.info_outline), label: 'About'),
+          BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Settings'),
         ],
       ),
     );
@@ -244,7 +217,6 @@ class _HomeMainState extends State<_HomeMain> {
   @override
   void initState() {
     super.initState();
-
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       _bannerAd = await AdsService.createAdaptiveBanner(
         context: context,
@@ -280,30 +252,6 @@ class _HomeMainState extends State<_HomeMain> {
           ),
 
         const SizedBox(height: 20),
-
-        Row(
-          children: [
-            Image.asset('assets/logo.png', height: 48),
-            const SizedBox(width: 12),
-            const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'StudyPulse',
-                  style:
-                      TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                ),
-                Text(
-                  'Focus • Track • Succeed',
-                  style:
-                      TextStyle(fontSize: 13, color: Colors.grey),
-                ),
-              ],
-            ),
-          ],
-        ),
-
-        const SizedBox(height: 16),
 
         if (home != null && home.dailyQuote.isNotEmpty)
           Text(
@@ -351,32 +299,19 @@ class _HomeMainState extends State<_HomeMain> {
     );
   }
 
-  Widget _tool(
-    BuildContext context,
-    String title,
-    String img,
-    Widget page,
-  ) {
+  Widget _tool(BuildContext context, String title, String img, Widget page) {
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       child: ListTile(
         leading: Image.asset(img, width: 40),
         title: Text(title),
-        trailing:
-            const Icon(Icons.arrow_forward_ios, size: 16),
+        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
         onTap: () async {
           AdClickTracker.registerClick();
-
-          final changed = await Navigator.push(
+          await Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => page),
           );
-
-          if (changed == true && mounted) {
-            context
-                .findAncestorStateOfType<_HomeState>()
-                ?._reloadAll();
-          }
         },
       ),
     );
