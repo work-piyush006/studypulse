@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -15,6 +14,7 @@ import 'screens/settings.dart';
 import 'screens/notification_inbox.dart';
 
 import 'services/ads.dart';
+import 'services/ad_click_tracker.dart';
 import 'services/notification_store.dart';
 
 class Home extends StatefulWidget {
@@ -28,7 +28,6 @@ class Home extends StatefulWidget {
 
 class _HomeState extends State<Home> {
   int index = 0;
-  int _toolOpenCount = 0;
 
   DateTime? examDate;
   String dailyQuote = '';
@@ -50,8 +49,6 @@ class _HomeState extends State<Home> {
 
   Future<void> _loadExamDate() async {
     final prefs = await SharedPreferences.getInstance();
-
-    // ✅ SAME KEY AS exam.dart
     final d = prefs.getString('exam_date');
     if (d != null) {
       setState(() => examDate = DateTime.parse(d));
@@ -87,7 +84,7 @@ class _HomeState extends State<Home> {
       appBar: AppBar(
         title: const Text('StudyPulse'),
         actions: [
-          /// 🔔 REALTIME NOTIFICATION BADGE
+          /// 🔔 NOTIFICATION BADGE
           ValueListenableBuilder<int>(
             valueListenable: NotificationStore.unreadNotifier,
             builder: (_, count, __) {
@@ -96,6 +93,7 @@ class _HomeState extends State<Home> {
                   IconButton(
                     icon: const Icon(Icons.notifications_none_rounded),
                     onPressed: () async {
+                      AdClickTracker.registerClick();
                       await Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -134,7 +132,10 @@ class _HomeState extends State<Home> {
       body: IndexedStack(index: index, children: pages),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: index,
-        onTap: (i) => setState(() => index = i),
+        onTap: (i) {
+          AdClickTracker.registerClick();
+          setState(() => index = i);
+        },
         items: const [
           BottomNavigationBarItem(
               icon: Icon(Icons.home), label: 'Home'),
@@ -158,44 +159,27 @@ class _HomeMain extends StatefulWidget {
 }
 
 class _HomeMainState extends State<_HomeMain> {
-  final PageController _adController =
+  static const int _bannerCount = 5;
+
+  late final List<BannerAd> _homeBanners;
+  final PageController _bannerController =
       PageController(viewportFraction: 0.92);
-
-  Timer? _timer;
-
-  static const int _adCount = 5;
-  late final List<BannerAd> _banners;
 
   @override
   void initState() {
     super.initState();
 
-    /// 🔥 AUTO SLIDING ADS
-    _banners = List.generate(_adCount, (_) {
-      final ad = AdsService.createBannerAd();
-      ad.load();
-      return ad;
-    });
-
-    _timer = Timer.periodic(const Duration(seconds: 4), (_) {
-      if (_adController.hasClients) {
-        final next = (_adController.page?.round() ?? 0) + 1;
-        _adController.animateToPage(
-          next % _adCount,
-          duration: const Duration(milliseconds: 400),
-          curve: Curves.easeInOut,
-        );
-      }
-    });
+    /// 🔥 5 QUEUED BANNERS (NO AUTO SLIDE)
+    _homeBanners =
+        List.generate(_bannerCount, (_) => AdsService.createBanner());
   }
 
   @override
   void dispose() {
-    for (final ad in _banners) {
+    for (final ad in _homeBanners) {
       ad.dispose();
     }
-    _timer?.cancel();
-    _adController.dispose();
+    _bannerController.dispose();
     super.dispose();
   }
 
@@ -206,17 +190,17 @@ class _HomeMainState extends State<_HomeMain> {
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        /// 🔥 TOP ADS
+        /// 🔥 HOME BANNER QUEUE (MANUAL SWIPE)
         SizedBox(
-          height: 60,
+          height: 260,
           child: PageView.builder(
-            controller: _adController,
-            itemCount: _adCount,
+            controller: _bannerController,
+            itemCount: _homeBanners.length,
             itemBuilder: (_, i) => Padding(
               padding: const EdgeInsets.symmetric(horizontal: 6),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(12),
-                child: AdWidget(ad: _banners[i]),
+                child: AdWidget(ad: _homeBanners[i]),
               ),
             ),
           ),
@@ -249,7 +233,7 @@ class _HomeMainState extends State<_HomeMain> {
 
         const SizedBox(height: 20),
 
-        /// EXAM COUNTDOWN (SYNCED)
+        /// EXAM COUNTDOWN
         if (home != null && home.daysLeft > 0)
           Container(
             padding: const EdgeInsets.all(16),
@@ -312,16 +296,7 @@ class _HomeMainState extends State<_HomeMain> {
         trailing:
             const Icon(Icons.arrow_forward_ios, size: 16),
         onTap: () {
-          final home =
-              context.findAncestorStateOfType<_HomeState>();
-
-          if (home != null) {
-            home._toolOpenCount++;
-            if (home._toolOpenCount % 3 == 0) {
-              AdsService.showInterstitial();
-            }
-          }
-
+          AdClickTracker.registerClick();
           Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => page),
