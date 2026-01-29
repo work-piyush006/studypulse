@@ -26,12 +26,11 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
   @override
   void initState() {
     super.initState();
-    NotificationService.init();
     _loadData();
     _loadBanner();
   }
 
-  /* ================= LOAD ================= */
+  /* ================= LOAD DATA ================= */
 
   Future<void> _loadData() async {
     final prefs = await SharedPreferences.getInstance();
@@ -67,7 +66,7 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
     )..load();
   }
 
-  /* ================= DAYS ================= */
+  /* ================= DAYS LOGIC ================= */
 
   int _daysLeftFrom(DateTime date) {
     final now = DateTime.now();
@@ -113,10 +112,10 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
 
     AdClickTracker.registerClick();
 
-    /// 🔥 ALWAYS calculate fresh value
+    /// 🔥 FRESH DAYS CALCULATION
     final freshDaysLeft = _daysLeftFrom(normalized);
 
-    /// 🔔 INSTANT notification (EVERY CHANGE)
+    /// 🔔 INSTANT NOTIFICATION (EVERY CHANGE)
     if (quotes.isNotEmpty) {
       await NotificationService.showInstant(
         daysLeft: freshDaysLeft,
@@ -124,10 +123,10 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
       );
     }
 
-    /// 🔔 DAILY reschedule
+    /// 🔔 DAILY NOTIFICATION RESCHEDULE
     await NotificationService.scheduleDaily(examDate: normalized);
 
-    /// 🔥 TELL HOME: REFRESH NOW
+    /// 🔥 SIGNAL HOME: UPDATE IMMEDIATELY
     if (mounted) {
       Navigator.pop(context, true);
     }
@@ -155,13 +154,16 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
             children: [
               Card(
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16)),
+                  borderRadius: BorderRadius.circular(16),
+                ),
                 child: Padding(
                   padding: const EdgeInsets.all(30),
                   child: Column(
                     children: [
-                      const Text('Days Remaining',
-                          style: TextStyle(color: Colors.grey)),
+                      const Text(
+                        'Days Remaining',
+                        style: TextStyle(color: Colors.grey),
+                      ),
                       const SizedBox(height: 12),
                       Text(
                         examDate == null ? '--' : '$daysLeft Days',
