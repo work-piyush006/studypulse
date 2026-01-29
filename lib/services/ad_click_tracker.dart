@@ -6,11 +6,9 @@ class AdClickTracker {
   static void registerClick() {
     _clickCount++;
 
-    // 🔥 Every 4th click → try interstitial
+    // 🔥 Har 4th click par
     if (_clickCount % 4 == 0) {
-      if (AdsService.isInterstitialReady) {
-        AdsService.showInterstitial();
-      }
+      AdsService.showInterstitial(); // safe call
     }
   }
 
