@@ -15,7 +15,8 @@ class _AdPlaceholderState extends State<AdPlaceholder> {
   @override
   void initState() {
     super.initState();
-    _timer = Timer.periodic(const Duration(milliseconds: 500), (_) {
+    _timer = Timer.periodic(const Duration(milliseconds: 450), (_) {
+      if (!mounted) return;
       setState(() => dots = (dots + 1) % 4);
     });
   }
@@ -29,9 +30,19 @@ class _AdPlaceholderState extends State<AdPlaceholder> {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Text(
-        'Sponsor Content Loading${'.' * dots}',
-        style: const TextStyle(color: Colors.grey),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.ads_click, color: Colors.grey, size: 28),
+          const SizedBox(height: 8),
+          Text(
+            'Sponsored content loading${'.' * dots}',
+            style: const TextStyle(
+              color: Colors.grey,
+              fontSize: 13,
+            ),
+          ),
+        ],
       ),
     );
   }
