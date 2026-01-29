@@ -39,14 +39,15 @@ class AdsService {
 
   /* ================= BANNER ================= */
 
-  /// ✅ SAFE FOR HOME + TOOLS
-  /// onLoaded is OPTIONAL
-  static BannerAd createBanner({
+  /// ✅ RETURNS NULL IF FAILED (PERFECT FOR PLACEHOLDER)
+  static BannerAd? createBanner({
     VoidCallback? onLoaded,
   }) {
-    final ad = BannerAd(
+    BannerAd? banner;
+
+    banner = BannerAd(
       adUnitId: bannerId,
-      size: AdSize.mediumRectangle, // square banner
+      size: AdSize.mediumRectangle,
       request: const AdRequest(),
       listener: BannerAdListener(
         onAdLoaded: (_) {
@@ -54,16 +55,17 @@ class AdsService {
           onLoaded?.call();
         },
         onAdFailedToLoad: (ad, error) {
-          ad.dispose();
           if (kDebugMode) {
             debugPrint('❌ Banner failed: $error');
           }
+          ad.dispose();
+          banner = null; // 🔥 CRITICAL FIX
         },
       ),
     );
 
-    ad.load();
-    return ad;
+    banner.load();
+    return banner;
   }
 
   /* ================= INTERSTITIAL ================= */

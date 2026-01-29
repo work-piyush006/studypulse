@@ -62,6 +62,13 @@ class NotificationService {
         _plugin.resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>();
 
+    // 🔥 ANDROID 13+ PERMISSION GUARD (CRITICAL)
+    final granted =
+        await androidPlugin?.areNotificationsEnabled() ?? false;
+    if (!granted) {
+      await androidPlugin?.requestPermission();
+    }
+
     await androidPlugin?.createNotificationChannel(_instantChannel);
     await androidPlugin?.createNotificationChannel(_dailyChannel);
 
@@ -70,6 +77,7 @@ class NotificationService {
 
   /* ================= INSTANT ================= */
 
+  /// 🔔 Always fires on REAL date change (if permission granted)
   static Future<void> showInstant({
     required int daysLeft,
     required String quote,
@@ -83,7 +91,7 @@ class NotificationService {
     await NotificationStore.save(title: title, body: body);
 
     await _plugin.show(
-      DateTime.now().millisecondsSinceEpoch ~/ 1000,
+      DateTime.now().millisecondsSinceEpoch.remainder(100000),
       title,
       body,
       NotificationDetails(
@@ -100,56 +108,78 @@ class NotificationService {
 
   /* ================= DAILY ================= */
 
-  /// ⏰ DAILY AT 3:30 PM & 8:30 PM
+  /// ⏰ Daily reminders at 3:30 PM & 8:30 PM
   static Future<void> scheduleDaily({
     required DateTime examDate,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     if (!(prefs.getBool('notifications') ?? true)) return;
 
-    await cancelAll();
+    // ❗ Cancel only our daily IDs
+    await _plugin.cancel(1530);
+    await _plugin.cancel(2030);
 
-    await _schedule(hour: 15, minute: 30, id: 1530, examDate: examDate);
-    await _schedule(hour: 20, minute: 30, id: 2030, examDate: examDate);
+    await _schedule(
+      id: 1530,
+      hour: 15,
+      minute: 30,
+      examDate: examDate,
+    );
+
+    await _schedule(
+      id: 2030,
+      hour: 20,
+      minute: 30,
+      examDate: examDate,
+    );
   }
 
   static Future<void> _schedule({
+    required int id,
     required int hour,
     required int minute,
-    required int id,
     required DateTime examDate,
   }) async {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final target =
+    final today = DateTime.now();
+    final start = DateTime(today.year, today.month, today.day);
+    final end =
         DateTime(examDate.year, examDate.month, examDate.day);
 
-    final daysLeft = target.difference(today).inDays;
-    if (daysLeft < 0) return;
+    final daysLeft = end.difference(start).inDays;
+    if (daysLeft < 0) return; // ❌ exam passed
 
     final quotes = await _loadQuotes();
     if (quotes.isEmpty) return;
 
     final quote = quotes[Random().nextInt(quotes.length)];
-
     final title = '📚 StudyPulse Reminder';
     final body = '$daysLeft days left\n$quote';
-
     final payload = jsonEncode({'title': title, 'body': body});
 
-    final tzNow = tz.TZDateTime.now(tz.local);
+    final now = tz.TZDateTime.now(tz.local);
     var scheduled = tz.TZDateTime(
       tz.local,
-      tzNow.year,
-      tzNow.month,
-      tzNow.day,
+      now.year,
+      now.month,
+      now.day,
       hour,
       minute,
     );
 
-    if (scheduled.isBefore(tzNow)) {
+    if (scheduled.isBefore(now)) {
       scheduled = scheduled.add(const Duration(days: 1));
     }
+
+    final examEnd = tz.TZDateTime(
+      tz.local,
+      examDate.year,
+      examDate.month,
+      examDate.day,
+      23,
+      59,
+    );
+
+    if (scheduled.isAfter(examEnd)) return;
 
     await _plugin.zonedSchedule(
       id,
@@ -174,10 +204,6 @@ class NotificationService {
   }
 
   /* ================= UTIL ================= */
-
-  static Future<void> cancelAll() async {
-    await _plugin.cancelAll();
-  }
 
   static Future<List<String>> _loadQuotes() async {
     final raw = await rootBundle.loadString('assets/quotes.txt');
