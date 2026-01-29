@@ -59,7 +59,7 @@ class NotificationService {
       },
     );
 
-    // 🔥 ANDROID 13+ PERMISSION (SAFE & PLAY-STORE OK)
+    // ANDROID 13+ permission
     final status = await Permission.notification.status;
     if (!status.isGranted) {
       await Permission.notification.request();
@@ -77,7 +77,7 @@ class NotificationService {
 
   /* ================= INSTANT ================= */
 
-  /// 🔔 Fires EVERY TIME user changes exam date
+  /// 🔔 Fires EVERY TIME exam date changes (NO suppression)
   static Future<void> showInstant({
     required int daysLeft,
     required String quote,
@@ -88,10 +88,15 @@ class NotificationService {
     final title = '📘 Exam Countdown';
     final body = '$daysLeft days left\n$quote';
 
+    // ✅ ALWAYS save to inbox first (independent of system notification)
     await NotificationStore.save(title: title, body: body);
 
+    // ✅ HARD UNIQUE ID (Android-safe)
+    final notificationId =
+        DateTime.now().millisecondsSinceEpoch ~/ 1000;
+
     await _plugin.show(
-      DateTime.now().millisecondsSinceEpoch.remainder(100000),
+      notificationId,
       title,
       body,
       const NotificationDetails(
@@ -115,7 +120,7 @@ class NotificationService {
     final prefs = await SharedPreferences.getInstance();
     if (!(prefs.getBool('notifications') ?? true)) return;
 
-    // 🔥 IMPORTANT: cancel old schedules first
+    // Cancel only our known IDs
     await _plugin.cancel(1530);
     await _plugin.cancel(2030);
 
@@ -205,7 +210,6 @@ class NotificationService {
 
   /* ================= CANCEL ALL ================= */
 
-  /// Used by Settings screen
   static Future<void> cancelAll() async {
     await _plugin.cancelAll();
   }
