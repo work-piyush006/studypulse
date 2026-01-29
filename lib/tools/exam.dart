@@ -8,7 +8,7 @@ import '../services/ads.dart';
 import '../services/ad_click_tracker.dart';
 import '../services/notification.dart';
 import '../widgets/ad_placeholder.dart';
-import '../state/exam_state.dart'; // ✅ NEW
+import '../state/exam_state.dart';
 
 class ExamCountdownPage extends StatefulWidget {
   const ExamCountdownPage({super.key});
@@ -31,15 +31,13 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
     _loadBanner();
   }
 
-  /* ================= LOAD DATA ================= */
-
   Future<void> _loadData() async {
     final prefs = await SharedPreferences.getInstance();
     final saved = prefs.getString('exam_date');
 
     if (saved != null) {
       examDate = DateTime.parse(saved);
-      ExamState.examDate.value = examDate; // 🔥 sync on open
+      ExamState.update(examDate);
     }
 
     final raw = await rootBundle.loadString('assets/quotes.txt');
@@ -51,8 +49,6 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
 
     if (mounted) setState(() {});
   }
-
-  /* ================= BANNER ================= */
 
   void _loadBanner() {
     _bannerAd = BannerAd(
@@ -67,27 +63,6 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
       ),
     )..load();
   }
-
-  /* ================= DAYS LOGIC ================= */
-
-  int _daysLeftFrom(DateTime date) {
-    final now = DateTime.now();
-    final start = DateTime(now.year, now.month, now.day);
-    final end = DateTime(date.year, date.month, date.day);
-    final diff = end.difference(start).inDays;
-    return diff < 0 ? 0 : diff;
-  }
-
-  int get daysLeft =>
-      examDate == null ? 0 : _daysLeftFrom(examDate!);
-
-  Color get dayColor {
-    if (daysLeft >= 45) return Colors.green;
-    if (daysLeft >= 30) return Colors.orange;
-    return Colors.red;
-  }
-
-  /* ================= PICK DATE ================= */
 
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
@@ -104,31 +79,22 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
         DateTime(picked.year, picked.month, picked.day);
 
     final prefs = await SharedPreferences.getInstance();
-
-    /// ✅ ALWAYS SAVE (NO COMPARISON)
     await prefs.setString('exam_date', normalized.toIso8601String());
 
     setState(() => examDate = normalized);
-
-    /// 🔥 LIVE SYNC (CORE FIX)
-    ExamState.examDate.value = normalized;
+    ExamState.update(normalized);
 
     AdClickTracker.registerClick();
 
-    final freshDaysLeft = _daysLeftFrom(normalized);
-
-    /// 🔔 ALWAYS FIRE NOTIFICATION
     if (quotes.isNotEmpty) {
       await NotificationService.showInstant(
-        daysLeft: freshDaysLeft,
+        daysLeft: ExamState.daysLeft.value,
         quote: quotes[Random().nextInt(quotes.length)],
       );
     }
 
-    /// 🔔 DAILY RESCHEDULE
     await NotificationService.scheduleDaily(examDate: normalized);
 
-    /// 🔥 tell home
     if (mounted) Navigator.pop(context, true);
   }
 
@@ -137,8 +103,6 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
     _bannerAd?.dispose();
     super.dispose();
   }
-
-  /* ================= UI ================= */
 
   @override
   Widget build(BuildContext context) {
@@ -160,18 +124,21 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
                   padding: const EdgeInsets.all(30),
                   child: Column(
                     children: [
-                      const Text(
-                        'Days Remaining',
-                        style: TextStyle(color: Colors.grey),
-                      ),
+                      const Text('Days Remaining',
+                          style: TextStyle(color: Colors.grey)),
                       const SizedBox(height: 12),
-                      Text(
-                        examDate == null ? '--' : '$daysLeft Days',
-                        style: TextStyle(
-                          fontSize: 36,
-                          fontWeight: FontWeight.bold,
-                          color: dayColor,
-                        ),
+                      ValueListenableBuilder<int>(
+                        valueListenable: ExamState.daysLeft,
+                        builder: (_, d, __) {
+                          return Text(
+                            '$d Days',
+                            style: const TextStyle(
+                              fontSize: 36,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.red,
+                            ),
+                          );
+                        },
                       ),
                     ],
                   ),
