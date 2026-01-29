@@ -15,6 +15,8 @@ class NotificationService {
 
   static bool _initialized = false;
 
+  /* ================= CHANNELS ================= */
+
   static const AndroidNotificationChannel _instantChannel =
       AndroidNotificationChannel(
     'exam_now',
@@ -48,14 +50,10 @@ class NotificationService {
 
         try {
           final data = jsonDecode(response.payload!);
-
           await NotificationStore.save(
             title: data['title'],
             body: data['body'],
           );
-
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setBool('open_inbox', true);
         } catch (_) {}
       },
     );
@@ -82,6 +80,7 @@ class NotificationService {
     final title = '📘 Exam Countdown';
     final body = '$daysLeft days left\n$quote';
 
+    // save to inbox
     await NotificationStore.save(title: title, body: body);
 
     await _plugin.show(
@@ -100,24 +99,40 @@ class NotificationService {
     );
   }
 
-  /* ================= DAILY ================= */
+  /* ================= DAILY SCHEDULE ================= */
 
+  /// 🔔 DAILY NOTIFICATIONS
+  /// ⏰ 3:30 PM & 8:30 PM
   static Future<void> scheduleDaily({
     required DateTime examDate,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     if (!(prefs.getBool('notifications') ?? true)) return;
 
+    // 🔥 remove old schedules
     await cancelAll();
 
-    await _schedule(hour: 9, minute: 0, id: 9, examDate: examDate);
-    await _schedule(hour: 19, minute: 0, id: 19, examDate: examDate);
+    // ✅ 3:30 PM
+    await _schedule(
+      id: 15,
+      hour: 15,
+      minute: 30,
+      examDate: examDate,
+    );
+
+    // ✅ 8:30 PM
+    await _schedule(
+      id: 20,
+      hour: 20,
+      minute: 30,
+      examDate: examDate,
+    );
   }
 
   static Future<void> _schedule({
+    required int id,
     required int hour,
     required int minute,
-    required int id,
     required DateTime examDate,
   }) async {
     final daysLeft = examDate.difference(DateTime.now()).inDays;
@@ -131,10 +146,13 @@ class NotificationService {
     final title = '📚 StudyPulse Reminder';
     final body = '$daysLeft days left\n$quote';
 
-    final payload = jsonEncode({'title': title, 'body': body});
+    final payload = jsonEncode({
+      'title': title,
+      'body': body,
+    });
 
     final now = tz.TZDateTime.now(tz.local);
-    var time = tz.TZDateTime(
+    var scheduled = tz.TZDateTime(
       tz.local,
       now.year,
       now.month,
@@ -143,15 +161,16 @@ class NotificationService {
       minute,
     );
 
-    if (time.isBefore(now)) {
-      time = time.add(const Duration(days: 1));
+    // if time already passed → next day
+    if (scheduled.isBefore(now)) {
+      scheduled = scheduled.add(const Duration(days: 1));
     }
 
     await _plugin.zonedSchedule(
       id,
       title,
       body,
-      time,
+      scheduled,
       NotificationDetails(
         android: AndroidNotificationDetails(
           _dailyChannel.id,
@@ -165,7 +184,7 @@ class NotificationService {
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
-      matchDateTimeComponents: DateTimeComponents.time,
+      matchDateTimeComponents: DateTimeComponents.time, // 🔥 DAILY
     );
   }
 
