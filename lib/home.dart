@@ -50,7 +50,7 @@ class _HomeState extends State<Home> {
   Future<void> _loadExamDate() async {
     final prefs = await SharedPreferences.getInstance();
     final d = prefs.getString('exam_date');
-    if (d != null) {
+    if (d != null && mounted) {
       setState(() => examDate = DateTime.parse(d));
     }
   }
@@ -69,8 +69,17 @@ class _HomeState extends State<Home> {
     });
   }
 
-  int get daysLeft =>
-      examDate == null ? 0 : examDate!.difference(DateTime.now()).inDays;
+  /* ================= DAYS LOGIC (NORMALIZED) ================= */
+
+  int get daysLeft {
+    if (examDate == null) return 0;
+    final today = DateTime.now();
+    final start = DateTime(today.year, today.month, today.day);
+    final end =
+        DateTime(examDate!.year, examDate!.month, examDate!.day);
+    final diff = end.difference(start).inDays;
+    return diff < 0 ? 0 : diff;
+  }
 
   Color get dayColor {
     if (daysLeft >= 45) return Colors.green;
@@ -84,7 +93,7 @@ class _HomeState extends State<Home> {
       appBar: AppBar(
         title: const Text('StudyPulse'),
         actions: [
-          /// 🔔 NOTIFICATIONS (NO AD CLICK HERE)
+          /// 🔔 NOTIFICATIONS (NO AD CLICK)
           ValueListenableBuilder<int>(
             valueListenable: NotificationStore.unreadNotifier,
             builder: (_, count, __) {
@@ -129,13 +138,14 @@ class _HomeState extends State<Home> {
         ],
       ),
 
-      body: IndexedStack(index: index, children: pages),
+      body: SafeArea(
+        child: IndexedStack(index: index, children: pages),
+      ),
 
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: index,
         onTap: (i) {
           if (i != index) {
-            /// ✅ COUNT ONLY REAL NAVIGATION
             AdClickTracker.registerClick();
             setState(() => index = i);
           }
@@ -172,8 +182,6 @@ class _HomeMainState extends State<_HomeMain> {
   @override
   void initState() {
     super.initState();
-
-    /// 🔥 5 QUEUED BANNERS (MANUAL SWIPE ONLY)
     _homeBanners =
         List.generate(_bannerCount, (_) => AdsService.createBanner());
   }
@@ -190,14 +198,12 @@ class _HomeMainState extends State<_HomeMain> {
   @override
   Widget build(BuildContext context) {
     final home = context.findAncestorStateOfType<_HomeState>();
-
     final isKeyboardOpen =
         MediaQuery.of(context).viewInsets.bottom > 0;
 
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        /// 🔥 HOME BANNERS (HIDDEN WHEN KEYBOARD OPEN)
         if (!isKeyboardOpen)
           SizedBox(
             height: 260,
@@ -239,9 +245,20 @@ class _HomeMainState extends State<_HomeMain> {
           ],
         ),
 
+        const SizedBox(height: 16),
+
+        /// DAILY QUOTE (NOW USED)
+        if (home != null && home.dailyQuote.isNotEmpty)
+          Text(
+            '“${home.dailyQuote}”',
+            style: const TextStyle(
+              fontStyle: FontStyle.italic,
+              color: Colors.grey,
+            ),
+          ),
+
         const SizedBox(height: 20),
 
-        /// EXAM COUNTDOWN
         if (home != null && home.daysLeft > 0)
           Container(
             padding: const EdgeInsets.all(16),
@@ -267,25 +284,12 @@ class _HomeMainState extends State<_HomeMain> {
 
         const SizedBox(height: 30),
 
-        /// TOOLS
-        _tool(
-          context,
-          'Percentage Calculator',
-          'assets/percentage.png',
-          const PercentagePage(),
-        ),
-        _tool(
-          context,
-          'CGPA Calculator',
-          'assets/cgpa.png',
-          const CGPAPage(),
-        ),
-        _tool(
-          context,
-          'Exam Countdown',
-          'assets/exam.png',
-          const ExamCountdownPage(),
-        ),
+        _tool(context, 'Percentage Calculator',
+            'assets/percentage.png', const PercentagePage()),
+        _tool(context, 'CGPA Calculator',
+            'assets/cgpa.png', const CGPAPage()),
+        _tool(context, 'Exam Countdown',
+            'assets/exam.png', const ExamCountdownPage()),
       ],
     );
   }
@@ -304,7 +308,6 @@ class _HomeMainState extends State<_HomeMain> {
         trailing:
             const Icon(Icons.arrow_forward_ios, size: 16),
         onTap: () {
-          /// ✅ TOOL OPEN = CLICK
           AdClickTracker.registerClick();
           Navigator.push(
             context,
