@@ -1,5 +1,4 @@
 import 'dart:math';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
@@ -44,7 +43,7 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _reloadAll();
+    _reloadAll(); // 🔥 initial load
   }
 
   @override
@@ -53,29 +52,34 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
     super.dispose();
   }
 
-  /// 🔥 Called when app comes foreground (WPS / recent apps)
+  /// 🔥 WPS / recent apps / foreground
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      _reloadAll();
+      _reloadAll(); // 🔥 instant sync
     }
   }
+
+  /* ================= MASTER RELOAD ================= */
 
   Future<void> _reloadAll() async {
     await _loadExamDate();
     await _loadNextQuote();
   }
 
+  /* ================= EXAM DATE ================= */
+
   Future<void> _loadExamDate() async {
     final prefs = await SharedPreferences.getInstance();
     final d = prefs.getString('exam_date');
+
     if (!mounted) return;
     setState(() {
       examDate = d == null ? null : DateTime.parse(d);
     });
   }
 
-  /* ================= QUOTE ROTATION (🔥 CORE FIX) ================= */
+  /* ================= QUOTE ROTATION (NO REPEAT) ================= */
 
   Future<void> _loadNextQuote() async {
     final prefs = await SharedPreferences.getInstance();
@@ -90,32 +94,34 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
     if (allQuotes.isEmpty || !mounted) return;
 
     List<String> order;
-    int index = prefs.getInt('quote_index') ?? 0;
+    int idx = prefs.getInt('quote_index') ?? 0;
 
     final savedOrder = prefs.getStringList('quotes_order');
 
     if (savedOrder == null || savedOrder.length != allQuotes.length) {
       order = List<String>.from(allQuotes)..shuffle();
-      index = 0;
+      idx = 0;
     } else {
       order = savedOrder;
     }
 
-    if (index >= order.length) {
+    if (idx >= order.length) {
       order.shuffle();
-      index = 0;
+      idx = 0;
     }
 
-    final quote = order[index];
+    final quote = order[idx];
 
     await prefs.setStringList('quotes_order', order);
-    await prefs.setInt('quote_index', index + 1);
+    await prefs.setInt('quote_index', idx + 1);
 
     if (!mounted) return;
     setState(() {
       dailyQuote = quote;
     });
   }
+
+  /* ================= DAYS LEFT ================= */
 
   int get daysLeft {
     if (examDate == null) return 0;
@@ -134,6 +140,8 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
     if (daysLeft >= 30) return Colors.orange;
     return Colors.red;
   }
+
+  /* ================= UI ================= */
 
   @override
   Widget build(BuildContext context) {
@@ -156,7 +164,7 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
                               const NotificationInboxScreen(),
                         ),
                       );
-                      _reloadAll(); // 🔥 new quote after return
+                      _reloadAll(); // 🔥 refresh after inbox
                     },
                   ),
                   if (count > 0)
@@ -194,7 +202,7 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
           if (i != index) {
             AdClickTracker.registerClick();
             setState(() => index = i);
-            _loadNextQuote(); // 🔥 every tab switch → new quote
+            _loadNextQuote(); // 🔥 every tab → new quote
           }
         },
         items: const [
@@ -357,7 +365,7 @@ class _HomeMainState extends State<_HomeMain> {
           if (changed == true && mounted) {
             context
                 .findAncestorStateOfType<_HomeState>()
-                ?._reloadAll();
+                ?._reloadAll(); // 🔥 instant update
           }
         },
       ),
