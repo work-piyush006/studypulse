@@ -21,16 +21,16 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _start() async {
-    // Splash delay
+    // ⏳ Splash delay
     await Future.delayed(const Duration(seconds: 2));
     if (!mounted) return;
 
     final prefs = await SharedPreferences.getInstance();
 
-    /// 🔔 Was app opened by notification tap?
+    // 🔔 Opened by notification tap?
     final openInbox = prefs.getBool('open_inbox') ?? false;
 
-    /// 🔐 Permission already asked?
+    // 🔐 Permission already asked?
     final permissionAsked =
         prefs.getBool('notification_permission_asked') ?? false;
 
