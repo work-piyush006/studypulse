@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:internet_connection_checker/internet_connection_checker.dart';
@@ -11,25 +10,22 @@ class AdsService {
   static InterstitialAd? _interstitialAd;
   static int _interstitialLoadAttempts = 0;
 
-  /// 🔥 TEST ADS ON (publish ke time false karna)
-  static const bool useTestAds = true;
+  /// 🚨 IMPORTANT
+  /// Play Store ke liye ALWAYS false
+  static const bool useTestAds = false;
 
   /* ===================== AD UNIT IDS ===================== */
 
   static String get _bannerId {
-    if (useTestAds) {
-      // ✅ OFFICIAL ADMOB TEST BANNER
-      return 'ca-app-pub-3940256099942544/6300978111';
-    }
-    return 'ca-app-pub-2139593035914184/9260573924';
+    return useTestAds
+        ? 'ca-app-pub-3940256099942544/6300978111' // test
+        : 'ca-app-pub-2139593035914184/9260573924'; // REAL
   }
 
   static String get _interstitialId {
-    if (useTestAds) {
-      // ✅ OFFICIAL ADMOB TEST INTERSTITIAL
-      return 'ca-app-pub-3940256099942544/1033173712';
-    }
-    return 'ca-app-pub-2139593035914184/1908697513';
+    return useTestAds
+        ? 'ca-app-pub-3940256099942544/1033173712' // test
+        : 'ca-app-pub-2139593035914184/1908697513'; // REAL
   }
 
   /* ===================== INIT ===================== */
@@ -40,7 +36,6 @@ class AdsService {
     await MobileAds.instance.initialize();
     _initialized = true;
 
-    // preload interstitial
     loadInterstitial();
   }
 
@@ -53,7 +48,9 @@ class AdsService {
       request: const AdRequest(),
       listener: BannerAdListener(
         onAdLoaded: (_) {
-          if (kDebugMode) debugPrint('✅ Banner loaded');
+          if (kDebugMode) {
+            debugPrint('✅ Banner Ad Loaded');
+          }
         },
         onAdFailedToLoad: (ad, error) {
           ad.dispose();
@@ -71,24 +68,24 @@ class AdsService {
   /* ===================== INTERSTITIAL ===================== */
 
   static Future<void> loadInterstitial() async {
-    final hasInternet = await InternetConnectionChecker().hasConnection;
+    final hasInternet =
+        await InternetConnectionChecker().hasConnection;
     if (!hasInternet) return;
 
     InterstitialAd.load(
       adUnitId: _interstitialId,
       request: const AdRequest(),
       adLoadCallback: InterstitialAdLoadCallback(
-        onAdLoaded: (InterstitialAd ad) {
+        onAdLoaded: (ad) {
           _interstitialAd = ad;
           _interstitialLoadAttempts = 0;
-
           ad.setImmersiveMode(true);
 
           if (kDebugMode) {
-            debugPrint('✅ Interstitial loaded');
+            debugPrint('✅ Interstitial Loaded');
           }
         },
-        onAdFailedToLoad: (LoadAdError error) {
+        onAdFailedToLoad: (error) {
           _interstitialLoadAttempts++;
           _interstitialAd = null;
 
