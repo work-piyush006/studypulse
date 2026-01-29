@@ -16,23 +16,8 @@ class NotificationService {
 
   static bool _initialized = false;
 
-  /* ================= CHANNELS ================= */
-
-  static const AndroidNotificationChannel _instantChannel =
-      AndroidNotificationChannel(
-    'exam_now',
-    'Exam Alerts',
-    description: 'Instant exam countdown alerts',
-    importance: Importance.high,
-  );
-
-  static const AndroidNotificationChannel _dailyChannel =
-      AndroidNotificationChannel(
-    'exam_daily',
-    'Daily Exam Reminders',
-    description: 'Daily study reminders',
-    importance: Importance.high,
-  );
+  /// 🔥 debounce to avoid OEM spam suppression
+  static DateTime? _lastInstantFire;
 
   /* ================= INIT ================= */
 
@@ -48,7 +33,6 @@ class NotificationService {
       settings,
       onDidReceiveNotificationResponse: (response) async {
         if (response.payload == null) return;
-
         try {
           final data = jsonDecode(response.payload!);
           await NotificationStore.save(
@@ -65,24 +49,35 @@ class NotificationService {
       await Permission.notification.request();
     }
 
-    final androidPlugin =
-        _plugin.resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>();
-
-    await androidPlugin?.createNotificationChannel(_instantChannel);
-    await androidPlugin?.createNotificationChannel(_dailyChannel);
-
     _initialized = true;
+  }
+
+  /* ================= INTERNAL GUARD ================= */
+
+  static bool _canFireInstant() {
+    final now = DateTime.now();
+    if (_lastInstantFire == null) {
+      _lastInstantFire = now;
+      return true;
+    }
+
+    if (now.difference(_lastInstantFire!).inMilliseconds > 1200) {
+      _lastInstantFire = now;
+      return true;
+    }
+
+    return false;
   }
 
   /* ================= INSTANT ================= */
 
-  /// 🔔 ALWAYS fires (even if user changes date 10 times)
+  /// 🔔 Fires on every VALID date change
+  /// 🔒 Protected against OEM spam suppression
   static Future<void> showInstant({
     required int daysLeft,
     required String quote,
   }) async {
-    await init(); // 🔥 ABSOLUTELY REQUIRED
+    await init();
 
     final prefs = await SharedPreferences.getInstance();
     if (!(prefs.getBool('notifications') ?? true)) return;
@@ -90,10 +85,31 @@ class NotificationService {
     final title = '📘 Exam Countdown';
     final body = '$daysLeft days left\n$quote';
 
-    // Save to inbox FIRST
+    /// ✅ ALWAYS save to inbox (NON-NEGOTIABLE)
     await NotificationStore.save(title: title, body: body);
 
-    // Unique ID every time (NO overwrite, NO suppression)
+    /// ❗ debounce only affects SYSTEM TRAY
+    if (!_canFireInstant()) {
+      return;
+    }
+
+    /// 🔥 Dynamic channel to bypass OEM grouping
+    final channelId =
+        'exam_now_${DateTime.now().millisecondsSinceEpoch}';
+
+    final androidPlugin =
+        _plugin.resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
+
+    await androidPlugin?.createNotificationChannel(
+      AndroidNotificationChannel(
+        channelId,
+        'Exam Alerts',
+        description: 'Instant exam countdown alerts',
+        importance: Importance.high,
+      ),
+    );
+
     final notificationId =
         DateTime.now().microsecondsSinceEpoch.remainder(1000000);
 
@@ -101,29 +117,31 @@ class NotificationService {
       notificationId,
       title,
       body,
-      const NotificationDetails(
+      NotificationDetails(
         android: AndroidNotificationDetails(
-          'exam_now',
+          channelId,
           'Exam Alerts',
           channelDescription: 'Instant exam countdown alerts',
           importance: Importance.high,
           priority: Priority.high,
         ),
       ),
+      payload: jsonEncode({'title': title, 'body': body}),
     );
   }
 
   /* ================= DAILY ================= */
 
+  /// ⏰ Reliable daily reminders (OEM-safe)
   static Future<void> scheduleDaily({
     required DateTime examDate,
   }) async {
-    await init(); // 🔥 REQUIRED AGAIN
+    await init();
 
     final prefs = await SharedPreferences.getInstance();
     if (!(prefs.getBool('notifications') ?? true)) return;
 
-    // Cancel old schedules (clean slate)
+    // clean previous schedules
     await _plugin.cancel(1530);
     await _plugin.cancel(2030);
 
@@ -196,9 +214,9 @@ class NotificationService {
       scheduled,
       NotificationDetails(
         android: AndroidNotificationDetails(
-          _dailyChannel.id,
-          _dailyChannel.name,
-          channelDescription: _dailyChannel.description,
+          'exam_daily',
+          'Daily Exam Reminders',
+          channelDescription: 'Daily study reminders',
           importance: Importance.high,
           priority: Priority.high,
         ),
