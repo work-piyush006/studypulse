@@ -42,7 +42,9 @@ class NotificationStore {
     final raw = prefs.getString(_key);
 
     final List<Map<String, dynamic>> list =
-        raw == null ? [] : List<Map<String, dynamic>>.from(jsonDecode(raw));
+        raw == null
+            ? []
+            : List<Map<String, dynamic>>.from(jsonDecode(raw));
 
     list.insert(0, {
       'title': title,
@@ -105,7 +107,7 @@ class NotificationStore {
     await _updateUnread([]);
   }
 
-  /* ================= AUTO DELETE (30 DAYS) ================= */
+  /* ================= AUTO DELETE ================= */
 
   static bool _autoDeleteOld(List<Map<String, dynamic>> list) {
     final now = DateTime.now();
@@ -130,13 +132,9 @@ class NotificationStore {
     unreadNotifier.value = unread;
 
     try {
-      if (unread == 0) {
-        AppBadgePlus.removeBadge();
-      } else {
-        AppBadgePlus.updateBadge(unread);
-      }
+      await AppBadgePlus.updateBadge(unread);
     } catch (_) {
-      // launcher does not support badges → ignore safely
+      // Launcher doesn't support badges — ignore safely
     }
   }
 }
