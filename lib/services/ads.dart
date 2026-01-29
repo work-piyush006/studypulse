@@ -8,26 +8,24 @@ class AdsService {
   static bool _initialized = false;
 
   static InterstitialAd? _interstitialAd;
-  static int _interstitialLoadAttempts = 0;
+  static int _loadAttempts = 0;
 
-  /// 🚨 MUST BE FALSE FOR PLAY STORE
+  /// 🚨 PLAY STORE KE LIYE HAMESHA FALSE
   static const bool useTestAds = false;
 
-  /* ===================== AD UNIT IDS ===================== */
+  /* ================= AD UNIT IDS ================= */
 
-  static String get _bannerId {
-    return useTestAds
-        ? 'ca-app-pub-3940256099942544/6300978111'
-        : 'ca-app-pub-2139593035914184/9260573924';
-  }
+  static String get bannerId =>
+      useTestAds
+          ? 'ca-app-pub-3940256099942544/6300978111'
+          : 'ca-app-pub-2139593035914184/9260573924';
 
-  static String get _interstitialId {
-    return useTestAds
-        ? 'ca-app-pub-3940256099942544/1033173712'
-        : 'ca-app-pub-2139593035914184/1908697513';
-  }
+  static String get interstitialId =>
+      useTestAds
+          ? 'ca-app-pub-3940256099942544/1033173712'
+          : 'ca-app-pub-2139593035914184/1908697513';
 
-  /* ===================== INIT ===================== */
+  /* ================= INIT ================= */
 
   static Future<void> initialize() async {
     if (_initialized) return;
@@ -38,48 +36,42 @@ class AdsService {
     loadInterstitial();
   }
 
-  /* ===================== BANNER ===================== */
+  /* ================= BANNER ================= */
 
-  static BannerAd createBannerAd() {
-    final banner = BannerAd(
-      adUnitId: _bannerId,
-      size: AdSize.banner,
+  static BannerAd createBanner() {
+    final ad = BannerAd(
+      adUnitId: bannerId,
+      size: AdSize.mediumRectangle, // 🔥 Square banner
       request: const AdRequest(),
       listener: BannerAdListener(
-        onAdLoaded: (_) {
-          if (kDebugMode) debugPrint('Banner loaded');
-        },
-        onAdFailedToLoad: (ad, error) {
-          ad.dispose();
-        },
+        onAdFailedToLoad: (ad, _) => ad.dispose(),
       ),
     );
 
-    banner.load();
-    return banner;
+    ad.load();
+    return ad;
   }
 
-  /* ===================== INTERSTITIAL ===================== */
+  /* ================= INTERSTITIAL ================= */
 
   static Future<void> loadInterstitial() async {
-    final hasInternet = await InternetConnectionChecker().hasConnection;
+    final hasInternet =
+        await InternetConnectionChecker().hasConnection;
     if (!hasInternet) return;
 
     InterstitialAd.load(
-      adUnitId: _interstitialId,
+      adUnitId: interstitialId,
       request: const AdRequest(),
       adLoadCallback: InterstitialAdLoadCallback(
         onAdLoaded: (ad) {
           _interstitialAd = ad;
-          _interstitialLoadAttempts = 0;
+          _loadAttempts = 0;
           ad.setImmersiveMode(true);
         },
-        onAdFailedToLoad: (error) {
-          _interstitialLoadAttempts++;
+        onAdFailedToLoad: (_) {
+          _loadAttempts++;
           _interstitialAd = null;
-          if (_interstitialLoadAttempts < 3) {
-            loadInterstitial();
-          }
+          if (_loadAttempts < 3) loadInterstitial();
         },
       ),
     );
@@ -95,7 +87,7 @@ class AdsService {
         _interstitialAd = null;
         loadInterstitial();
       },
-      onAdFailedToShowFullScreenContent: (ad, error) {
+      onAdFailedToShowFullScreenContent: (ad, _) {
         ad.dispose();
         _interstitialAd = null;
         loadInterstitial();
