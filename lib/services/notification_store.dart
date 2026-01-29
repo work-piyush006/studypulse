@@ -42,7 +42,9 @@ class NotificationStore {
     final raw = prefs.getString(_key);
 
     final List<Map<String, dynamic>> list =
-        raw == null ? [] : List<Map<String, dynamic>>.from(jsonDecode(raw));
+        raw == null
+            ? []
+            : List<Map<String, dynamic>>.from(jsonDecode(raw));
 
     list.insert(0, {
       'title': title,
@@ -130,9 +132,13 @@ class NotificationStore {
     unreadNotifier.value = unread;
 
     try {
-      AppBadgePlus.updateBadge(unread);
+      if (unread == 0) {
+        AppBadgePlus.removeBadge();
+      } else {
+        AppBadgePlus.updateBadge(unread);
+      }
     } catch (_) {
-      // Badge not supported — ignore safely
+      // Launcher does not support badges → ignore safely
     }
   }
 }
