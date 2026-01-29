@@ -26,8 +26,12 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
   void initState() {
     super.initState();
     _loadData();
+    _loadBanner();
+  }
 
-    /// 🔔 Static bottom banner (safe)
+  /* ================= BANNER ================= */
+
+  void _loadBanner() {
     _bannerAd = BannerAd(
       adUnitId: AdsService.bannerId,
       size: AdSize.mediumRectangle,
@@ -45,7 +49,13 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
 
   int get daysLeft {
     if (examDate == null) return 0;
-    final diff = examDate!.difference(DateTime.now()).inDays;
+
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final target =
+        DateTime(examDate!.year, examDate!.month, examDate!.day);
+
+    final diff = target.difference(today).inDays;
     return diff < 0 ? 0 : diff;
   }
 
@@ -92,16 +102,23 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
     final oldDate =
         oldDateStr == null ? null : DateTime.parse(oldDateStr);
 
-    /// ✅ REAL FIX → compare DATE, not days
+    final normalizedPicked =
+        DateTime(picked.year, picked.month, picked.day);
+    final normalizedOld = oldDate == null
+        ? null
+        : DateTime(oldDate.year, oldDate.month, oldDate.day);
+
     final isDateChanged =
-        oldDate == null || !oldDate.isAtSameMomentAs(picked);
+        normalizedOld == null || normalizedOld != normalizedPicked;
 
     if (!isDateChanged) return;
 
-    await prefs.setString('exam_date', picked.toIso8601String());
-    setState(() => examDate = picked);
+    await prefs.setString(
+        'exam_date', normalizedPicked.toIso8601String());
 
-    /// 🔥 Count click ONLY on real change
+    setState(() => examDate = normalizedPicked);
+
+    /// 🔥 Count ONLY real success
     AdClickTracker.registerClick();
 
     /// 🔔 Instant notification
@@ -112,9 +129,9 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
       );
     }
 
-    /// 🔔 Daily schedule (3:30 PM & 8:30 PM)
+    /// 🔔 Daily notifications (3:30 PM & 8:30 PM)
     await NotificationService.scheduleDaily(
-      examDate: picked,
+      examDate: normalizedPicked,
     );
   }
 
@@ -181,12 +198,22 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
               const SizedBox(height: 20),
 
               /// ================= BANNER =================
-              if (_bannerLoaded && _bannerAd != null && !isKeyboardOpen)
-                SizedBox(
-                  height: _bannerAd!.size.height.toDouble(),
-                  width: _bannerAd!.size.width.toDouble(),
-                  child: AdWidget(ad: _bannerAd!),
-                ),
+              if (!isKeyboardOpen)
+                _bannerLoaded && _bannerAd != null
+                    ? SizedBox(
+                        height: _bannerAd!.size.height.toDouble(),
+                        width: _bannerAd!.size.width.toDouble(),
+                        child: AdWidget(ad: _bannerAd!),
+                      )
+                    : const SizedBox(
+                        height: 250,
+                        child: Center(
+                          child: Text(
+                            'Loading sponsored content…',
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                        ),
+                      ),
             ],
           ),
         ),
