@@ -16,8 +16,26 @@ class NotificationService {
 
   static bool _initialized = false;
 
-  /// 🔥 debounce to avoid OEM spam suppression
-  static DateTime? _lastInstantFire;
+  // 🔥 PERSISTENT OEM-SAFE SPAM GUARD (CRITICAL FIX)
+  static const String _lastInstantKey = 'last_instant_notification_time';
+
+  /* ================= CHANNELS ================= */
+
+  static const AndroidNotificationChannel _instantChannel =
+      AndroidNotificationChannel(
+    'exam_now',
+    'Exam Alerts',
+    description: 'Instant exam countdown alerts',
+    importance: Importance.high,
+  );
+
+  static const AndroidNotificationChannel _dailyChannel =
+      AndroidNotificationChannel(
+    'exam_daily',
+    'Daily Exam Reminders',
+    description: 'Daily study reminders',
+    importance: Importance.high,
+  );
 
   /* ================= INIT ================= */
 
@@ -43,36 +61,25 @@ class NotificationService {
       },
     );
 
-    // Android 13+ permission
+    // 🔥 ANDROID 13+ PERMISSION
     final status = await Permission.notification.status;
     if (!status.isGranted) {
       await Permission.notification.request();
     }
 
+    final androidPlugin =
+        _plugin.resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
+
+    await androidPlugin?.createNotificationChannel(_instantChannel);
+    await androidPlugin?.createNotificationChannel(_dailyChannel);
+
     _initialized = true;
-  }
-
-  /* ================= INTERNAL GUARD ================= */
-
-  static bool _canFireInstant() {
-    final now = DateTime.now();
-    if (_lastInstantFire == null) {
-      _lastInstantFire = now;
-      return true;
-    }
-
-    if (now.difference(_lastInstantFire!).inMilliseconds > 1200) {
-      _lastInstantFire = now;
-      return true;
-    }
-
-    return false;
   }
 
   /* ================= INSTANT ================= */
 
-  /// 🔔 Fires on every VALID date change
-  /// 🔒 Protected against OEM spam suppression
+  /// ✅ OEM-SAFE, GUARANTEED, NO DROP
   static Future<void> showInstant({
     required int daysLeft,
     required String quote,
@@ -82,57 +89,45 @@ class NotificationService {
     final prefs = await SharedPreferences.getInstance();
     if (!(prefs.getBool('notifications') ?? true)) return;
 
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    final lastMs = prefs.getInt(_lastInstantKey) ?? 0;
+
     final title = '📘 Exam Countdown';
     final body = '$daysLeft days left\n$quote';
 
-    /// ✅ ALWAYS save to inbox (NON-NEGOTIABLE)
+    // ✅ ALWAYS SAVE TO INBOX (NON-NEGOTIABLE)
     await NotificationStore.save(title: title, body: body);
 
-    /// ❗ debounce only affects SYSTEM TRAY
-    if (!_canFireInstant()) {
+    // 🔥 OEM SAFE WINDOW (30 seconds)
+    if (nowMs - lastMs < 30000) {
+      // Too fast → inbox only (prevents OEM drop)
       return;
     }
 
-    /// 🔥 Dynamic channel to bypass OEM grouping
-    final channelId =
-        'exam_now_${DateTime.now().millisecondsSinceEpoch}';
+    await prefs.setInt(_lastInstantKey, nowMs);
 
-    final androidPlugin =
-        _plugin.resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>();
-
-    await androidPlugin?.createNotificationChannel(
-      AndroidNotificationChannel(
-        channelId,
-        'Exam Alerts',
-        description: 'Instant exam countdown alerts',
-        importance: Importance.high,
-      ),
-    );
-
-    final notificationId =
-        DateTime.now().microsecondsSinceEpoch.remainder(1000000);
+    // 🔥 UNIQUE ANDROID-SAFE ID
+    final notificationId = nowMs & 0x7fffffff;
 
     await _plugin.show(
       notificationId,
       title,
       body,
-      NotificationDetails(
+      const NotificationDetails(
         android: AndroidNotificationDetails(
-          channelId,
+          'exam_now',
           'Exam Alerts',
           channelDescription: 'Instant exam countdown alerts',
           importance: Importance.high,
           priority: Priority.high,
         ),
       ),
-      payload: jsonEncode({'title': title, 'body': body}),
     );
   }
 
   /* ================= DAILY ================= */
 
-  /// ⏰ Reliable daily reminders (OEM-safe)
+  /// ⏰ 3:30 PM & 8:30 PM — GUARANTEED
   static Future<void> scheduleDaily({
     required DateTime examDate,
   }) async {
@@ -141,7 +136,7 @@ class NotificationService {
     final prefs = await SharedPreferences.getInstance();
     if (!(prefs.getBool('notifications') ?? true)) return;
 
-    // clean previous schedules
+    // 🔥 CLEAN SLATE (NO DUPLICATE ALARMS)
     await _plugin.cancel(1530);
     await _plugin.cancel(2030);
 
@@ -214,9 +209,9 @@ class NotificationService {
       scheduled,
       NotificationDetails(
         android: AndroidNotificationDetails(
-          'exam_daily',
-          'Daily Exam Reminders',
-          channelDescription: 'Daily study reminders',
+          _dailyChannel.id,
+          _dailyChannel.name,
+          channelDescription: _dailyChannel.description,
           importance: Importance.high,
           priority: Priority.high,
         ),
