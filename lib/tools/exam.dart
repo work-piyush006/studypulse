@@ -8,6 +8,7 @@ import '../services/ads.dart';
 import '../services/ad_click_tracker.dart';
 import '../services/notification.dart';
 import '../widgets/ad_placeholder.dart';
+import '../state/exam_state.dart'; // ✅ NEW
 
 class ExamCountdownPage extends StatefulWidget {
   const ExamCountdownPage({super.key});
@@ -38,6 +39,7 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
 
     if (saved != null) {
       examDate = DateTime.parse(saved);
+      ExamState.examDate.value = examDate; // 🔥 sync on open
     }
 
     final raw = await rootBundle.loadString('assets/quotes.txt');
@@ -102,20 +104,20 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
         DateTime(picked.year, picked.month, picked.day);
 
     final prefs = await SharedPreferences.getInstance();
-    final old = prefs.getString('exam_date');
 
-    if (old == normalized.toIso8601String()) return;
-
-    /// 🔥 SAVE DATE
+    /// ✅ ALWAYS SAVE (NO COMPARISON)
     await prefs.setString('exam_date', normalized.toIso8601String());
+
     setState(() => examDate = normalized);
+
+    /// 🔥 LIVE SYNC (CORE FIX)
+    ExamState.examDate.value = normalized;
 
     AdClickTracker.registerClick();
 
-    /// 🔥 FRESH DAYS CALCULATION
     final freshDaysLeft = _daysLeftFrom(normalized);
 
-    /// 🔔 INSTANT NOTIFICATION (EVERY CHANGE)
+    /// 🔔 ALWAYS FIRE NOTIFICATION
     if (quotes.isNotEmpty) {
       await NotificationService.showInstant(
         daysLeft: freshDaysLeft,
@@ -123,13 +125,11 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
       );
     }
 
-    /// 🔔 DAILY NOTIFICATION RESCHEDULE
+    /// 🔔 DAILY RESCHEDULE
     await NotificationService.scheduleDaily(examDate: normalized);
 
-    /// 🔥 SIGNAL HOME: UPDATE IMMEDIATELY
-    if (mounted) {
-      Navigator.pop(context, true);
-    }
+    /// 🔥 tell home
+    if (mounted) Navigator.pop(context, true);
   }
 
   @override
@@ -177,9 +177,7 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
                   ),
                 ),
               ),
-
               const SizedBox(height: 24),
-
               ElevatedButton.icon(
                 onPressed: _pickDate,
                 icon: const Icon(Icons.calendar_today),
@@ -188,9 +186,7 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
                   minimumSize: const Size.fromHeight(50),
                 ),
               ),
-
               const SizedBox(height: 20),
-
               if (!isKeyboardOpen)
                 SizedBox(
                   height: 250,
