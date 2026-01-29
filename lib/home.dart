@@ -46,18 +46,27 @@ class _HomeState extends State<Home> {
     _loadDailyQuote();
   }
 
+  /* ================= LOAD EXAM DATE ================= */
+
   Future<void> _loadExamDate() async {
     final prefs = await SharedPreferences.getInstance();
-    final d = prefs.getString('exam');
+
+    // ✅ SAME KEY AS exam.dart
+    final d = prefs.getString('exam_date');
     if (d != null) {
       setState(() => examDate = DateTime.parse(d));
     }
   }
 
+  /* ================= LOAD DAILY QUOTE ================= */
+
   Future<void> _loadDailyQuote() async {
     final data = await rootBundle.loadString('assets/quotes.txt');
     final quotes =
         data.split('\n').where((e) => e.trim().isNotEmpty).toList();
+
+    if (quotes.isEmpty) return;
+
     setState(() {
       dailyQuote = quotes[Random().nextInt(quotes.length)];
     });
@@ -78,7 +87,7 @@ class _HomeState extends State<Home> {
       appBar: AppBar(
         title: const Text('StudyPulse'),
         actions: [
-          /// 🔔 REALTIME BELL BADGE
+          /// 🔔 REALTIME NOTIFICATION BADGE
           ValueListenableBuilder<int>(
             valueListenable: NotificationStore.unreadNotifier,
             builder: (_, count, __) {
@@ -161,7 +170,7 @@ class _HomeMainState extends State<_HomeMain> {
   void initState() {
     super.initState();
 
-    /// 🔥 Top auto-sliding banners
+    /// 🔥 AUTO SLIDING ADS
     _banners = List.generate(_adCount, (_) {
       final ad = AdsService.createBannerAd();
       ad.load();
@@ -197,7 +206,7 @@ class _HomeMainState extends State<_HomeMain> {
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        /// 🔥 AUTO SLIDING ADS
+        /// 🔥 TOP ADS
         SizedBox(
           height: 60,
           child: PageView.builder(
@@ -225,8 +234,8 @@ class _HomeMainState extends State<_HomeMain> {
               children: [
                 Text(
                   'StudyPulse',
-                  style: TextStyle(
-                      fontSize: 20, fontWeight: FontWeight.bold),
+                  style:
+                      TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                 ),
                 Text(
                   'Focus • Track • Succeed',
@@ -240,7 +249,7 @@ class _HomeMainState extends State<_HomeMain> {
 
         const SizedBox(height: 20),
 
-        /// EXAM COUNTDOWN
+        /// EXAM COUNTDOWN (SYNCED)
         if (home != null && home.daysLeft > 0)
           Container(
             padding: const EdgeInsets.all(16),
@@ -305,6 +314,7 @@ class _HomeMainState extends State<_HomeMain> {
         onTap: () {
           final home =
               context.findAncestorStateOfType<_HomeState>();
+
           if (home != null) {
             home._toolOpenCount++;
             if (home._toolOpenCount % 3 == 0) {
