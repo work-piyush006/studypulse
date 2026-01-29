@@ -173,41 +173,28 @@ class _HomeMain extends StatefulWidget {
 }
 
 class _HomeMainState extends State<_HomeMain> {
-  static const int _bannerCount = 5;
-
-  late final List<BannerAd> _banners;
-  late final List<bool> _loaded;
-
-  final PageController _controller =
-      PageController(viewportFraction: 0.92);
+  BannerAd? _bannerAd;
+  bool _bannerLoaded = false;
 
   @override
   void initState() {
     super.initState();
 
-    _loaded = List.filled(_bannerCount, false);
-    _banners = List.generate(_bannerCount, (i) {
-      final ad = AdsService.createBanner();
-      ad.listener = BannerAdListener(
-        onAdLoaded: (_) {
+    /// 🔔 SINGLE adaptive banner (correct usage)
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      _bannerAd = await AdsService.createAdaptiveBanner(
+        context: context,
+        onState: (loaded) {
           if (!mounted) return;
-          setState(() => _loaded[i] = true);
-        },
-        onAdFailedToLoad: (ad, _) {
-          ad.dispose();
+          setState(() => _bannerLoaded = loaded);
         },
       );
-      ad.load();
-      return ad;
     });
   }
 
   @override
   void dispose() {
-    for (final ad in _banners) {
-      ad.dispose();
-    }
-    _controller.dispose();
+    _bannerAd?.dispose();
     super.dispose();
   }
 
@@ -220,22 +207,13 @@ class _HomeMainState extends State<_HomeMain> {
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
+        /// 🔔 TOP BANNER
         if (!isKeyboardOpen)
           SizedBox(
-            height: 260,
-            child: PageView.builder(
-              controller: _controller,
-              itemCount: _bannerCount,
-              itemBuilder: (_, i) => Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 6),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: _loaded[i]
-                      ? AdWidget(ad: _banners[i])
-                      : const AdPlaceholder(),
-                ),
-              ),
-            ),
+            height: 90,
+            child: _bannerLoaded && _bannerAd != null
+                ? AdWidget(ad: _bannerAd!)
+                : const AdPlaceholder(),
           ),
 
         if (!isKeyboardOpen) const SizedBox(height: 20),
