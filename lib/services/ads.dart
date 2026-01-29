@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:internet_connection_checker/internet_connection_checker.dart';
 
@@ -11,7 +12,7 @@ class AdsService {
   static bool _isInterstitialReady = false;
   static int _loadAttempts = 0;
 
-  /// 🚨 MUST BE FALSE FOR PLAY STORE
+  /// 🚨 MUST BE FALSE FOR PLAY STORE RELEASE
   static const bool useTestAds = false;
 
   /* ================= AD UNIT IDS ================= */
@@ -37,34 +38,49 @@ class AdsService {
     loadInterstitial();
   }
 
-  /* ================= BANNER ================= */
+  /* ================= ADAPTIVE BANNER ================= */
 
-  /// ✅ RETURNS NULL IF FAILED (PERFECT FOR PLACEHOLDER)
-  static BannerAd? createBanner({
-    VoidCallback? onLoaded,
-  }) {
-    BannerAd? banner;
+  /// ✅ TRUE ADAPTIVE BANNER
+  /// UI controls placeholder / widget
+  static Future<BannerAd?> createAdaptiveBanner({
+    required BuildContext context,
+    required void Function(bool loaded) onState,
+  }) async {
+    final width = MediaQuery.of(context).size.width.truncate();
 
-    banner = BannerAd(
+    final size =
+        await AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(
+      width,
+    );
+
+    if (size == null) {
+      if (kDebugMode) {
+        debugPrint('❌ Adaptive size returned null');
+      }
+      onState(false);
+      return null;
+    }
+
+    final banner = BannerAd(
       adUnitId: bannerId,
-      size: AdSize.mediumRectangle,
+      size: size,
       request: const AdRequest(),
       listener: BannerAdListener(
         onAdLoaded: (_) {
-          if (kDebugMode) debugPrint('✅ Banner loaded');
-          onLoaded?.call();
+          if (kDebugMode) debugPrint('✅ Adaptive banner loaded');
+          onState(true);
         },
         onAdFailedToLoad: (ad, error) {
           if (kDebugMode) {
-            debugPrint('❌ Banner failed: $error');
+            debugPrint('❌ Adaptive banner failed: $error');
           }
           ad.dispose();
-          banner = null; // 🔥 CRITICAL FIX
+          onState(false);
         },
       ),
     );
 
-    banner.load();
+    await banner.load();
     return banner;
   }
 
@@ -121,7 +137,7 @@ class AdsService {
         _isInterstitialReady = false;
         loadInterstitial();
       },
-      onAdFailedToShowFullScreenContent: (ad, error) {
+      onAdFailedToShowFullScreenContent: (ad, _) {
         ad.dispose();
         _interstitialAd = null;
         _isInterstitialReady = false;
