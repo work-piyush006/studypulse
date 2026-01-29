@@ -59,7 +59,7 @@ class NotificationService {
       },
     );
 
-    // 🔥 ANDROID 13+ PERMISSION (CORRECT & SAFE)
+    // 🔥 ANDROID 13+ PERMISSION (SAFE & PLAY-STORE OK)
     final status = await Permission.notification.status;
     if (!status.isGranted) {
       await Permission.notification.request();
@@ -77,7 +77,7 @@ class NotificationService {
 
   /* ================= INSTANT ================= */
 
-  /// 🔔 Fires only on REAL exam date change
+  /// 🔔 Fires EVERY TIME user changes exam date
   static Future<void> showInstant({
     required int daysLeft,
     required String quote,
@@ -115,7 +115,7 @@ class NotificationService {
     final prefs = await SharedPreferences.getInstance();
     if (!(prefs.getBool('notifications') ?? true)) return;
 
-    // Cancel only our known IDs
+    // 🔥 IMPORTANT: cancel old schedules first
     await _plugin.cancel(1530);
     await _plugin.cancel(2030);
 
@@ -203,9 +203,9 @@ class NotificationService {
     );
   }
 
-  /* ================= CANCEL ALL (🔥 FIX) ================= */
+  /* ================= CANCEL ALL ================= */
 
-  /// Used by Settings toggle
+  /// Used by Settings screen
   static Future<void> cancelAll() async {
     await _plugin.cancelAll();
   }
