@@ -59,7 +59,7 @@ class NotificationService {
       },
     );
 
-    // ANDROID 13+ permission
+    // Android 13+ permission
     final status = await Permission.notification.status;
     if (!status.isGranted) {
       await Permission.notification.request();
@@ -77,23 +77,25 @@ class NotificationService {
 
   /* ================= INSTANT ================= */
 
-  /// 🔔 Fires EVERY TIME exam date changes (NO suppression)
+  /// 🔔 ALWAYS fires (even if user changes date 10 times)
   static Future<void> showInstant({
     required int daysLeft,
     required String quote,
   }) async {
+    await init(); // 🔥 ABSOLUTELY REQUIRED
+
     final prefs = await SharedPreferences.getInstance();
     if (!(prefs.getBool('notifications') ?? true)) return;
 
     final title = '📘 Exam Countdown';
     final body = '$daysLeft days left\n$quote';
 
-    // ✅ ALWAYS save to inbox first (independent of system notification)
+    // Save to inbox FIRST
     await NotificationStore.save(title: title, body: body);
 
-    // ✅ HARD UNIQUE ID (Android-safe)
+    // Unique ID every time (NO overwrite, NO suppression)
     final notificationId =
-        DateTime.now().millisecondsSinceEpoch ~/ 1000;
+        DateTime.now().microsecondsSinceEpoch.remainder(1000000);
 
     await _plugin.show(
       notificationId,
@@ -113,14 +115,15 @@ class NotificationService {
 
   /* ================= DAILY ================= */
 
-  /// ⏰ Daily reminders at 3:30 PM & 8:30 PM
   static Future<void> scheduleDaily({
     required DateTime examDate,
   }) async {
+    await init(); // 🔥 REQUIRED AGAIN
+
     final prefs = await SharedPreferences.getInstance();
     if (!(prefs.getBool('notifications') ?? true)) return;
 
-    // Cancel only our known IDs
+    // Cancel old schedules (clean slate)
     await _plugin.cancel(1530);
     await _plugin.cancel(2030);
 
@@ -208,12 +211,6 @@ class NotificationService {
     );
   }
 
-  /* ================= CANCEL ALL ================= */
-
-  static Future<void> cancelAll() async {
-    await _plugin.cancelAll();
-  }
-
   /* ================= UTIL ================= */
 
   static Future<List<String>> _loadQuotes() async {
@@ -223,5 +220,9 @@ class NotificationService {
         .map((e) => e.trim())
         .where((e) => e.isNotEmpty)
         .toList();
+  }
+
+  static Future<void> cancelAll() async {
+    await _plugin.cancelAll();
   }
 }
