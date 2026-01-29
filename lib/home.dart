@@ -17,6 +17,7 @@ import 'services/ad_click_tracker.dart';
 import 'services/notification_store.dart';
 
 import 'widgets/ad_placeholder.dart';
+import 'state/exam_state.dart'; // 🔥 SYNC CORE
 
 class Home extends StatefulWidget {
   const Home({super.key});
@@ -43,7 +44,16 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _reloadAll(); // 🔥 initial load
+
+    /// 🔥 LIVE EXAM DATE LISTENER (NO DELAY, NO RESTART)
+    ExamState.examDate.addListener(() {
+      if (!mounted) return;
+      setState(() {
+        examDate = ExamState.examDate.value;
+      });
+    });
+
+    _reloadAll();
   }
 
   @override
@@ -52,11 +62,11 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
     super.dispose();
   }
 
-  /// 🔥 WPS / recent apps / foreground
+  /// 🔥 App foreground sync
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      _reloadAll(); // 🔥 instant sync
+      _reloadAll();
     }
   }
 
@@ -164,7 +174,7 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
                               const NotificationInboxScreen(),
                         ),
                       );
-                      _reloadAll(); // 🔥 refresh after inbox
+                      _reloadAll();
                     },
                   ),
                   if (count > 0)
@@ -365,7 +375,7 @@ class _HomeMainState extends State<_HomeMain> {
           if (changed == true && mounted) {
             context
                 .findAncestorStateOfType<_HomeState>()
-                ?._reloadAll(); // 🔥 instant update
+                ?._reloadAll();
           }
         },
       ),
