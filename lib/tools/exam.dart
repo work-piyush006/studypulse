@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../services/ads.dart';
 import '../services/ad_click_tracker.dart';
 import '../services/notification.dart';
+import '../widgets/ad_placeholder.dart';
 
 class ExamCountdownPage extends StatefulWidget {
   const ExamCountdownPage({super.key});
@@ -25,55 +26,12 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
   @override
   void initState() {
     super.initState();
-
-    /// 🔔 Ensure notification system is ready
     NotificationService.init();
-
     _loadData();
     _loadBanner();
   }
 
-  /* ================= BANNER ================= */
-
-  void _loadBanner() {
-    _bannerAd = BannerAd(
-      adUnitId: AdsService.bannerId,
-      size: AdSize.mediumRectangle,
-      request: const AdRequest(),
-      listener: BannerAdListener(
-        onAdLoaded: (_) {
-          if (mounted) {
-            setState(() => _bannerLoaded = true);
-          }
-        },
-        onAdFailedToLoad: (ad, _) {
-          ad.dispose();
-        },
-      ),
-    )..load();
-  }
-
-  /* ================= DAYS LOGIC ================= */
-
-  int get daysLeft {
-    if (examDate == null) return 0;
-
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final target =
-        DateTime(examDate!.year, examDate!.month, examDate!.day);
-
-    final diff = target.difference(today).inDays;
-    return diff < 0 ? 0 : diff;
-  }
-
-  Color get dayColor {
-    if (daysLeft >= 45) return Colors.green;
-    if (daysLeft >= 30) return Colors.orange;
-    return Colors.red;
-  }
-
-  /* ================= LOAD DATA ================= */
+  /* ================= LOAD ================= */
 
   Future<void> _loadData() async {
     final prefs = await SharedPreferences.getInstance();
@@ -93,6 +51,41 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
     if (mounted) setState(() {});
   }
 
+  /* ================= BANNER ================= */
+
+  void _loadBanner() {
+    _bannerAd = BannerAd(
+      adUnitId: AdsService.bannerId,
+      size: AdSize.mediumRectangle,
+      request: const AdRequest(),
+      listener: BannerAdListener(
+        onAdLoaded: (_) {
+          if (mounted) setState(() => _bannerLoaded = true);
+        },
+        onAdFailedToLoad: (ad, _) => ad.dispose(),
+      ),
+    )..load();
+  }
+
+  /* ================= DAYS ================= */
+
+  int _calculateDaysLeft(DateTime date) {
+    final now = DateTime.now();
+    final start = DateTime(now.year, now.month, now.day);
+    final end = DateTime(date.year, date.month, date.day);
+    final diff = end.difference(start).inDays;
+    return diff < 0 ? 0 : diff;
+  }
+
+  int get daysLeft =>
+      examDate == null ? 0 : _calculateDaysLeft(examDate!);
+
+  Color get dayColor {
+    if (daysLeft >= 45) return Colors.green;
+    if (daysLeft >= 30) return Colors.orange;
+    return Colors.red;
+  }
+
   /* ================= PICK DATE ================= */
 
   Future<void> _pickDate() async {
@@ -106,52 +99,32 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
 
     if (picked == null) return;
 
-    final prefs = await SharedPreferences.getInstance();
-    final oldDateStr = prefs.getString('exam_date');
-    final oldDate =
-        oldDateStr == null ? null : DateTime.parse(oldDateStr);
-
-    final normalizedPicked =
+    final normalized =
         DateTime(picked.year, picked.month, picked.day);
-    final normalizedOld = oldDate == null
-        ? null
-        : DateTime(oldDate.year, oldDate.month, oldDate.day);
 
-    final isDateChanged =
-        normalizedOld == null || normalizedOld != normalizedPicked;
+    final prefs = await SharedPreferences.getInstance();
+    final old = prefs.getString('exam_date');
 
-    if (!isDateChanged) return;
+    if (old == normalized.toIso8601String()) return;
 
-    await prefs.setString(
-      'exam_date',
-      normalizedPicked.toIso8601String(),
-    );
+    await prefs.setString('exam_date', normalized.toIso8601String());
+    setState(() => examDate = normalized);
 
-    setState(() => examDate = normalizedPicked);
-
-    /// 🔥 Count ONLY real success
     AdClickTracker.registerClick();
 
-    /// 🔔 Instant notification
+    final freshDaysLeft = _calculateDaysLeft(normalized);
+
     if (quotes.isNotEmpty) {
       await NotificationService.showInstant(
-        daysLeft: daysLeft,
+        daysLeft: freshDaysLeft,
         quote: quotes[Random().nextInt(quotes.length)],
       );
     }
 
-    /// 🔔 Daily notifications (3:30 PM & 8:30 PM)
-    await NotificationService.scheduleDaily(
-      examDate: normalizedPicked,
-    );
+    await NotificationService.scheduleDaily(examDate: normalized);
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Exam date saved successfully'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      Navigator.pop(context, true); // 🔥 SIGNAL HOME TO REFRESH
     }
   }
 
@@ -175,20 +148,15 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
           padding: const EdgeInsets.all(16),
           child: Column(
             children: [
-              /// ================= MAIN CARD =================
               Card(
-                elevation: 2,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
+                    borderRadius: BorderRadius.circular(16)),
                 child: Padding(
                   padding: const EdgeInsets.all(30),
                   child: Column(
                     children: [
-                      const Text(
-                        'Days Remaining',
-                        style: TextStyle(color: Colors.grey),
-                      ),
+                      const Text('Days Remaining',
+                          style: TextStyle(color: Colors.grey)),
                       const SizedBox(height: 12),
                       Text(
                         examDate == null ? '--' : '$daysLeft Days',
@@ -205,7 +173,6 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
 
               const SizedBox(height: 24),
 
-              /// ================= SELECT DATE =================
               ElevatedButton.icon(
                 onPressed: _pickDate,
                 icon: const Icon(Icons.calendar_today),
@@ -217,23 +184,13 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
 
               const SizedBox(height: 20),
 
-              /// ================= BANNER =================
               if (!isKeyboardOpen)
-                _bannerLoaded && _bannerAd != null
-                    ? SizedBox(
-                        height: _bannerAd!.size.height.toDouble(),
-                        width: _bannerAd!.size.width.toDouble(),
-                        child: AdWidget(ad: _bannerAd!),
-                      )
-                    : const SizedBox(
-                        height: 250,
-                        child: Center(
-                          child: Text(
-                            'Sponsor content loading…',
-                            style: TextStyle(color: Colors.grey),
-                          ),
-                        ),
-                      ),
+                SizedBox(
+                  height: 250,
+                  child: _bannerLoaded && _bannerAd != null
+                      ? AdWidget(ad: _bannerAd!)
+                      : const AdPlaceholder(),
+                ),
             ],
           ),
         ),
