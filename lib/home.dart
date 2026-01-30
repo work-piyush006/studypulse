@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'tools/percentage.dart';
 import 'tools/cgpa.dart';
@@ -47,6 +46,7 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
 
+    /// 🔥 SINGLE SOURCE OF TRUTH — ExamState ONLY
     _examListener = () {
       if (!mounted) return;
       setState(() {
@@ -58,7 +58,7 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
     ExamState.examDate.addListener(_examListener);
     ExamState.daysLeft.addListener(_examListener);
 
-    _reloadAll();
+    _loadNextQuote();
   }
 
   @override
@@ -69,29 +69,17 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
     super.dispose();
   }
 
+  /// 🔥 Foreground refresh (quotes only)
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      _reloadAll();
+      _loadNextQuote();
     }
   }
 
-  Future<void> _reloadAll() async {
-    await _loadExamDate();
-    await _loadNextQuote();
-  }
-
-  Future<void> _loadExamDate() async {
-    final prefs = await SharedPreferences.getInstance();
-    final d = prefs.getString('exam_date');
-    if (d != null) {
-      ExamState.update(DateTime.parse(d));
-    }
-  }
+  /* ================= QUOTES ================= */
 
   Future<void> _loadNextQuote() async {
-    final prefs = await SharedPreferences.getInstance();
-
     final raw = await rootBundle.loadString('assets/quotes.txt');
     final allQuotes = raw
         .split('\n')
@@ -101,27 +89,8 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
 
     if (allQuotes.isEmpty || !mounted) return;
 
-    List<String> order;
-    int idx = prefs.getInt('quote_index') ?? 0;
-    final savedOrder = prefs.getStringList('quotes_order');
-
-    if (savedOrder == null || savedOrder.length != allQuotes.length) {
-      order = List<String>.from(allQuotes)..shuffle();
-      idx = 0;
-    } else {
-      order = savedOrder;
-    }
-
-    if (idx >= order.length) {
-      order.shuffle();
-      idx = 0;
-    }
-
-    await prefs.setStringList('quotes_order', order);
-    await prefs.setInt('quote_index', idx + 1);
-
-    if (!mounted) return;
-    setState(() => dailyQuote = order[idx]);
+    allQuotes.shuffle();
+    setState(() => dailyQuote = allQuotes.first);
   }
 
   Color get dayColor {
@@ -129,6 +98,8 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
     if (daysLeft >= 30) return Colors.orange;
     return Colors.red;
   }
+
+  /* ================= UI ================= */
 
   @override
   Widget build(BuildContext context) {
@@ -147,10 +118,11 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
                       await Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => const NotificationInboxScreen(),
+                          builder: (_) =>
+                              const NotificationInboxScreen(),
                         ),
                       );
-                      _reloadAll();
+                      _loadNextQuote();
                     },
                   ),
                   if (count > 0)
@@ -192,9 +164,12 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
           }
         },
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.info_outline), label: 'About'),
-          BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Settings'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.home), label: 'Home'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.info_outline), label: 'About'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.settings), label: 'Settings'),
         ],
       ),
     );
@@ -299,13 +274,19 @@ class _HomeMainState extends State<_HomeMain> {
     );
   }
 
-  Widget _tool(BuildContext context, String title, String img, Widget page) {
+  Widget _tool(
+    BuildContext context,
+    String title,
+    String img,
+    Widget page,
+  ) {
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       child: ListTile(
         leading: Image.asset(img, width: 40),
         title: Text(title),
-        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+        trailing:
+            const Icon(Icons.arrow_forward_ios, size: 16),
         onTap: () async {
           AdClickTracker.registerClick();
           await Navigator.push(
