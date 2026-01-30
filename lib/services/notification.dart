@@ -4,7 +4,6 @@ import 'dart:math';
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
@@ -16,11 +15,8 @@ class NotificationService {
 
   static bool _initialized = false;
 
-  // 🔥 OEM-safe spam guard
   static const String _lastInstantKey =
       'last_instant_notification_time';
-
-  /* ================= CHANNELS ================= */
 
   static const AndroidNotificationChannel _instantChannel =
       AndroidNotificationChannel(
@@ -64,12 +60,6 @@ class NotificationService {
       },
     );
 
-    // Android 13+ permission
-    final status = await Permission.notification.status;
-    if (!status.isGranted) {
-      await Permission.notification.request();
-    }
-
     final androidPlugin =
         _plugin.resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>();
@@ -97,12 +87,9 @@ class NotificationService {
     final title = '📘 Exam Countdown';
     final body = '$daysLeft days left\n$quote';
 
-    // Always save to inbox
     await NotificationStore.save(title: title, body: body);
 
-    // OEM safe window
     if (nowMs - lastMs < 30000) return;
-
     await prefs.setInt(_lastInstantKey, nowMs);
 
     final id = nowMs & 0x7fffffff;
@@ -118,7 +105,7 @@ class NotificationService {
           channelDescription: 'Instant exam countdown alerts',
           importance: Importance.high,
           priority: Priority.high,
-          icon: 'ic_notification', // ✅ CORRECT PARAMETER
+          icon: 'ic_notification',
         ),
       ),
     );
@@ -211,7 +198,7 @@ class NotificationService {
           channelDescription: _dailyChannel.description,
           importance: Importance.high,
           priority: Priority.high,
-          icon: 'ic_notification', // ✅ CORRECT PARAMETER
+          icon: 'ic_notification',
         ),
       ),
       payload: payload,
@@ -221,8 +208,6 @@ class NotificationService {
       matchDateTimeComponents: DateTimeComponents.time,
     );
   }
-
-  /* ================= UTIL ================= */
 
   static Future<List<String>> _loadQuotes() async {
     final raw = await rootBundle.loadString('assets/quotes.txt');

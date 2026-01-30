@@ -29,19 +29,21 @@ class AdsService {
 
   /* ================= INIT ================= */
 
+  /// ✅ SAFE INIT (NO AD LOAD, NO CRASH)
   static Future<void> initialize() async {
     if (_initialized) return;
 
-    await MobileAds.instance.initialize();
-    _initialized = true;
-
-    loadInterstitial();
+    try {
+      await MobileAds.instance.initialize();
+      _initialized = true;
+    } catch (_) {
+      // 🔥 Ads must NEVER crash app
+    }
   }
 
   /* ================= BASIC BANNER ================= */
 
-  /// ✅ SAFE, RELEASE-READY
-  /// UI decides placeholder vs widget
+  /// ✅ RELEASE SAFE BANNER
   static BannerAd createBanner({
     required void Function(bool loaded) onState,
     AdSize size = AdSize.mediumRectangle,
@@ -71,14 +73,14 @@ class AdsService {
 
   /* ================= ADAPTIVE BANNER ================= */
 
-  /// 🔥 Higher fill rate & RPM
-  /// Call AFTER first frame (context needed)
+  /// ✅ BEST RPM + SAFE
   static Future<BannerAd?> createAdaptiveBanner({
     required BuildContext context,
     required void Function(bool loaded) onState,
   }) async {
     final hasInternet =
         await InternetConnectionChecker().hasConnection;
+
     if (!hasInternet) {
       onState(false);
       return null;
@@ -93,7 +95,7 @@ class AdsService {
 
     if (size == null) {
       if (kDebugMode) {
-        debugPrint('❌ Adaptive size returned null');
+        debugPrint('❌ Adaptive banner size null');
       }
       onState(false);
       return null;
@@ -127,10 +129,12 @@ class AdsService {
   static bool get isInterstitialReady =>
       _isInterstitialReady && _interstitialAd != null;
 
+  /// ✅ PRELOAD ONLY AFTER USER ACTION
   static Future<void> loadInterstitial() async {
     final hasInternet =
         await InternetConnectionChecker().hasConnection;
-    if (!hasInternet) return;
+
+    if (!hasInternet || _isInterstitialReady) return;
 
     InterstitialAd.load(
       adUnitId: interstitialId,
@@ -163,6 +167,7 @@ class AdsService {
     );
   }
 
+  /// ✅ SHOW ONLY WHEN READY
   static void showInterstitial() {
     if (!isInterstitialReady) return;
 
@@ -170,19 +175,19 @@ class AdsService {
         FullScreenContentCallback(
       onAdDismissedFullScreenContent: (ad) {
         ad.dispose();
-        _interstitialAd = null;
-        _isInterstitialReady = false;
-        loadInterstitial();
+        _resetInterstitial();
       },
       onAdFailedToShowFullScreenContent: (ad, _) {
         ad.dispose();
-        _interstitialAd = null;
-        _isInterstitialReady = false;
-        loadInterstitial();
+        _resetInterstitial();
       },
     );
 
     _interstitialAd!.show();
+    _resetInterstitial();
+  }
+
+  static void _resetInterstitial() {
     _interstitialAd = null;
     _isInterstitialReady = false;
   }
