@@ -2,27 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'screens/splash.dart';
-import 'services/notification.dart';
-import 'services/internet.dart';
 import 'services/internet_guard.dart';
-import 'services/ads.dart';
-import 'state/exam_state.dart';
 
-// 🔑 GLOBAL NAVIGATOR KEY
 final GlobalKey<NavigatorState> navigatorKey =
     GlobalKey<NavigatorState>();
 
-void main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-
-  await AdsService.initialize();
-  await NotificationService.init();
-
-  // 🔥 MANDATORY — restores exam date & daysLeft
-  await ExamState.init();
-
-  InternetService.startMonitoring();
-
   runApp(const StudyPulseApp());
 }
 
@@ -45,6 +31,7 @@ class _StudyPulseAppState extends State<StudyPulseApp> {
   Future<void> _loadTheme() async {
     final prefs = await SharedPreferences.getInstance();
     final isDark = prefs.getBool('dark_mode') ?? false;
+    if (!mounted) return;
     setState(() {
       _themeMode = isDark ? ThemeMode.dark : ThemeMode.light;
     });
@@ -53,6 +40,7 @@ class _StudyPulseAppState extends State<StudyPulseApp> {
   void toggleTheme(bool isDark) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('dark_mode', isDark);
+    if (!mounted) return;
     setState(() {
       _themeMode = isDark ? ThemeMode.dark : ThemeMode.light;
     });
@@ -64,15 +52,14 @@ class _StudyPulseAppState extends State<StudyPulseApp> {
       toggleTheme: toggleTheme,
       child: MaterialApp(
         navigatorKey: navigatorKey,
-        title: 'StudyPulse',
         debugShowCheckedModeBanner: false,
+        title: 'StudyPulse',
         themeMode: _themeMode,
 
         theme: ThemeData(
           useMaterial3: true,
           brightness: Brightness.light,
           colorSchemeSeed: Colors.blue,
-          scaffoldBackgroundColor: const Color(0xFFF8FAFC),
         ),
 
         darkTheme: ThemeData(
@@ -81,7 +68,6 @@ class _StudyPulseAppState extends State<StudyPulseApp> {
           colorSchemeSeed: Colors.blue,
         ),
 
-        // 🌐 HARD INTERNET LOCK
         builder: (context, child) {
           return InternetGuard(child: child ?? const SizedBox());
         },
@@ -102,8 +88,7 @@ class ThemeController extends InheritedWidget {
   });
 
   static ThemeController of(BuildContext context) {
-    return context
-        .dependOnInheritedWidgetOfExactType<ThemeController>()!;
+    return context.dependOnInheritedWidgetOfExactType<ThemeController>()!;
   }
 
   @override
