@@ -30,18 +30,18 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _start() async {
-    // ⏱ 1.5 sec max as per requirement
+    // ⏱ Max 1.5 sec splash
     await Future.delayed(const Duration(milliseconds: 1500));
     if (!mounted || _navigated) return;
 
-    // 🔹 CORE SAFE INIT
+    // 🔹 CORE SAFE INIT (never block UI)
     try {
       await ExamState.init();
       InternetService.startMonitoring();
       await AdsService.initialize();
     } catch (_) {}
 
-    // 🔹 NOTIFICATIONS (ISOLATED)
+    // 🔹 NOTIFICATIONS (OEM risky → isolated)
     try {
       await NotificationService.init();
     } catch (_) {}
@@ -61,7 +61,7 @@ class _SplashScreenState extends State<SplashScreen> {
       return;
     }
 
-    // 🔔 Ask permission ONLY if count < 2
+    // 🔔 Ask notification permission max 2 times
     if (permissionCount < 2) {
       _go(const PermissionScreen());
       return;
@@ -79,25 +79,44 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
+    final isDark =
+        Theme.of(context).brightness == Brightness.dark;
+
+    return Scaffold(
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            SizedBox(height: 120),
-            Text(
+            // 🔥 LOGO (SAFE FALLBACK)
+            Image.asset(
+              'assets/logo.png',
+              height: 110,
+              errorBuilder: (_, __, ___) {
+                return Icon(
+                  Icons.school_rounded,
+                  size: 90,
+                  color: Theme.of(context).colorScheme.primary,
+                );
+              },
+            ),
+
+            const SizedBox(height: 20),
+
+            const Text(
               'StudyPulse',
               style: TextStyle(
                 fontSize: 26,
                 fontWeight: FontWeight.bold,
               ),
             ),
-            SizedBox(height: 8),
+
+            const SizedBox(height: 6),
+
             Text(
               'Focus • Track • Succeed',
               style: TextStyle(
                 fontSize: 14,
-                color: Colors.grey,
+                color: isDark ? Colors.grey : Colors.black54,
               ),
             ),
           ],
