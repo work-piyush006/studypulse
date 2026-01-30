@@ -1,3 +1,5 @@
+// lib/tools/percentage.dart
+
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:confetti/confetti.dart';
@@ -14,12 +16,14 @@ class PercentagePage extends StatefulWidget {
 }
 
 class _PercentagePageState extends State<PercentagePage> {
-  final TextEditingController obtainedCtrl = TextEditingController();
-  final TextEditingController totalCtrl = TextEditingController();
+  final TextEditingController _obtainedCtrl =
+      TextEditingController();
+  final TextEditingController _totalCtrl =
+      TextEditingController();
 
-  String result = '';
-  String message = '';
-  bool calculated = false;
+  String _result = '';
+  String _message = '';
+  bool _calculated = false;
 
   BannerAd? _bannerAd;
   bool _bannerLoaded = false;
@@ -30,14 +34,13 @@ class _PercentagePageState extends State<PercentagePage> {
   void initState() {
     super.initState();
 
-    /// 🔥 Tool open = one click
+    /// 🔥 Tool opened = real intent
     AdClickTracker.registerClick();
 
     _confetti = ConfettiController(
       duration: const Duration(seconds: 2),
     );
 
-    /// 🔔 Adaptive banner (correct API)
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       _bannerAd = await AdsService.createAdaptiveBanner(
         context: context,
@@ -60,18 +63,22 @@ class _PercentagePageState extends State<PercentagePage> {
   }
 
   void _calculatePercentage() {
-    final obtained = double.tryParse(obtainedCtrl.text.trim());
-    final total = double.tryParse(totalCtrl.text.trim());
+    final obtained =
+        double.tryParse(_obtainedCtrl.text.trim());
+    final total =
+        double.tryParse(_totalCtrl.text.trim());
 
     if (obtained == null || total == null) {
       _showError('Please enter valid numbers');
       return;
     }
+
     if (total <= 0 || obtained < 0 || obtained > total) {
       _showError('Invalid marks entered');
       return;
     }
 
+    /// ✅ Count ONLY on valid success
     AdClickTracker.registerClick();
 
     final percent = (obtained / total) * 100;
@@ -79,7 +86,7 @@ class _PercentagePageState extends State<PercentagePage> {
 
     String msg;
     if (percent >= 75) {
-      msg = 'Great job! 🎉';
+      msg = 'Excellent result 🎉';
       _confetti.play();
     } else if (percent >= 60) {
       msg = 'Good effort 👍';
@@ -88,16 +95,16 @@ class _PercentagePageState extends State<PercentagePage> {
     }
 
     setState(() {
-      calculated = true;
-      result = value;
-      message = msg;
+      _calculated = true;
+      _result = value;
+      _message = msg;
     });
   }
 
   @override
   void dispose() {
-    obtainedCtrl.dispose();
-    totalCtrl.dispose();
+    _obtainedCtrl.dispose();
+    _totalCtrl.dispose();
     _bannerAd?.dispose();
     _confetti.dispose();
     super.dispose();
@@ -109,50 +116,81 @@ class _PercentagePageState extends State<PercentagePage> {
         MediaQuery.of(context).viewInsets.bottom > 0;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Percentage Calculator')),
+      appBar: AppBar(
+        title: const Text('Percentage Calculator'),
+        leading: BackButton(
+          onPressed: () {
+            AdClickTracker.registerClick();
+            Navigator.pop(context);
+          },
+        ),
+      ),
       body: Stack(
         alignment: Alignment.topCenter,
         children: [
           ConfettiWidget(
             confettiController: _confetti,
-            blastDirectionality: BlastDirectionality.explosive,
+            blastDirectionality:
+                BlastDirectionality.explosive,
             shouldLoop: false,
+            numberOfParticles: 25,
           ),
-
           Column(
             children: [
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.all(20),
                   child: Column(
+                    crossAxisAlignment:
+                        CrossAxisAlignment.stretch,
                     children: [
                       TextField(
-                        controller: obtainedCtrl,
+                        controller: _obtainedCtrl,
+                        keyboardType:
+                            TextInputType.number,
                         decoration:
-                            const InputDecoration(labelText: 'Obtained Marks'),
+                            const InputDecoration(
+                          labelText: 'Obtained Marks',
+                        ),
                       ),
+                      const SizedBox(height: 12),
                       TextField(
-                        controller: totalCtrl,
+                        controller: _totalCtrl,
+                        keyboardType:
+                            TextInputType.number,
                         decoration:
-                            const InputDecoration(labelText: 'Total Marks'),
+                            const InputDecoration(
+                          labelText: 'Total Marks',
+                        ),
                       ),
                       const SizedBox(height: 20),
                       ElevatedButton(
                         onPressed: _calculatePercentage,
-                        child: const Text('Calculate'),
+                        child:
+                            const Text('Calculate'),
                       ),
-                      if (calculated)
-                        Text('$result %\n$message',
-                            textAlign: TextAlign.center),
+                      const SizedBox(height: 24),
+                      if (_calculated)
+                        Text(
+                          '$_result %\n$_message',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight:
+                                FontWeight.w600,
+                          ),
+                        ),
                     ],
                   ),
                 ),
               ),
 
+              /// 🔔 Banner or Placeholder
               if (!isKeyboardOpen)
                 SizedBox(
                   height: 90,
-                  child: _bannerLoaded && _bannerAd != null
+                  child: _bannerLoaded &&
+                          _bannerAd != null
                       ? AdWidget(ad: _bannerAd!)
                       : const AdPlaceholder(),
                 ),

@@ -1,3 +1,5 @@
+// lib/tools/exam.dart
+
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -14,12 +16,13 @@ class ExamCountdownPage extends StatefulWidget {
   const ExamCountdownPage({super.key});
 
   @override
-  State<ExamCountdownPage> createState() => _ExamCountdownPageState();
+  State<ExamCountdownPage> createState() =>
+      _ExamCountdownPageState();
 }
 
 class _ExamCountdownPageState extends State<ExamCountdownPage>
     with SingleTickerProviderStateMixin {
-  List<String> quotes = [];
+  final List<String> _quotes = [];
 
   BannerAd? _bannerAd;
   bool _bannerLoaded = false;
@@ -29,39 +32,50 @@ class _ExamCountdownPageState extends State<ExamCountdownPage>
   @override
   void initState() {
     super.initState();
-    _loadQuotes();
-    _loadBanner();
+
+    /// 🔥 Tool open = real intent
+    AdClickTracker.registerClick();
 
     _resetAnim = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 300),
+      duration: const Duration(milliseconds: 350),
     );
+
+    _loadQuotes();
+    _loadBanner();
   }
 
   Future<void> _loadQuotes() async {
-    final raw = await rootBundle.loadString('assets/quotes.txt');
-    quotes = raw
-        .split('\n')
-        .map((e) => e.trim())
-        .where((e) => e.isNotEmpty)
-        .toList();
+    try {
+      final raw =
+          await rootBundle.loadString('assets/quotes.txt');
+
+      if (!mounted) return;
+
+      _quotes
+        ..clear()
+        ..addAll(
+          raw
+              .split('\n')
+              .map((e) => e.trim())
+              .where((e) => e.isNotEmpty),
+        );
+    } catch (_) {}
   }
 
   void _loadBanner() {
-    _bannerAd = BannerAd(
-      adUnitId: AdsService.bannerId,
-      size: AdSize.mediumRectangle,
-      request: const AdRequest(),
-      listener: BannerAdListener(
-        onAdLoaded: (_) {
-          if (mounted) setState(() => _bannerLoaded = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      _bannerAd = await AdsService.createAdaptiveBanner(
+        context: context,
+        onState: (loaded) {
+          if (!mounted) return;
+          setState(() => _bannerLoaded = loaded);
         },
-        onAdFailedToLoad: (ad, _) => ad.dispose(),
-      ),
-    )..load();
+      );
+    });
   }
 
-  /* ================= PICK DATE ================= */
+  /* ================= DATE PICK ================= */
 
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
@@ -70,53 +84,56 @@ class _ExamCountdownPageState extends State<ExamCountdownPage>
       lastDate: DateTime(DateTime.now().year + 5),
       initialDate:
           ExamState.examDate.value ??
-          DateTime.now().add(const Duration(days: 30)),
+              DateTime.now().add(const Duration(days: 30)),
     );
 
-    if (picked == null) return;
+    if (picked == null || !mounted) return;
 
     final normalized =
         DateTime(picked.year, picked.month, picked.day);
 
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('exam_date', normalized.toIso8601String());
+    await prefs.setString(
+        'exam_date', normalized.toIso8601String());
 
     ExamState.update(normalized);
-    AdClickTracker.registerClick();
+    AdClickTracker.registerClick(); // ✅ success action
 
     final days = ExamState.daysLeft.value;
-    final quote = quotes.isNotEmpty
-        ? quotes[Random().nextInt(quotes.length)]
+    final quote = _quotes.isNotEmpty
+        ? _quotes[Random().nextInt(_quotes.length)]
         : '';
 
     final firstTime =
-        !(prefs.getBool('exam_first_notification_done') ?? false);
+        !(prefs.getBool('exam_first_notification_done') ??
+            false);
 
     if (firstTime) {
       await NotificationService.showInstant(
         daysLeft: days,
         quote: quote,
       );
-      await prefs.setBool('exam_first_notification_done', true);
+      await prefs.setBool(
+          'exam_first_notification_done', true);
     } else {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            duration: const Duration(seconds: 3),
-            content: Text('$days Days Left\n$quote'),
-          ),
-        );
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          duration: const Duration(seconds: 3),
+          content: Text('$days Days Left\n$quote'),
+        ),
+      );
     }
 
-    await NotificationService.scheduleDaily(examDate: normalized);
-
-    if (mounted) Navigator.pop(context);
+    await NotificationService.scheduleDaily(
+        examDate: normalized);
   }
 
   /* ================= CANCEL ================= */
 
   Future<void> _cancelCountdown() async {
+    AdClickTracker.registerClick();
+
     final confirm = await showModalBottomSheet<bool>(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -129,12 +146,14 @@ class _ExamCountdownPageState extends State<ExamCountdownPage>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.warning, size: 40, color: Colors.red),
+              const Icon(Icons.warning,
+                  size: 40, color: Colors.red),
               const SizedBox(height: 12),
               const Text(
                 'Cancel Exam Countdown?',
-                style:
-                    TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 10),
               const Text(
@@ -146,14 +165,16 @@ class _ExamCountdownPageState extends State<ExamCountdownPage>
                 children: [
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context, false),
+                      onPressed: () =>
+                          Navigator.pop(context, false),
                       child: const Text('No'),
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: ElevatedButton(
-                      onPressed: () => Navigator.pop(context, true),
+                      onPressed: () =>
+                          Navigator.pop(context, true),
                       child: const Text('Yes'),
                     ),
                   ),
@@ -165,19 +186,18 @@ class _ExamCountdownPageState extends State<ExamCountdownPage>
       },
     );
 
-    if (confirm != true) return;
+    if (confirm != true || !mounted) return;
 
     await _resetAnim.forward();
     await ExamState.clear();
     await NotificationService.cancelAll();
     await _resetAnim.reverse();
 
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Exam countdown cancelled')),
-      );
-      Navigator.pop(context);
-    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+          content: Text('Exam countdown cancelled')),
+    );
   }
 
   @override
@@ -195,7 +215,15 @@ class _ExamCountdownPageState extends State<ExamCountdownPage>
         MediaQuery.of(context).viewInsets.bottom > 0;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Exam Countdown')),
+      appBar: AppBar(
+        title: const Text('Exam Countdown'),
+        leading: BackButton(
+          onPressed: () {
+            AdClickTracker.registerClick();
+            Navigator.pop(context);
+          },
+        ),
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
@@ -209,17 +237,21 @@ class _ExamCountdownPageState extends State<ExamCountdownPage>
                     builder: (_, days, __) {
                       final color =
                           ExamState.colorForDays(days);
-                      final progress = ExamState.progress();
+                      final progress =
+                          ExamState.progress();
 
                       return Column(
                         children: [
                           const Text(
                             'Days Remaining',
-                            style: TextStyle(color: Colors.grey),
+                            style:
+                                TextStyle(color: Colors.grey),
                           ),
                           const SizedBox(height: 10),
                           Text(
-                            days > 0 ? '$days Days' : 'No Exam Set',
+                            days > 0
+                                ? '$days Days'
+                                : 'No Exam Set',
                             style: TextStyle(
                               fontSize: 36,
                               fontWeight: FontWeight.bold,
@@ -246,25 +278,29 @@ class _ExamCountdownPageState extends State<ExamCountdownPage>
 
               ElevatedButton.icon(
                 onPressed: _pickDate,
-                icon: const Icon(Icons.calendar_today),
-                label: const Text('Select Exam Date'),
+                icon:
+                    const Icon(Icons.calendar_today_rounded),
+                label:
+                    const Text('Select Exam Date'),
               ),
 
               const SizedBox(height: 12),
 
               OutlinedButton.icon(
-                onPressed: ExamState.examDate.value == null
-                    ? null
-                    : _cancelCountdown,
+                onPressed:
+                    ExamState.examDate.value == null
+                        ? null
+                        : _cancelCountdown,
                 icon: const Icon(Icons.close),
-                label: const Text('Cancel Countdown'),
+                label:
+                    const Text('Cancel Countdown'),
               ),
 
-              const SizedBox(height: 20),
+              const SizedBox(height: 24),
 
               if (!isKeyboardOpen)
                 SizedBox(
-                  height: 250,
+                  height: 90,
                   child: _bannerLoaded && _bannerAd != null
                       ? AdWidget(ad: _bannerAd!)
                       : const AdPlaceholder(),
