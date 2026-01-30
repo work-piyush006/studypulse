@@ -1,3 +1,5 @@
+// lib/home.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
@@ -24,14 +26,12 @@ class Home extends StatefulWidget {
   State<Home> createState() => _HomeState();
 }
 
-/* ================= HOME ROOT ================= */
-
 class _HomeState extends State<Home> with WidgetsBindingObserver {
   int index = 0;
   String dailyQuote = '';
 
   final pages = const [
-    _HomeMain(),
+    HomeMain(),
     AboutPage(),
     SettingsPage(),
   ];
@@ -56,23 +56,21 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
     }
   }
 
-  /* ================= QUOTES ================= */
-
   Future<void> _loadNextQuote() async {
-    final raw = await rootBundle.loadString('assets/quotes.txt');
-    final quotes = raw
-        .split('\n')
-        .map((e) => e.trim())
-        .where((e) => e.isNotEmpty)
-        .toList();
+    try {
+      final raw = await rootBundle.loadString('assets/quotes.txt');
+      final quotes = raw
+          .split('\n')
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty)
+          .toList();
 
-    if (!mounted || quotes.isEmpty) return;
+      if (!mounted || quotes.isEmpty) return;
 
-    quotes.shuffle();
-    setState(() => dailyQuote = quotes.first);
+      quotes.shuffle();
+      setState(() => dailyQuote = quotes.first);
+    } catch (_) {}
   }
-
-  /* ================= UI ================= */
 
   @override
   Widget build(BuildContext context) {
@@ -131,7 +129,7 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
         currentIndex: index,
         onTap: (i) {
           if (i != index) {
-            AdClickTracker.registerClick();
+            AdClickTracker.registerClick(); // ✅ legit navigation
             setState(() => index = i);
             _loadNextQuote();
           }
@@ -151,20 +149,21 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
 
 /* ================= HOME MAIN ================= */
 
-class _HomeMain extends StatefulWidget {
-  const _HomeMain();
+class HomeMain extends StatefulWidget {
+  const HomeMain({super.key});
 
   @override
-  State<_HomeMain> createState() => _HomeMainState();
+  State<HomeMain> createState() => _HomeMainState();
 }
 
-class _HomeMainState extends State<_HomeMain> {
+class _HomeMainState extends State<HomeMain> {
   BannerAd? _bannerAd;
   bool _bannerLoaded = false;
 
   @override
   void initState() {
     super.initState();
+
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       _bannerAd = await AdsService.createAdaptiveBanner(
         context: context,
@@ -218,7 +217,6 @@ class _HomeMainState extends State<_HomeMain> {
 
         const SizedBox(height: 20),
 
-        /// 🔥 LIVE EXAM STATE (THIS FIXES EVERYTHING)
         ValueListenableBuilder<int>(
           valueListenable: ExamState.daysLeft,
           builder: (_, days, __) {
@@ -276,7 +274,7 @@ class _HomeMainState extends State<_HomeMain> {
         trailing:
             const Icon(Icons.arrow_forward_ios, size: 16),
         onTap: () async {
-          AdClickTracker.registerClick();
+          AdClickTracker.registerClick(); // ✅ real user intent
           await Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => page),

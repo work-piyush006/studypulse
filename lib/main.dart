@@ -1,3 +1,5 @@
+// lib/main.dart
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -7,39 +9,46 @@ import 'services/internet_guard.dart';
 final GlobalKey<NavigatorState> navigatorKey =
     GlobalKey<NavigatorState>();
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const StudyPulseApp());
+
+  // 🔐 Load prefs BEFORE app start (prevents flash / black screen)
+  final prefs = await SharedPreferences.getInstance();
+  final isDark = prefs.getBool('dark_mode') ?? false;
+
+  runApp(
+    StudyPulseApp(
+      initialTheme:
+          isDark ? ThemeMode.dark : ThemeMode.light,
+    ),
+  );
 }
 
 class StudyPulseApp extends StatefulWidget {
-  const StudyPulseApp({super.key});
+  final ThemeMode initialTheme;
+
+  const StudyPulseApp({
+    super.key,
+    required this.initialTheme,
+  });
 
   @override
   State<StudyPulseApp> createState() => _StudyPulseAppState();
 }
 
 class _StudyPulseAppState extends State<StudyPulseApp> {
-  ThemeMode _themeMode = ThemeMode.light;
+  late ThemeMode _themeMode;
 
   @override
   void initState() {
     super.initState();
-    _loadTheme();
+    _themeMode = widget.initialTheme;
   }
 
-  Future<void> _loadTheme() async {
-    final prefs = await SharedPreferences.getInstance();
-    final isDark = prefs.getBool('dark_mode') ?? false;
-    if (!mounted) return;
-    setState(() {
-      _themeMode = isDark ? ThemeMode.dark : ThemeMode.light;
-    });
-  }
-
-  void toggleTheme(bool isDark) async {
+  Future<void> toggleTheme(bool isDark) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('dark_mode', isDark);
+
     if (!mounted) return;
     setState(() {
       _themeMode = isDark ? ThemeMode.dark : ThemeMode.light;
@@ -54,6 +63,7 @@ class _StudyPulseAppState extends State<StudyPulseApp> {
         navigatorKey: navigatorKey,
         debugShowCheckedModeBanner: false,
         title: 'StudyPulse',
+
         themeMode: _themeMode,
 
         theme: ThemeData(
@@ -68,8 +78,10 @@ class _StudyPulseAppState extends State<StudyPulseApp> {
           colorSchemeSeed: Colors.blue,
         ),
 
+        // 🔒 INTERNET GUARD — SAFE WRAP
         builder: (context, child) {
-          return InternetGuard(child: child ?? const SizedBox());
+          if (child == null) return const SizedBox();
+          return InternetGuard(child: child);
         },
 
         home: const SplashScreen(),
@@ -78,20 +90,24 @@ class _StudyPulseAppState extends State<StudyPulseApp> {
   }
 }
 
+/* ================= THEME CONTROLLER ================= */
+
 class ThemeController extends InheritedWidget {
-  final void Function(bool) toggleTheme;
+  final Future<void> Function(bool) toggleTheme;
 
   const ThemeController({
     super.key,
     required this.toggleTheme,
-    required super.child,
-  });
+    required Widget child,
+  }) : super(child: child);
 
   static ThemeController of(BuildContext context) {
-    return context.dependOnInheritedWidgetOfExactType<ThemeController>()!;
+    return context
+        .dependOnInheritedWidgetOfExactType<ThemeController>()!;
   }
 
   @override
-  bool updateShouldNotify(covariant ThemeController oldWidget) =>
-      toggleTheme != oldWidget.toggleTheme;
+  bool updateShouldNotify(covariant ThemeController oldWidget) {
+    return toggleTheme != oldWidget.toggleTheme;
+  }
 }
