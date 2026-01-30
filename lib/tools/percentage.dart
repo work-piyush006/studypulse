@@ -16,10 +16,8 @@ class PercentagePage extends StatefulWidget {
 }
 
 class _PercentagePageState extends State<PercentagePage> {
-  final TextEditingController _obtainedCtrl =
-      TextEditingController();
-  final TextEditingController _totalCtrl =
-      TextEditingController();
+  final TextEditingController _obtainedCtrl = TextEditingController();
+  final TextEditingController _totalCtrl = TextEditingController();
 
   String _result = '';
   String _message = '';
@@ -34,7 +32,7 @@ class _PercentagePageState extends State<PercentagePage> {
   void initState() {
     super.initState();
 
-    /// 🔥 Tool opened = real intent
+    // ✅ Tool open = valid user intent
     AdClickTracker.registerClick();
 
     _confetti = ConfettiController(
@@ -63,10 +61,8 @@ class _PercentagePageState extends State<PercentagePage> {
   }
 
   void _calculatePercentage() {
-    final obtained =
-        double.tryParse(_obtainedCtrl.text.trim());
-    final total =
-        double.tryParse(_totalCtrl.text.trim());
+    final obtained = double.tryParse(_obtainedCtrl.text.trim());
+    final total = double.tryParse(_totalCtrl.text.trim());
 
     if (obtained == null || total == null) {
       _showError('Please enter valid numbers');
@@ -78,7 +74,7 @@ class _PercentagePageState extends State<PercentagePage> {
       return;
     }
 
-    /// ✅ Count ONLY on valid success
+    // ✅ Count ONLY on valid calculation
     AdClickTracker.registerClick();
 
     final percent = (obtained / total) * 100;
@@ -118,20 +114,14 @@ class _PercentagePageState extends State<PercentagePage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Percentage Calculator'),
-        leading: BackButton(
-          onPressed: () {
-            AdClickTracker.registerClick();
-            Navigator.pop(context);
-          },
-        ),
+        leading: const BackButton(), // ❌ NO ad count on back
       ),
       body: Stack(
         alignment: Alignment.topCenter,
         children: [
           ConfettiWidget(
             confettiController: _confetti,
-            blastDirectionality:
-                BlastDirectionality.explosive,
+            blastDirectionality: BlastDirectionality.explosive,
             shouldLoop: false,
             numberOfParticles: 25,
           ),
@@ -141,33 +131,27 @@ class _PercentagePageState extends State<PercentagePage> {
                 child: Padding(
                   padding: const EdgeInsets.all(20),
                   child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.stretch,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       TextField(
                         controller: _obtainedCtrl,
-                        keyboardType:
-                            TextInputType.number,
-                        decoration:
-                            const InputDecoration(
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
                           labelText: 'Obtained Marks',
                         ),
                       ),
                       const SizedBox(height: 12),
                       TextField(
                         controller: _totalCtrl,
-                        keyboardType:
-                            TextInputType.number,
-                        decoration:
-                            const InputDecoration(
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
                           labelText: 'Total Marks',
                         ),
                       ),
                       const SizedBox(height: 20),
                       ElevatedButton(
                         onPressed: _calculatePercentage,
-                        child:
-                            const Text('Calculate'),
+                        child: const Text('Calculate'),
                       ),
                       const SizedBox(height: 24),
                       if (_calculated)
@@ -176,8 +160,7 @@ class _PercentagePageState extends State<PercentagePage> {
                           textAlign: TextAlign.center,
                           style: const TextStyle(
                             fontSize: 20,
-                            fontWeight:
-                                FontWeight.w600,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                     ],
@@ -185,12 +168,10 @@ class _PercentagePageState extends State<PercentagePage> {
                 ),
               ),
 
-              /// 🔔 Banner or Placeholder
               if (!isKeyboardOpen)
                 SizedBox(
                   height: 90,
-                  child: _bannerLoaded &&
-                          _bannerAd != null
+                  child: _bannerLoaded && _bannerAd != null
                       ? AdWidget(ad: _bannerAd!)
                       : const AdPlaceholder(),
                 ),

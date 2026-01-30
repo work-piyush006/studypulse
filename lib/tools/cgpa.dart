@@ -16,8 +16,7 @@ class CGPAPage extends StatefulWidget {
 }
 
 class _CGPAPageState extends State<CGPAPage> {
-  final TextEditingController _cgpaCtrl =
-      TextEditingController();
+  final TextEditingController _cgpaCtrl = TextEditingController();
 
   String _result = '';
   String _message = '';
@@ -32,7 +31,7 @@ class _CGPAPageState extends State<CGPAPage> {
   void initState() {
     super.initState();
 
-    /// 🔥 Tool opened = real intent
+    // ✅ Tool open = valid user intent
     AdClickTracker.registerClick();
 
     _confetti = ConfettiController(
@@ -61,15 +60,14 @@ class _CGPAPageState extends State<CGPAPage> {
   }
 
   void _calculate() {
-    final value =
-        double.tryParse(_cgpaCtrl.text.trim());
+    final value = double.tryParse(_cgpaCtrl.text.trim());
 
     if (value == null || value <= 0 || value > 10) {
       _showError('Enter a valid CGPA between 0 and 10');
       return;
     }
 
-    /// ✅ Count ONLY on valid success
+    // ✅ Count ONLY on successful calculation
     AdClickTracker.registerClick();
 
     final percent = value * 9.5;
@@ -113,20 +111,14 @@ class _CGPAPageState extends State<CGPAPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('CGPA Calculator'),
-        leading: BackButton(
-          onPressed: () {
-            AdClickTracker.registerClick();
-            Navigator.pop(context);
-          },
-        ),
+        leading: const BackButton(), // ❌ NO ad count on back
       ),
       body: Stack(
         alignment: Alignment.topCenter,
         children: [
           ConfettiWidget(
             confettiController: _confetti,
-            blastDirectionality:
-                BlastDirectionality.explosive,
+            blastDirectionality: BlastDirectionality.explosive,
             shouldLoop: false,
             numberOfParticles: 25,
           ),
@@ -136,23 +128,17 @@ class _CGPAPageState extends State<CGPAPage> {
                 child: Padding(
                   padding: const EdgeInsets.all(20),
                   child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.stretch,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Card(
                         child: Padding(
-                          padding:
-                              const EdgeInsets.all(16),
+                          padding: const EdgeInsets.all(16),
                           child: TextField(
                             controller: _cgpaCtrl,
-                            keyboardType:
-                                TextInputType.number,
-                            decoration:
-                                const InputDecoration(
-                              labelText:
-                                  'Enter CGPA (0 – 10)',
-                              prefixIcon:
-                                  Icon(Icons.school),
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              labelText: 'Enter CGPA (0 – 10)',
+                              prefixIcon: Icon(Icons.school),
                             ),
                           ),
                         ),
@@ -162,42 +148,33 @@ class _CGPAPageState extends State<CGPAPage> {
 
                       ElevatedButton(
                         onPressed: _calculate,
-                        child: const Text(
-                            'Convert to Percentage'),
+                        child: const Text('Convert to Percentage'),
                       ),
 
                       const SizedBox(height: 30),
 
                       if (_calculated)
                         Container(
-                          padding:
-                              const EdgeInsets.all(20),
+                          padding: const EdgeInsets.all(20),
                           decoration: BoxDecoration(
-                            color:
-                                Colors.green.withOpacity(
-                                    0.08),
-                            borderRadius:
-                                BorderRadius.circular(
-                                    12),
+                            color: Colors.green.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(12),
                           ),
                           child: Column(
                             children: [
                               Text(
                                 _message,
                                 style: const TextStyle(
-                                  fontWeight:
-                                      FontWeight.w600,
+                                  fontWeight: FontWeight.w600,
                                 ),
-                                textAlign:
-                                    TextAlign.center,
+                                textAlign: TextAlign.center,
                               ),
                               const SizedBox(height: 10),
                               Text(
                                 '$_result %',
                                 style: const TextStyle(
                                   fontSize: 34,
-                                  fontWeight:
-                                      FontWeight.bold,
+                                  fontWeight: FontWeight.bold,
                                   color: Colors.green,
                                 ),
                               ),
@@ -209,12 +186,10 @@ class _CGPAPageState extends State<CGPAPage> {
                 ),
               ),
 
-              /// 🔔 Banner or Placeholder
               if (!isKeyboardOpen)
                 SizedBox(
                   height: 90,
-                  child: _bannerLoaded &&
-                          _bannerAd != null
+                  child: _bannerLoaded && _bannerAd != null
                       ? AdWidget(ad: _bannerAd!)
                       : const AdPlaceholder(),
                 ),
