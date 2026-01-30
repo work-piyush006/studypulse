@@ -21,6 +21,8 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
+  bool _navigated = false;
+
   @override
   void initState() {
     super.initState();
@@ -28,59 +30,50 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _start() async {
-    await Future.delayed(const Duration(seconds: 2));
-    if (!mounted) return;
+    // ⏱ 1.5 sec max as per requirement
+    await Future.delayed(const Duration(milliseconds: 1500));
+    if (!mounted || _navigated) return;
 
-    // 🔹 CORE APP STATE (MUST NEVER FAIL TOGETHER)
+    // 🔹 CORE SAFE INIT
     try {
       await ExamState.init();
       InternetService.startMonitoring();
       await AdsService.initialize();
-    } catch (_) {
-      // swallow → app must continue
-    }
+    } catch (_) {}
 
-    // 🔹 NOTIFICATIONS (OEM-RISKY → ISOLATED)
+    // 🔹 NOTIFICATIONS (ISOLATED)
     try {
       await NotificationService.init();
-    } catch (_) {
-      // MIUI / Oppo safe
-    }
+    } catch (_) {}
 
     final prefs = await SharedPreferences.getInstance();
 
     final openInbox = prefs.getBool('open_inbox') ?? false;
-    final permissionAsked =
-        prefs.getBool('notification_permission_asked') ?? false;
+    final permissionCount =
+        prefs.getInt('notification_permission_count') ?? 0;
 
-    if (!mounted) return;
+    if (!mounted || _navigated) return;
+    _navigated = true;
 
     if (openInbox) {
       await prefs.remove('open_inbox');
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const NotificationInboxScreen(),
-        ),
-      );
+      _go(const NotificationInboxScreen());
       return;
     }
 
-    if (!permissionAsked) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const PermissionScreen(),
-        ),
-      );
+    // 🔔 Ask permission ONLY if count < 2
+    if (permissionCount < 2) {
+      _go(const PermissionScreen());
       return;
     }
 
+    _go(const Home());
+  }
+
+  void _go(Widget page) {
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(
-        builder: (_) => const Home(),
-      ),
+      MaterialPageRoute(builder: (_) => page),
     );
   }
 

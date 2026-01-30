@@ -1,3 +1,5 @@
+// lib/screens/permission.dart
+
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -14,30 +16,29 @@ class PermissionScreen extends StatefulWidget {
 class _PermissionScreenState extends State<PermissionScreen> {
   bool loading = false;
 
+  static const String _key = 'notification_permission_count';
+
   @override
   void initState() {
     super.initState();
-    _checkPermissionStatus();
+    _checkStatus();
   }
 
-  /// ✅ Decide whether to show this screen or skip it
-  Future<void> _checkPermissionStatus() async {
+  Future<void> _checkStatus() async {
     final prefs = await SharedPreferences.getInstance();
-    final alreadyAsked =
-        prefs.getBool('notif_permission_asked') ?? false;
+    final count = prefs.getInt(_key) ?? 0;
 
     final status = await Permission.notification.status;
 
-    // ✅ Already granted → skip screen
+    // ✅ Already granted → go home
     if (status.isGranted) {
       _goHome();
       return;
     }
 
-    // ❌ Denied before → don't auto request again
-    if (alreadyAsked) {
-      // Just stay on screen, user must tap button
-      return;
+    // ❌ Asked twice already → never auto ask again
+    if (count >= 2) {
+      _goHome();
     }
   }
 
@@ -45,13 +46,12 @@ class _PermissionScreenState extends State<PermissionScreen> {
     setState(() => loading = true);
 
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('notif_permission_asked', true);
+    final count = prefs.getInt(_key) ?? 0;
+    await prefs.setInt(_key, count + 1);
 
-    final status = await Permission.notification.request();
+    await Permission.notification.request();
 
     setState(() => loading = false);
-
-    // ✔ Allow or deny → continue app
     _goHome();
   }
 
@@ -97,13 +97,10 @@ class _PermissionScreenState extends State<PermissionScreen> {
               const Text(
                 'We use notifications to:\n'
                 '• Remind you about exams\n'
-                '• Show daily motivation\n'
-                '• Keep you focused on goals\n\n'
+                '• Send daily motivation\n'
+                '• Keep you on track\n\n'
                 'You can change this anytime in settings.',
-                style: TextStyle(
-                  fontSize: 15,
-                  color: Colors.black87,
-                ),
+                style: TextStyle(fontSize: 15),
               ),
 
               const Spacer(),

@@ -1,7 +1,9 @@
+// lib/screens/settings.dart
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../main.dart'; // 🔥 ThemeController access
+import '../main.dart'; // ThemeController
 import '../services/notification.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -12,8 +14,9 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
-  bool darkMode = false;
-  bool notificationsEnabled = true;
+  bool _darkMode = false;
+  bool _notificationsEnabled = true;
+  bool _loading = true;
 
   @override
   void initState() {
@@ -21,54 +24,68 @@ class _SettingsPageState extends State<SettingsPage> {
     _loadSettings();
   }
 
+  /* ================= LOAD ================= */
+
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
+
+    if (!mounted) return;
     setState(() {
-      darkMode = prefs.getBool('dark_mode') ?? false;
-      notificationsEnabled = prefs.getBool('notifications') ?? true;
+      _darkMode = prefs.getBool('dark_mode') ?? false;
+      _notificationsEnabled = prefs.getBool('notifications') ?? true;
+      _loading = false;
     });
   }
 
-  // 🌙 INSTANT Dark Mode (NO RESTART)
+  /* ================= DARK MODE ================= */
+
   Future<void> _toggleDarkMode(bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('dark_mode', value);
 
-    // 🔥 Instant apply
-    ThemeController.of(context).toggleTheme(value);
+    // 🔥 INSTANT APPLY (NO RESTART, NO BLACK SCREEN)
+    await ThemeController.of(context).toggleTheme(value);
 
-    setState(() => darkMode = value);
+    if (!mounted) return;
+    setState(() => _darkMode = value);
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          value ? 'Dark Mode Enabled' : 'Light Mode Enabled',
+          value ? 'Dark Mode Enabled 🌙' : 'Light Mode Enabled ☀️',
         ),
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }
 
-  // 🔔 Notification Toggle
+  /* ================= NOTIFICATIONS ================= */
+
   Future<void> _toggleNotifications(bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('notifications', value);
 
     if (!value) {
+      // 🔕 Cancel all scheduled notifications
       await NotificationService.cancelAll();
     }
 
-    setState(() => notificationsEnabled = value);
+    if (!mounted) return;
+    setState(() => _notificationsEnabled = value);
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
           value
-              ? 'Notifications Enabled'
-              : 'Notifications Disabled',
+              ? 'Notifications Enabled 🔔'
+              : 'Notifications Disabled 🔕',
         ),
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }
+
+  /* ================= UI HELPERS ================= */
 
   Widget _settingTile({
     required IconData icon,
@@ -84,8 +101,11 @@ class _SettingsPageState extends State<SettingsPage> {
           backgroundColor: Theme.of(context)
               .colorScheme
               .primary
-              .withOpacity(0.1),
-          child: Icon(icon, color: Theme.of(context).colorScheme.primary),
+              .withOpacity(0.12),
+          child: Icon(
+            icon,
+            color: Theme.of(context).colorScheme.primary,
+          ),
         ),
         title: Text(
           title,
@@ -97,8 +117,16 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  /* ================= BUILD ================= */
+
   @override
   Widget build(BuildContext context) {
+    if (_loading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Settings'),
@@ -106,31 +134,30 @@ class _SettingsPageState extends State<SettingsPage> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // 🌙 Dark Mode
+          // 🌙 DARK MODE
           _settingTile(
-            icon: Icons.dark_mode,
+            icon: Icons.dark_mode_rounded,
             title: 'Dark Mode',
             subtitle: 'Reduce eye strain at night',
             trailing: Switch(
-              value: darkMode,
+              value: _darkMode,
               onChanged: _toggleDarkMode,
             ),
           ),
 
-          // 🔔 Notifications
+          // 🔔 NOTIFICATIONS
           _settingTile(
-            icon: Icons.notifications_active,
+            icon: Icons.notifications_active_rounded,
             title: 'Notifications',
-            subtitle: 'Daily exam reminders & alerts',
+            subtitle: 'Exam reminders & alerts',
             trailing: Switch(
-              value: notificationsEnabled,
+              value: _notificationsEnabled,
               onChanged: _toggleNotifications,
             ),
           ),
 
           const SizedBox(height: 24),
 
-          // 🚀 Coming Soon
           const Text(
             'More Features Coming Soon',
             style: TextStyle(
