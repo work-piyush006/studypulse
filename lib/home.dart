@@ -26,11 +26,13 @@ class Home extends StatefulWidget {
   State<Home> createState() => _HomeState();
 }
 
-class _HomeState extends State<Home> with WidgetsBindingObserver {
-  int index = 0;
-  String dailyQuote = '';
+/* ================= ROOT HOME ================= */
 
-  final pages = const [
+class _HomeState extends State<Home> with WidgetsBindingObserver {
+  int _index = 0;
+  final ValueNotifier<String> _quote = ValueNotifier('');
+
+  final List<Widget> _pages = const [
     HomeMain(),
     AboutPage(),
     SettingsPage(),
@@ -40,23 +42,24 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _loadNextQuote();
+    _loadQuote();
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _quote.dispose();
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      _loadNextQuote();
+      _loadQuote();
     }
   }
 
-  Future<void> _loadNextQuote() async {
+  Future<void> _loadQuote() async {
     try {
       final raw = await rootBundle.loadString('assets/quotes.txt');
       final quotes = raw
@@ -66,9 +69,8 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
           .toList();
 
       if (!mounted || quotes.isEmpty) return;
-
       quotes.shuffle();
-      setState(() => dailyQuote = quotes.first);
+      _quote.value = quotes.first;
     } catch (_) {}
   }
 
@@ -86,6 +88,7 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
                   IconButton(
                     icon: const Icon(Icons.notifications_none_rounded),
                     onPressed: () async {
+                      // ❌ Inbox never counts as ad action
                       await Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -93,7 +96,7 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
                               const NotificationInboxScreen(),
                         ),
                       );
-                      _loadNextQuote();
+                      _loadQuote();
                     },
                   ),
                   if (count > 0)
@@ -107,7 +110,7 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
                           shape: BoxShape.circle,
                         ),
                         child: Text(
-                          count.toString(),
+                          '$count',
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 10,
@@ -123,16 +126,25 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
         ],
       ),
       body: SafeArea(
-        child: IndexedStack(index: index, children: pages),
+        child: IndexedStack(
+          index: _index,
+          children: _pages.map((page) {
+            if (page is HomeMain) {
+              return HomeMain(quote: _quote);
+            }
+            return page;
+          }).toList(),
+        ),
       ),
       bottomNavigationBar: BottomNavigationBar(
-        currentIndex: index,
+        currentIndex: _index,
         onTap: (i) {
-          if (i != index) {
-            AdClickTracker.registerClick(); // ✅ legit navigation
-            setState(() => index = i);
-            _loadNextQuote();
-          }
+          if (i == _index) return;
+
+          // ✅ ONLY bottom-nav counts
+          AdClickTracker.registerClick();
+          setState(() => _index = i);
+          _loadQuote();
         },
         items: const [
           BottomNavigationBarItem(
@@ -150,21 +162,32 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
 /* ================= HOME MAIN ================= */
 
 class HomeMain extends StatefulWidget {
-  const HomeMain({super.key});
+  final ValueNotifier<String> quote;
+  const HomeMain({super.key, required this.quote});
 
   @override
   State<HomeMain> createState() => _HomeMainState();
 }
 
-class _HomeMainState extends State<HomeMain> {
+class _HomeMainState extends State<HomeMain>
+    with AutomaticKeepAliveClientMixin {
   BannerAd? _bannerAd;
   bool _bannerLoaded = false;
 
   @override
+  bool get wantKeepAlive => true;
+
+  @override
   void initState() {
     super.initState();
+    _loadBanner();
+  }
 
+  void _loadBanner() {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      _bannerAd?.dispose();
+      _bannerLoaded = false;
+
       _bannerAd = await AdsService.createAdaptiveBanner(
         context: context,
         onState: (loaded) {
@@ -181,7 +204,7 @@ class _HomeMainState extends State<HomeMain> {
     super.dispose();
   }
 
-  Color _dayColor(int days) {
+  Color _colorForDays(int days) {
     if (days >= 45) return Colors.green;
     if (days >= 30) return Colors.orange;
     return Colors.red;
@@ -189,14 +212,15 @@ class _HomeMainState extends State<HomeMain> {
 
   @override
   Widget build(BuildContext context) {
-    final home = context.findAncestorStateOfType<_HomeState>();
-    final isKeyboardOpen =
+    super.build(context);
+
+    final keyboardOpen =
         MediaQuery.of(context).viewInsets.bottom > 0;
 
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        if (!isKeyboardOpen)
+        if (!keyboardOpen)
           SizedBox(
             height: 90,
             child: _bannerLoaded && _bannerAd != null
@@ -206,14 +230,19 @@ class _HomeMainState extends State<HomeMain> {
 
         const SizedBox(height: 20),
 
-        if (home != null && home.dailyQuote.isNotEmpty)
-          Text(
-            '“${home.dailyQuote}”',
-            style: const TextStyle(
-              fontStyle: FontStyle.italic,
-              color: Colors.grey,
-            ),
-          ),
+        ValueListenableBuilder<String>(
+          valueListenable: widget.quote,
+          builder: (_, q, __) {
+            if (q.isEmpty) return const SizedBox.shrink();
+            return Text(
+              '“$q”',
+              style: const TextStyle(
+                fontStyle: FontStyle.italic,
+                color: Colors.grey,
+              ),
+            );
+          },
+        ),
 
         const SizedBox(height: 20),
 
@@ -221,8 +250,7 @@ class _HomeMainState extends State<HomeMain> {
           valueListenable: ExamState.daysLeft,
           builder: (_, days, __) {
             if (days <= 0) return const SizedBox.shrink();
-
-            final color = _dayColor(days);
+            final color = _colorForDays(days);
 
             return Container(
               padding: const EdgeInsets.all(16),
@@ -250,12 +278,24 @@ class _HomeMainState extends State<HomeMain> {
 
         const SizedBox(height: 30),
 
-        _tool(context, 'Percentage Calculator',
-            'assets/percentage.png', const PercentagePage()),
-        _tool(context, 'CGPA Calculator',
-            'assets/cgpa.png', const CGPAPage()),
-        _tool(context, 'Exam Countdown',
-            'assets/exam.png', const ExamCountdownPage()),
+        _tool(
+          context,
+          'Percentage Calculator',
+          'assets/percentage.png',
+          const PercentagePage(),
+        ),
+        _tool(
+          context,
+          'CGPA Calculator',
+          'assets/cgpa.png',
+          const CGPAPage(),
+        ),
+        _tool(
+          context,
+          'Exam Countdown',
+          'assets/exam.png',
+          const ExamCountdownPage(),
+        ),
       ],
     );
   }
@@ -263,18 +303,19 @@ class _HomeMainState extends State<HomeMain> {
   Widget _tool(
     BuildContext context,
     String title,
-    String img,
+    String asset,
     Widget page,
   ) {
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       child: ListTile(
-        leading: Image.asset(img, width: 40),
+        leading: Image.asset(asset, width: 40),
         title: Text(title),
         trailing:
             const Icon(Icons.arrow_forward_ios, size: 16),
         onTap: () async {
-          AdClickTracker.registerClick(); // ✅ real user intent
+          // ✅ Valid ad action
+          AdClickTracker.registerClick();
           await Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => page),
