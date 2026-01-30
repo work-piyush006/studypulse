@@ -26,17 +26,11 @@ class Home extends StatefulWidget {
   State<Home> createState() => _HomeState();
 }
 
-/* ================= ROOT HOME ================= */
+/* ================= ROOT ================= */
 
 class _HomeState extends State<Home> with WidgetsBindingObserver {
   int _index = 0;
   final ValueNotifier<String> _quote = ValueNotifier('');
-
-  final List<Widget> _pages = const [
-    HomeMain(),
-    AboutPage(),
-    SettingsPage(),
-  ];
 
   @override
   void initState() {
@@ -88,7 +82,6 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
                   IconButton(
                     icon: const Icon(Icons.notifications_none_rounded),
                     onPressed: () async {
-                      // ❌ Inbox never counts as ad action
                       await Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -125,23 +118,24 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
           ),
         ],
       ),
+
       body: SafeArea(
         child: IndexedStack(
           index: _index,
-          children: _pages.map((page) {
-            if (page is HomeMain) {
-              return HomeMain(quote: _quote);
-            }
-            return page;
-          }).toList(),
+          children: [
+            HomeMain(quote: _quote),
+            const AboutPage(),
+            const SettingsPage(),
+          ],
         ),
       ),
+
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _index,
         onTap: (i) {
           if (i == _index) return;
 
-          // ✅ ONLY bottom-nav counts
+          // ✅ valid ad action
           AdClickTracker.registerClick();
           setState(() => _index = i);
           _loadQuote();
@@ -186,8 +180,6 @@ class _HomeMainState extends State<HomeMain>
   void _loadBanner() {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       _bannerAd?.dispose();
-      _bannerLoaded = false;
-
       _bannerAd = await AdsService.createAdaptiveBanner(
         context: context,
         onState: (loaded) {
@@ -314,7 +306,6 @@ class _HomeMainState extends State<HomeMain>
         trailing:
             const Icon(Icons.arrow_forward_ios, size: 16),
         onTap: () async {
-          // ✅ Valid ad action
           AdClickTracker.registerClick();
           await Navigator.push(
             context,
