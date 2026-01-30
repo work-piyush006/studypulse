@@ -6,6 +6,7 @@ import 'services/notification.dart';
 import 'services/internet.dart';
 import 'services/internet_guard.dart';
 import 'services/ads.dart';
+import 'state/exam_state.dart';
 
 // 🔑 GLOBAL NAVIGATOR KEY
 final GlobalKey<NavigatorState> navigatorKey =
@@ -16,6 +17,10 @@ void main() async {
 
   await AdsService.initialize();
   await NotificationService.init();
+
+  // 🔥 MANDATORY — restores exam date & daysLeft
+  await ExamState.init();
+
   InternetService.startMonitoring();
 
   runApp(const StudyPulseApp());
@@ -58,7 +63,7 @@ class _StudyPulseAppState extends State<StudyPulseApp> {
     return ThemeController(
       toggleTheme: toggleTheme,
       child: MaterialApp(
-        navigatorKey: navigatorKey, // 🔥 IMPORTANT
+        navigatorKey: navigatorKey,
         title: 'StudyPulse',
         debugShowCheckedModeBanner: false,
         themeMode: _themeMode,
@@ -97,7 +102,8 @@ class ThemeController extends InheritedWidget {
   });
 
   static ThemeController of(BuildContext context) {
-    return context.dependOnInheritedWidgetOfExactType<ThemeController>()!;
+    return context
+        .dependOnInheritedWidgetOfExactType<ThemeController>()!;
   }
 
   @override
