@@ -16,8 +16,9 @@ class NotificationService {
 
   static bool _initialized = false;
 
-  // 🔥 PERSISTENT OEM-SAFE SPAM GUARD (CRITICAL FIX)
-  static const String _lastInstantKey = 'last_instant_notification_time';
+  // 🔥 OEM SAFE SPAM GUARD (PERSISTENT)
+  static const String _lastInstantKey =
+      'last_instant_notification_time';
 
   /* ================= CHANNELS ================= */
 
@@ -44,7 +45,10 @@ class NotificationService {
 
     tz.initializeTimeZones();
 
-    const android = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const android = AndroidInitializationSettings(
+      '@drawable/icon', // 🔥 IMPORTANT
+    );
+
     const settings = InitializationSettings(android: android);
 
     await _plugin.initialize(
@@ -61,7 +65,7 @@ class NotificationService {
       },
     );
 
-    // 🔥 ANDROID 13+ PERMISSION
+    // 🔥 Android 13+ permission
     final status = await Permission.notification.status;
     if (!status.isGranted) {
       await Permission.notification.request();
@@ -79,7 +83,8 @@ class NotificationService {
 
   /* ================= INSTANT ================= */
 
-  /// ✅ OEM-SAFE, GUARANTEED, NO DROP
+  /// ✅ First time → system notification
+  /// ✅ Rapid changes → inbox only (OEM safe)
   static Future<void> showInstant({
     required int daysLeft,
     required String quote,
@@ -95,18 +100,16 @@ class NotificationService {
     final title = '📘 Exam Countdown';
     final body = '$daysLeft days left\n$quote';
 
-    // ✅ ALWAYS SAVE TO INBOX (NON-NEGOTIABLE)
+    // ✅ ALWAYS save to inbox
     await NotificationStore.save(title: title, body: body);
 
-    // 🔥 OEM SAFE WINDOW (30 seconds)
+    // 🔥 OEM SAFE WINDOW (30 sec)
     if (nowMs - lastMs < 30000) {
-      // Too fast → inbox only (prevents OEM drop)
-      return;
+      return; // inbox only
     }
 
     await prefs.setInt(_lastInstantKey, nowMs);
 
-    // 🔥 UNIQUE ANDROID-SAFE ID
     final notificationId = nowMs & 0x7fffffff;
 
     await _plugin.show(
@@ -120,6 +123,7 @@ class NotificationService {
           channelDescription: 'Instant exam countdown alerts',
           importance: Importance.high,
           priority: Priority.high,
+          icon: 'icon', // 🔥 FIXES FLUTTER LOGO
         ),
       ),
     );
@@ -127,7 +131,6 @@ class NotificationService {
 
   /* ================= DAILY ================= */
 
-  /// ⏰ 3:30 PM & 8:30 PM — GUARANTEED
   static Future<void> scheduleDaily({
     required DateTime examDate,
   }) async {
@@ -136,7 +139,7 @@ class NotificationService {
     final prefs = await SharedPreferences.getInstance();
     if (!(prefs.getBool('notifications') ?? true)) return;
 
-    // 🔥 CLEAN SLATE (NO DUPLICATE ALARMS)
+    // 🔥 CLEAN SLATE
     await _plugin.cancel(1530);
     await _plugin.cancel(2030);
 
@@ -214,6 +217,7 @@ class NotificationService {
           channelDescription: _dailyChannel.description,
           importance: Importance.high,
           priority: Priority.high,
+          icon: 'icon', // 🔥 SAME FIX
         ),
       ),
       payload: payload,
