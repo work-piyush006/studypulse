@@ -38,7 +38,7 @@ class NotificationService {
     tz.setLocalLocation(tz.getLocation('Asia/Kolkata'));
 
     const androidInit =
-        AndroidInitializationSettings('ic_notification');
+        AndroidInitializationSettings('@mipmap/ic_launcher');
 
     await _plugin.initialize(
       const InitializationSettings(android: androidInit),
@@ -91,7 +91,7 @@ class NotificationService {
           channelDescription: _examChannel.description,
           importance: Importance.high,
           priority: Priority.high,
-          icon: 'ic_notification',
+          icon: '@mipmap/ic_launcher',
         ),
       ),
     );
@@ -167,7 +167,7 @@ class NotificationService {
           _examChannel.name,
           importance: Importance.high,
           priority: Priority.high,
-          icon: 'ic_notification',
+          icon: '@mipmap/ic_launcher',
         ),
       ),
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
