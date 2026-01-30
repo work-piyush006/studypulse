@@ -2,9 +2,11 @@
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../main.dart'; // ThemeController
 import '../services/notification.dart';
+import 'about.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -35,6 +37,8 @@ class _SettingsPageState extends State<SettingsPage> {
     });
   }
 
+  /* ================= DARK MODE ================= */
+
   Future<void> _toggleDarkMode(bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('dark_mode', value);
@@ -44,45 +48,39 @@ class _SettingsPageState extends State<SettingsPage> {
     if (!mounted) return;
     setState(() => _darkMode = value);
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          value ? 'Dark Mode Enabled 🌙' : 'Light Mode Enabled ☀️',
-        ),
-        behavior: SnackBarBehavior.floating,
-      ),
+    _snack(
+      value ? 'Dark Mode Enabled 🌙' : 'Light Mode Enabled ☀️',
     );
   }
+
+  /* ================= NOTIFICATIONS ================= */
 
   Future<void> _toggleNotifications(bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('notifications', value);
 
     if (!value) {
-      // ✅ Correct + safe
       await NotificationService.cancelAllExamNotifications();
     }
 
     if (!mounted) return;
     setState(() => _notificationsEnabled = value);
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          value
-              ? 'Notifications Enabled 🔔'
-              : 'Notifications Disabled 🔕',
-        ),
-        behavior: SnackBarBehavior.floating,
-      ),
+    _snack(
+      value
+          ? 'Notifications Enabled 🔔'
+          : 'Notifications Disabled 🔕',
     );
   }
+
+  /* ================= UI HELPERS ================= */
 
   Widget _settingTile({
     required IconData icon,
     required String title,
     String? subtitle,
-    required Widget trailing,
+    Widget? trailing,
+    VoidCallback? onTap,
   }) {
     return Card(
       elevation: 0,
@@ -102,9 +100,28 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
         subtitle: subtitle == null ? null : Text(subtitle),
         trailing: trailing,
+        onTap: onTap,
       ),
     );
   }
+
+  void _snack(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  Future<void> _openPrivacyPolicy() async {
+    const url =
+        'http://studypulse-privacypolicy.blogspot.com/2026/01/studypulse-privacy-policy.html';
+    final uri = Uri.parse(url);
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  /* ================= BUILD ================= */
 
   @override
   Widget build(BuildContext context) {
@@ -119,6 +136,7 @@ class _SettingsPageState extends State<SettingsPage> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          // 🌙 DARK MODE
           _settingTile(
             icon: Icons.dark_mode_rounded,
             title: 'Dark Mode',
@@ -128,6 +146,8 @@ class _SettingsPageState extends State<SettingsPage> {
               onChanged: _toggleDarkMode,
             ),
           ),
+
+          // 🔔 NOTIFICATIONS
           _settingTile(
             icon: Icons.notifications_active_rounded,
             title: 'Notifications',
@@ -137,7 +157,50 @@ class _SettingsPageState extends State<SettingsPage> {
               onChanged: _toggleNotifications,
             ),
           ),
+
           const SizedBox(height: 24),
+
+          // 🧪 TEST NOTIFICATION
+          _settingTile(
+            icon: Icons.notification_important_rounded,
+            title: 'Test Notification',
+            subtitle: 'Check if notifications are working',
+            onTap: () async {
+              await NotificationService.showInstant(
+                context: context,
+                daysLeft: 10,
+                quote: 'Stay consistent. Success will follow.',
+              );
+            },
+          ),
+
+          // 📜 PRIVACY POLICY
+          _settingTile(
+            icon: Icons.privacy_tip_outlined,
+            title: 'Privacy Policy',
+            subtitle: 'How we handle your data',
+            onTap: _openPrivacyPolicy,
+          ),
+
+          // ℹ️ ABOUT
+          _settingTile(
+            icon: Icons.info_outline,
+            title: 'About StudyPulse',
+            subtitle: 'App details & developer info',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const AboutPage(),
+                ),
+              );
+            },
+          ),
+
+          const SizedBox(height: 30),
+          const Divider(),
+          const SizedBox(height: 10),
+
           const Center(
             child: Text(
               'StudyPulse v1.0.0',

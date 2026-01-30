@@ -122,6 +122,25 @@ class AboutPage extends StatelessWidget {
 
             const SizedBox(height: 30),
 
+            // 🔹 Privacy Policy
+            const Text(
+              'Privacy Policy',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 10),
+
+            _infoTile(
+              icon: Icons.public,
+              title: 'View Privacy Policy',
+              subtitle:
+                  'studypulse-privacypolicy.blogspot.com',
+              onTap: () => _launchUrl(
+                'http://studypulse-privacypolicy.blogspot.com/2026/01/studypulse-privacy-policy.html',
+              ),
+            ),
+
+            const SizedBox(height: 30),
+
             // 🔹 Footer
             Center(
               child: Column(
