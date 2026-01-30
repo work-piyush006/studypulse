@@ -16,14 +16,14 @@ class AdsService {
   static InterstitialAd? _interstitialAd;
   static bool _isLoading = false;
 
-  /// 🚨 MUST BE FALSE FOR PLAY STORE
+  /// 🚨 MUST stay FALSE for Play Store
   static const bool useTestAds = false;
 
-  /// ⏱ Play-Store safe cooldown
+  /// ⏱️ Play-Store safe cooldown
   static const Duration _cooldown = Duration(minutes: 2);
   static const String _lastShownKey = 'last_interstitial_time';
 
-  /* ================= AD UNIT IDS ================= */
+  /* ================= AD IDS ================= */
 
   static String get bannerId =>
       useTestAds
@@ -43,30 +43,27 @@ class AdsService {
       await MobileAds.instance.initialize();
       _initialized = true;
     } catch (_) {
-      // ads must never crash app
+      // Ads must NEVER crash app
     }
   }
 
-  /* ===========================================================
-   * ===================== BANNER ADS ==========================
-   * ===========================================================
-   */
+  /* ================= BANNER ================= */
 
-  /// 🔥 ADAPTIVE BANNER (USED EVERYWHERE)
+  /// 🔥 Adaptive banner (highest fill-rate)
   static Future<BannerAd?> createAdaptiveBanner({
     required BuildContext context,
     required void Function(bool loaded) onState,
   }) async {
+    if (!_initialized) await initialize();
+
     final hasInternet =
         await InternetConnectionChecker().hasConnection;
-
     if (!hasInternet) {
       onState(false);
       return null;
     }
 
     final width = MediaQuery.of(context).size.width.truncate();
-
     final size =
         await AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(
       width,
@@ -83,15 +80,15 @@ class AdsService {
       request: const AdRequest(),
       listener: BannerAdListener(
         onAdLoaded: (_) {
-          if (kDebugMode) debugPrint('✅ Banner loaded');
           onState(true);
+          if (kDebugMode) debugPrint('✅ Banner loaded');
         },
         onAdFailedToLoad: (ad, error) {
+          ad.dispose();
+          onState(false);
           if (kDebugMode) {
             debugPrint('❌ Banner failed: $error');
           }
-          ad.dispose();
-          onState(false);
         },
       ),
     );
@@ -100,15 +97,13 @@ class AdsService {
     return banner;
   }
 
-  /* ===========================================================
-   * =================== INTERSTITIAL ADS ======================
-   * ===========================================================
-   */
+  /* ================= INTERSTITIAL ================= */
 
   static bool get isReady => _interstitialAd != null;
 
-  /// 🔁 SAFE PRELOAD (CALL OFTEN)
+  /// 🔁 Safe preload (call on every valid click)
   static Future<void> preload() async {
+    if (!_initialized) await initialize();
     if (_interstitialAd != null || _isLoading) return;
 
     final hasInternet =
@@ -131,10 +126,7 @@ class AdsService {
           _interstitialAd = ad;
           _isLoading = false;
           ad.setImmersiveMode(true);
-
-          if (kDebugMode) {
-            debugPrint('✅ Interstitial READY');
-          }
+          if (kDebugMode) debugPrint('✅ Interstitial READY');
         },
         onAdFailedToLoad: (_) {
           _isLoading = false;
@@ -144,7 +136,7 @@ class AdsService {
     );
   }
 
-  /// 🎯 SHOW + AUTO-RELOAD
+  /// 🎯 Show + auto-reload
   static Future<void> show() async {
     if (_interstitialAd == null) return;
 
@@ -157,7 +149,7 @@ class AdsService {
       onAdDismissedFullScreenContent: (ad) {
         ad.dispose();
         _interstitialAd = null;
-        preload(); // load next
+        preload();
       },
       onAdFailedToShowFullScreenContent: (ad, _) {
         ad.dispose();

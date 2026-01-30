@@ -1,36 +1,34 @@
+// lib/services/notification.dart
+
 import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
 import 'notification_store.dart';
 
 class NotificationService {
+  NotificationService._();
+
   static final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
 
   static bool _initialized = false;
 
-  static const String _lastInstantKey =
-      'last_instant_notification_time';
+  /* ================= CONSTANTS ================= */
 
-  static const AndroidNotificationChannel _instantChannel =
-      AndroidNotificationChannel(
-    'exam_now',
-    'Exam Alerts',
-    description: 'Instant exam countdown alerts',
-    importance: Importance.high,
-  );
+  static const int _dailyId1 = 4001; // 4:00 PM
+  static const int _dailyId2 = 11001; // 11:00 PM
+  static const int _instantBaseId = 5000;
 
-  static const AndroidNotificationChannel _dailyChannel =
+  static const AndroidNotificationChannel _examChannel =
       AndroidNotificationChannel(
-    'exam_daily',
-    'Daily Exam Reminders',
-    description: 'Daily study reminders',
+    'exam_channel',
+    'Exam Notifications',
+    description: 'Exam countdown & daily reminders',
     importance: Importance.high,
   );
 
@@ -41,13 +39,11 @@ class NotificationService {
 
     tz.initializeTimeZones();
 
-    const android =
+    const androidInit =
         AndroidInitializationSettings('ic_notification');
 
-    const settings = InitializationSettings(android: android);
-
     await _plugin.initialize(
-      settings,
+      const InitializationSettings(android: androidInit),
       onDidReceiveNotificationResponse: (response) async {
         if (response.payload == null) return;
         try {
@@ -60,14 +56,23 @@ class NotificationService {
       },
     );
 
-    final androidPlugin =
+    final android =
         _plugin.resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>();
 
-    await androidPlugin?.createNotificationChannel(_instantChannel);
-    await androidPlugin?.createNotificationChannel(_dailyChannel);
+    await android?.createNotificationChannel(_examChannel);
 
     _initialized = true;
+  }
+
+  /* ================= PERMISSION ================= */
+
+  static Future<bool> _hasPermission() async {
+    final android =
+        _plugin.resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
+    if (android == null) return false;
+    return await android.areNotificationsEnabled() ?? false;
   }
 
   /* ================= INSTANT ================= */
@@ -77,32 +82,25 @@ class NotificationService {
     required String quote,
   }) async {
     await init();
-
-    final prefs = await SharedPreferences.getInstance();
-    if (!(prefs.getBool('notifications') ?? true)) return;
-
-    final nowMs = DateTime.now().millisecondsSinceEpoch;
-    final lastMs = prefs.getInt(_lastInstantKey) ?? 0;
+    if (!await _hasPermission()) return;
 
     final title = '📘 Exam Countdown';
     final body = '$daysLeft days left\n$quote';
 
     await NotificationStore.save(title: title, body: body);
 
-    if (nowMs - lastMs < 30000) return;
-    await prefs.setInt(_lastInstantKey, nowMs);
-
-    final id = nowMs & 0x7fffffff;
+    final id =
+        _instantBaseId + DateTime.now().millisecondsSinceEpoch % 1000;
 
     await _plugin.show(
       id,
       title,
       body,
-      const NotificationDetails(
+      NotificationDetails(
         android: AndroidNotificationDetails(
-          'exam_now',
-          'Exam Alerts',
-          channelDescription: 'Instant exam countdown alerts',
+          _examChannel.id,
+          _examChannel.name,
+          channelDescription: _examChannel.description,
           importance: Importance.high,
           priority: Priority.high,
           icon: 'ic_notification',
@@ -111,58 +109,54 @@ class NotificationService {
     );
   }
 
-  /* ================= DAILY ================= */
+  /* ================= DAILY (2 TIMES) ================= */
 
   static Future<void> scheduleDaily({
     required DateTime examDate,
   }) async {
     await init();
+    if (!await _hasPermission()) return;
 
-    final prefs = await SharedPreferences.getInstance();
-    if (!(prefs.getBool('notifications') ?? true)) return;
+    await cancelDaily();
 
-    await _plugin.cancel(1530);
-    await _plugin.cancel(2030);
+    final now = tz.TZDateTime.now(tz.local);
+    final today = DateTime(now.year, now.month, now.day);
+    final daysLeft = examDate.difference(today).inDays;
 
-    await _schedule(
-      id: 1530,
-      hour: 15,
-      minute: 30,
-      examDate: examDate,
-    );
-
-    await _schedule(
-      id: 2030,
-      hour: 20,
-      minute: 30,
-      examDate: examDate,
-    );
-  }
-
-  static Future<void> _schedule({
-    required int id,
-    required int hour,
-    required int minute,
-    required DateTime examDate,
-  }) async {
-    final today = DateTime.now();
-    final start = DateTime(today.year, today.month, today.day);
-    final end =
-        DateTime(examDate.year, examDate.month, examDate.day);
-
-    final daysLeft = end.difference(start).inDays;
     if (daysLeft < 0) return;
 
     final quotes = await _loadQuotes();
     if (quotes.isEmpty) return;
 
-    final quote = quotes[Random().nextInt(quotes.length)];
-    final title = '📚 StudyPulse Reminder';
-    final body = '$daysLeft days left\n$quote';
-    final payload = jsonEncode({'title': title, 'body': body});
+    // Schedule 4:00 PM
+    await _scheduleAt(
+      id: _dailyId1,
+      hour: 16,
+      minute: 0,
+      daysLeft: daysLeft,
+      quotes: quotes,
+    );
 
+    // Schedule 11:00 PM
+    await _scheduleAt(
+      id: _dailyId2,
+      hour: 23,
+      minute: 0,
+      daysLeft: daysLeft,
+      quotes: quotes,
+    );
+  }
+
+  static Future<void> _scheduleAt({
+    required int id,
+    required int hour,
+    required int minute,
+    required int daysLeft,
+    required List<String> quotes,
+  }) async {
     final now = tz.TZDateTime.now(tz.local);
-    var scheduled = tz.TZDateTime(
+
+    final scheduledToday = tz.TZDateTime(
       tz.local,
       now.year,
       now.month,
@@ -171,20 +165,14 @@ class NotificationService {
       minute,
     );
 
-    if (scheduled.isBefore(now)) {
-      scheduled = scheduled.add(const Duration(days: 1));
-    }
+    final scheduled = scheduledToday.isBefore(now)
+        ? scheduledToday.add(const Duration(days: 1))
+        : scheduledToday;
 
-    final examEnd = tz.TZDateTime(
-      tz.local,
-      examDate.year,
-      examDate.month,
-      examDate.day,
-      23,
-      59,
-    );
-
-    if (scheduled.isAfter(examEnd)) return;
+    final quote = quotes[Random().nextInt(quotes.length)];
+    final title = '📚 Study Reminder';
+    final body = '$daysLeft days left\n$quote';
+    final payload = jsonEncode({'title': title, 'body': body});
 
     await _plugin.zonedSchedule(
       id,
@@ -193,9 +181,9 @@ class NotificationService {
       scheduled,
       NotificationDetails(
         android: AndroidNotificationDetails(
-          _dailyChannel.id,
-          _dailyChannel.name,
-          channelDescription: _dailyChannel.description,
+          _examChannel.id,
+          _examChannel.name,
+          channelDescription: _examChannel.description,
           importance: Importance.high,
           priority: Priority.high,
           icon: 'ic_notification',
@@ -209,6 +197,19 @@ class NotificationService {
     );
   }
 
+  /* ================= CANCEL ================= */
+
+  static Future<void> cancelDaily() async {
+    await _plugin.cancel(_dailyId1);
+    await _plugin.cancel(_dailyId2);
+  }
+
+  static Future<void> cancelAllExamNotifications() async {
+    await _plugin.cancelAll();
+  }
+
+  /* ================= HELPERS ================= */
+
   static Future<List<String>> _loadQuotes() async {
     final raw = await rootBundle.loadString('assets/quotes.txt');
     return raw
@@ -216,9 +217,5 @@ class NotificationService {
         .map((e) => e.trim())
         .where((e) => e.isNotEmpty)
         .toList();
-  }
-
-  static Future<void> cancelAll() async {
-    await _plugin.cancelAll();
   }
 }
