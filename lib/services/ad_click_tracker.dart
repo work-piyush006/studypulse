@@ -3,33 +3,30 @@
 import 'ads.dart';
 
 class AdClickTracker {
-  /// Counts ONLY valid user actions
+  /// Counts ONLY meaningful user actions
   static int _count = 0;
 
-  /// Call this on REAL, meaningful actions only
-  /// (bottom nav, tool open, successful set/cancel, calculate button)
-  static void registerClick() {
+  /// Call ONLY on real actions
+  /// (bottom nav, tool open, successful calculate/set/cancel)
+  static Future<void> registerClick() async {
     _count++;
 
-    // 🔄 Always try preload (safe to call many times)
+    // 🔁 Always keep interstitial ready
     AdsService.preload();
 
-    // 🎯 We want interstitial on every 4th VALID action
+    // 🎯 Show on every 4th VALID action
     if (_count < 4) return;
 
-    // ❗ Show ONLY if ad is actually ready
     if (AdsService.isReady) {
-      AdsService.show();
+      final shown = await AdsService.showIfAllowed();
 
-      // 🔥 RESET only after show attempt
-      _count = 0;
+      // 🔥 RESET only if ad ACTUALLY shown
+      if (shown) {
+        _count = 0;
+      }
     }
-    // else:
-    // ad not ready → DO NOT reset count
-    // next valid click will retry
   }
 
-  /// Optional hard reset (logout / app reset)
   static void reset() {
     _count = 0;
   }
