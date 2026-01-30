@@ -1,4 +1,5 @@
 import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
@@ -24,26 +25,12 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
   BannerAd? _bannerAd;
   bool _bannerLoaded = false;
 
-  bool _notificationReady = false;
-
   @override
   void initState() {
     super.initState();
-    _bootstrap(); // 🔥 SINGLE ENTRY
-  }
-
-  /* ================= BOOTSTRAP ================= */
-
-  Future<void> _bootstrap() async {
-    // 🔥 ABSOLUTE REQUIREMENT (OEM SAFE)
-    await NotificationService.init();
-    _notificationReady = true;
-
-    await _loadData();
+    _loadData();
     _loadBanner();
   }
-
-  /* ================= LOAD DATA ================= */
 
   Future<void> _loadData() async {
     final prefs = await SharedPreferences.getInstance();
@@ -64,8 +51,6 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
     if (mounted) setState(() {});
   }
 
-  /* ================= BANNER ================= */
-
   void _loadBanner() {
     _bannerAd = BannerAd(
       adUnitId: AdsService.bannerId,
@@ -79,8 +64,6 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
       ),
     )..load();
   }
-
-  /* ================= PICK DATE ================= */
 
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
@@ -97,24 +80,66 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
         DateTime(picked.year, picked.month, picked.day);
 
     final prefs = await SharedPreferences.getInstance();
+
     await prefs.setString('exam_date', normalized.toIso8601String());
 
-    // 🔥 SINGLE SOURCE OF TRUTH
-    setState(() => examDate = normalized);
+    examDate = normalized;
+
+    // 🔥 UPDATE GLOBAL STATE FIRST
     ExamState.update(normalized);
+
+    if (mounted) setState(() {});
 
     AdClickTracker.registerClick();
 
-    // 🔥 GUARANTEED NOTIFICATION FIRE
-    if (_notificationReady && quotes.isNotEmpty) {
+    final days = ExamState.daysLeft.value;
+    final quote = quotes.isNotEmpty
+        ? quotes[Random().nextInt(quotes.length)]
+        : '';
+
+    final alreadyNotified =
+        prefs.getBool('exam_first_notification_done') ?? false;
+
+    // 🟢 FIRST TIME → SYSTEM NOTIFICATION
+    if (!alreadyNotified) {
       await NotificationService.showInstant(
-        daysLeft: ExamState.daysLeft.value,
-        quote: quotes[Random().nextInt(quotes.length)],
+        daysLeft: days,
+        quote: quote,
       );
+      await prefs.setBool('exam_first_notification_done', true);
+    } 
+    // 🟡 AFTER THAT → SNACKBAR ONLY
+    else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            duration: const Duration(seconds: 3),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$days Days Left',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                if (quote.isNotEmpty)
+                  Text(
+                    quote,
+                    style: const TextStyle(fontSize: 12),
+                  ),
+              ],
+            ),
+          ),
+        );
+      }
     }
 
-    // 🔔 DAILY (OEM SAFE)
+    // ⏰ DAILY NOTIFICATIONS (SAFE)
     await NotificationService.scheduleDaily(examDate: normalized);
+
+    await Future.delayed(const Duration(milliseconds: 80));
 
     if (mounted) Navigator.pop(context, true);
   }
@@ -124,8 +149,6 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
     _bannerAd?.dispose();
     super.dispose();
   }
-
-  /* ================= UI ================= */
 
   @override
   Widget build(BuildContext context) {
@@ -157,12 +180,10 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
                         builder: (_, d, __) {
                           return Text(
                             '$d Days',
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontSize: 36,
                               fontWeight: FontWeight.bold,
-                              color: d >= 30
-                                  ? Colors.orange
-                                  : Colors.red,
+                              color: Colors.red,
                             ),
                           );
                         },
@@ -171,9 +192,7 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
                   ),
                 ),
               ),
-
               const SizedBox(height: 24),
-
               ElevatedButton.icon(
                 onPressed: _pickDate,
                 icon: const Icon(Icons.calendar_today),
@@ -182,9 +201,7 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
                   minimumSize: const Size.fromHeight(50),
                 ),
               ),
-
               const SizedBox(height: 20),
-
               if (!isKeyboardOpen)
                 SizedBox(
                   height: 250,
