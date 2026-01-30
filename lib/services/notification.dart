@@ -16,7 +16,7 @@ class NotificationService {
 
   static bool _initialized = false;
 
-  // 🔥 OEM-SAFE SPAM GUARD (persistent)
+  // 🔥 OEM-safe spam guard
   static const String _lastInstantKey =
       'last_instant_notification_time';
 
@@ -45,7 +45,6 @@ class NotificationService {
 
     tz.initializeTimeZones();
 
-    // 🔥 IMPORTANT: exact drawable name (NO @drawable, NO .png)
     const android =
         AndroidInitializationSettings('ic_notification');
 
@@ -83,8 +82,6 @@ class NotificationService {
 
   /* ================= INSTANT ================= */
 
-  /// 🟢 First time → system notification
-  /// 🟡 Rapid changes → inbox only (OEM safe)
   static Future<void> showInstant({
     required int daysLeft,
     required String quote,
@@ -100,18 +97,18 @@ class NotificationService {
     final title = '📘 Exam Countdown';
     final body = '$daysLeft days left\n$quote';
 
-    // ✅ ALWAYS save to inbox
+    // Always save to inbox
     await NotificationStore.save(title: title, body: body);
 
-    // 🔥 OEM SAFE WINDOW (30 seconds)
+    // OEM safe window
     if (nowMs - lastMs < 30000) return;
 
     await prefs.setInt(_lastInstantKey, nowMs);
 
-    final notificationId = nowMs & 0x7fffffff;
+    final id = nowMs & 0x7fffffff;
 
     await _plugin.show(
-      notificationId,
+      id,
       title,
       body,
       const NotificationDetails(
@@ -121,7 +118,7 @@ class NotificationService {
           channelDescription: 'Instant exam countdown alerts',
           importance: Importance.high,
           priority: Priority.high,
-          smallIcon: 'ic_notification', // ✅ FINAL FIX
+          icon: 'ic_notification', // ✅ CORRECT PARAMETER
         ),
       ),
     );
@@ -137,7 +134,6 @@ class NotificationService {
     final prefs = await SharedPreferences.getInstance();
     if (!(prefs.getBool('notifications') ?? true)) return;
 
-    // clean slate
     await _plugin.cancel(1530);
     await _plugin.cancel(2030);
 
@@ -215,7 +211,7 @@ class NotificationService {
           channelDescription: _dailyChannel.description,
           importance: Importance.high,
           priority: Priority.high,
-          smallIcon: 'ic_notification', // ✅ SAME FIX
+          icon: 'ic_notification', // ✅ CORRECT PARAMETER
         ),
       ),
       payload: payload,
