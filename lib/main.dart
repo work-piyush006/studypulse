@@ -1,5 +1,3 @@
-// lib/main.dart
-
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -14,25 +12,18 @@ final GlobalKey<NavigatorState> navigatorKey =
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 🔔 MUST INIT — notifications (ROOT FIX)
   await NotificationService.init();
-
-  // 📅 MUST INIT — exam state (daysLeft / midnight refresh)
   await ExamState.init();
 
-  // 🎨 Load theme before app start
   final prefs = await SharedPreferences.getInstance();
   final isDark = prefs.getBool('dark_mode') ?? false;
 
   runApp(
     StudyPulseApp(
-      initialTheme:
-          isDark ? ThemeMode.dark : ThemeMode.light,
+      initialTheme: isDark ? ThemeMode.dark : ThemeMode.light,
     ),
   );
 }
-
-/* ================= APP ROOT ================= */
 
 class StudyPulseApp extends StatefulWidget {
   final ThemeMode initialTheme;
@@ -47,21 +38,19 @@ class StudyPulseApp extends StatefulWidget {
 }
 
 class _StudyPulseAppState extends State<StudyPulseApp> {
-  late ThemeMode _themeMode;
+  late ThemeMode _theme;
 
   @override
   void initState() {
     super.initState();
-    _themeMode = widget.initialTheme;
+    _theme = widget.initialTheme;
   }
 
-  Future<void> toggleTheme(bool isDark) async {
+  Future<void> toggleTheme(bool dark) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('dark_mode', isDark);
-
-    if (!mounted) return;
+    await prefs.setBool('dark_mode', dark);
     setState(() {
-      _themeMode = isDark ? ThemeMode.dark : ThemeMode.light;
+      _theme = dark ? ThemeMode.dark : ThemeMode.light;
     });
   }
 
@@ -70,37 +59,21 @@ class _StudyPulseAppState extends State<StudyPulseApp> {
     return ThemeController(
       toggleTheme: toggleTheme,
       child: MaterialApp(
-        navigatorKey: navigatorKey,
         debugShowCheckedModeBanner: false,
         title: 'StudyPulse',
-
-        themeMode: _themeMode,
-
-        theme: ThemeData(
-          useMaterial3: true,
-          brightness: Brightness.light,
-          colorSchemeSeed: Colors.blue,
-        ),
-
+        themeMode: _theme,
+        theme: ThemeData(useMaterial3: true),
         darkTheme: ThemeData(
           useMaterial3: true,
           brightness: Brightness.dark,
-          colorSchemeSeed: Colors.blue,
         ),
-
-        // 🌐 INTERNET GUARD — SAFE WRAP
-        builder: (context, child) {
-          if (child == null) return const SizedBox();
-          return InternetGuard(child: child);
-        },
-
+        builder: (c, child) =>
+            child == null ? const SizedBox() : InternetGuard(child: child),
         home: const SplashScreen(),
       ),
     );
   }
 }
-
-/* ================= THEME CONTROLLER ================= */
 
 class ThemeController extends InheritedWidget {
   final Future<void> Function(bool) toggleTheme;
@@ -111,13 +84,10 @@ class ThemeController extends InheritedWidget {
     required Widget child,
   }) : super(child: child);
 
-  static ThemeController of(BuildContext context) {
-    return context
-        .dependOnInheritedWidgetOfExactType<ThemeController>()!;
-  }
+  static ThemeController of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<ThemeController>()!;
 
   @override
-  bool updateShouldNotify(covariant ThemeController oldWidget) {
-    return toggleTheme != oldWidget.toggleTheme;
-  }
+  bool updateShouldNotify(covariant ThemeController oldWidget) =>
+      toggleTheme != oldWidget.toggleTheme;
 }
