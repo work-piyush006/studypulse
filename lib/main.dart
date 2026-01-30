@@ -5,6 +5,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'screens/splash.dart';
 import 'services/internet_guard.dart';
+import 'services/notification.dart';
+import 'state/exam_state.dart';
 
 final GlobalKey<NavigatorState> navigatorKey =
     GlobalKey<NavigatorState>();
@@ -12,7 +14,13 @@ final GlobalKey<NavigatorState> navigatorKey =
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 🔐 Load prefs BEFORE app start (prevents flash / black screen)
+  // 🔔 MUST INIT — notifications (ROOT FIX)
+  await NotificationService.init();
+
+  // 📅 MUST INIT — exam state (daysLeft / midnight refresh)
+  await ExamState.init();
+
+  // 🎨 Load theme before app start
   final prefs = await SharedPreferences.getInstance();
   final isDark = prefs.getBool('dark_mode') ?? false;
 
@@ -23,6 +31,8 @@ Future<void> main() async {
     ),
   );
 }
+
+/* ================= APP ROOT ================= */
 
 class StudyPulseApp extends StatefulWidget {
   final ThemeMode initialTheme;
@@ -78,7 +88,7 @@ class _StudyPulseAppState extends State<StudyPulseApp> {
           colorSchemeSeed: Colors.blue,
         ),
 
-        // 🔒 INTERNET GUARD — SAFE WRAP
+        // 🌐 INTERNET GUARD — SAFE WRAP
         builder: (context, child) {
           if (child == null) return const SizedBox();
           return InternetGuard(child: child);
