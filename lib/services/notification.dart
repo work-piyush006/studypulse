@@ -44,7 +44,6 @@ class NotificationService {
   static Future<void> init() async {
     if (_initialized) return;
 
-    // ✅ Timezone FIX (India-safe)
     tz.initializeTimeZones();
     tz.setLocalLocation(tz.getLocation('Asia/Kolkata'));
 
@@ -76,19 +75,12 @@ class NotificationService {
 
   /* ================= PERMISSION ================= */
 
-  static Future<bool> ensurePermission() async {
+  static Future<bool> _hasPermission() async {
     final android =
         _plugin.resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>();
-
     if (android == null) return false;
-
-    final enabled = await android.areNotificationsEnabled();
-    if (enabled == true) return true;
-
-    // Android 13+ explicit request
-    final granted = await android.requestPermission();
-    return granted ?? false;
+    return await android.areNotificationsEnabled() ?? false;
   }
 
   /* ================= INSTANT ================= */
@@ -100,11 +92,11 @@ class NotificationService {
   }) async {
     await init();
 
-    if (!await ensurePermission()) {
-      _showSnack(
+    if (!await _hasPermission()) {
+      _snack(
         context,
-        'Notification permission denied',
-        'Enable it from Settings → Notifications',
+        'Notifications disabled',
+        'Enable from system settings',
         isError: true,
       );
       return NotificationResult.denied;
@@ -134,16 +126,16 @@ class NotificationService {
       ),
     );
 
-    _showSnack(
+    _snack(
       context,
       'Countdown notification sent',
-      'You will get daily reminders too',
+      'Daily reminders active',
     );
 
     return NotificationResult.granted;
   }
 
-  /* ================= DAILY (2 TIMES) ================= */
+  /* ================= DAILY ================= */
 
   static Future<NotificationResult> scheduleDaily({
     required BuildContext context,
@@ -151,11 +143,11 @@ class NotificationService {
   }) async {
     await init();
 
-    if (!await ensurePermission()) {
-      _showSnack(
+    if (!await _hasPermission()) {
+      _snack(
         context,
         'Notifications disabled',
-        'Enable them to get exam reminders',
+        'Enable to receive exam reminders',
         isError: true,
       );
       return NotificationResult.denied;
@@ -167,15 +159,7 @@ class NotificationService {
     final today = DateTime(now.year, now.month, now.day);
     final daysLeft = examDate.difference(today).inDays;
 
-    if (daysLeft < 0) {
-      _showSnack(
-        context,
-        'Invalid exam date',
-        'Please select a future date',
-        isError: true,
-      );
-      return NotificationResult.failed;
-    }
+    if (daysLeft < 0) return NotificationResult.failed;
 
     final quotes = await _loadQuotes();
     if (quotes.isEmpty) return NotificationResult.failed;
@@ -196,10 +180,10 @@ class NotificationService {
       quotes: quotes,
     );
 
-    _showSnack(
+    _snack(
       context,
       'Exam reminders set',
-      'Daily alerts at 4:00 PM & 11:00 PM',
+      '4:00 PM & 11:00 PM',
     );
 
     return NotificationResult.scheduled;
@@ -257,10 +241,13 @@ class NotificationService {
 
   /* ================= CANCEL ================= */
 
-  static Future<NotificationResult> cancelDaily() async {
+  static Future<void> cancelDaily() async {
     await _plugin.cancel(_dailyId1);
     await _plugin.cancel(_dailyId2);
-    return NotificationResult.cancelled;
+  }
+
+  static Future<void> cancelAllExamNotifications() async {
+    await _plugin.cancelAll();
   }
 
   /* ================= HELPERS ================= */
@@ -274,7 +261,7 @@ class NotificationService {
         .toList();
   }
 
-  static void _showSnack(
+  static void _snack(
     BuildContext context,
     String title,
     String msg, {
