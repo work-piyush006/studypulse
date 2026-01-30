@@ -16,7 +16,7 @@ class NotificationService {
 
   static bool _initialized = false;
 
-  // 🔥 OEM SAFE SPAM GUARD (PERSISTENT)
+  // 🔥 OEM-SAFE SPAM GUARD (persistent)
   static const String _lastInstantKey =
       'last_instant_notification_time';
 
@@ -45,9 +45,9 @@ class NotificationService {
 
     tz.initializeTimeZones();
 
-    const android = AndroidInitializationSettings(
-      '@drawable/icon', // 🔥 IMPORTANT
-    );
+    // 🔥 IMPORTANT: exact drawable name (NO @drawable, NO .png)
+    const android =
+        AndroidInitializationSettings('ic_notification');
 
     const settings = InitializationSettings(android: android);
 
@@ -65,7 +65,7 @@ class NotificationService {
       },
     );
 
-    // 🔥 Android 13+ permission
+    // Android 13+ permission
     final status = await Permission.notification.status;
     if (!status.isGranted) {
       await Permission.notification.request();
@@ -83,8 +83,8 @@ class NotificationService {
 
   /* ================= INSTANT ================= */
 
-  /// ✅ First time → system notification
-  /// ✅ Rapid changes → inbox only (OEM safe)
+  /// 🟢 First time → system notification
+  /// 🟡 Rapid changes → inbox only (OEM safe)
   static Future<void> showInstant({
     required int daysLeft,
     required String quote,
@@ -103,10 +103,8 @@ class NotificationService {
     // ✅ ALWAYS save to inbox
     await NotificationStore.save(title: title, body: body);
 
-    // 🔥 OEM SAFE WINDOW (30 sec)
-    if (nowMs - lastMs < 30000) {
-      return; // inbox only
-    }
+    // 🔥 OEM SAFE WINDOW (30 seconds)
+    if (nowMs - lastMs < 30000) return;
 
     await prefs.setInt(_lastInstantKey, nowMs);
 
@@ -123,7 +121,7 @@ class NotificationService {
           channelDescription: 'Instant exam countdown alerts',
           importance: Importance.high,
           priority: Priority.high,
-          icon: 'icon', // 🔥 FIXES FLUTTER LOGO
+          smallIcon: 'ic_notification', // ✅ FINAL FIX
         ),
       ),
     );
@@ -139,7 +137,7 @@ class NotificationService {
     final prefs = await SharedPreferences.getInstance();
     if (!(prefs.getBool('notifications') ?? true)) return;
 
-    // 🔥 CLEAN SLATE
+    // clean slate
     await _plugin.cancel(1530);
     await _plugin.cancel(2030);
 
@@ -217,7 +215,7 @@ class NotificationService {
           channelDescription: _dailyChannel.description,
           importance: Importance.high,
           priority: Priority.high,
-          icon: 'icon', // 🔥 SAME FIX
+          smallIcon: 'ic_notification', // ✅ SAME FIX
         ),
       ),
       payload: payload,
