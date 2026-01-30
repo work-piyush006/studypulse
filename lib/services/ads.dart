@@ -11,15 +11,20 @@ class AdsService {
 
   static bool _initialized = false;
 
+  /* ================= BANNER ================= */
+
+  static const int _maxBannerRetry = 3;
+  static int _bannerRetryCount = 0;
+
   /* ================= INTERSTITIAL ================= */
 
   static InterstitialAd? _interstitialAd;
   static bool _isLoading = false;
 
-  /// 🚨 MUST stay FALSE for Play Store
+  /// 🚨 Release build me FALSE hi rahe
   static const bool useTestAds = false;
 
-  /// ⏱️ Cooldown applies ONLY to SHOW
+  /// ⏱️ Cooldown only for interstitial SHOW
   static const Duration _cooldown = Duration(minutes: 2);
   static const String _lastShownKey = 'last_interstitial_time';
 
@@ -40,12 +45,13 @@ class AdsService {
     try {
       await MobileAds.instance.initialize();
       _initialized = true;
-    } catch (_) {
-      // Ads must NEVER crash app
+      if (kDebugMode) debugPrint('✅ MobileAds initialized');
+    } catch (e) {
+      if (kDebugMode) debugPrint('❌ MobileAds init failed: $e');
     }
   }
 
-  /* ================= BANNER ================= */
+  /* ================= BANNER (WITH RETRY) ================= */
 
   static Future<BannerAd?> createAdaptiveBanner({
     required BuildContext context,
@@ -76,10 +82,39 @@ class AdsService {
       size: size,
       request: const AdRequest(),
       listener: BannerAdListener(
-        onAdLoaded: (_) => onState(true),
-        onAdFailedToLoad: (ad, _) {
+        onAdLoaded: (_) {
+          _bannerRetryCount = 0;
+          onState(true);
+          if (kDebugMode) debugPrint('✅ Banner loaded');
+        },
+        onAdFailedToLoad: (ad, error) async {
           ad.dispose();
           onState(false);
+
+          if (kDebugMode) {
+            debugPrint(
+              '❌ Banner failed (${_bannerRetryCount + 1}/$_maxBannerRetry): '
+              '${error.code} | ${error.message}',
+            );
+          }
+
+          if (_bannerRetryCount < _maxBannerRetry - 1) {
+            _bannerRetryCount++;
+
+            // ⏳ exponential backoff (2s, 4s)
+            await Future.delayed(
+              Duration(seconds: 2 * _bannerRetryCount),
+            );
+
+            if (kDebugMode) {
+              debugPrint('🔁 Retrying banner load...');
+            }
+
+            createAdaptiveBanner(
+              context: context,
+              onState: onState,
+            );
+          }
         },
       ),
     );
@@ -99,7 +134,7 @@ class AdsService {
     return now - lastShown >= _cooldown.inMilliseconds;
   }
 
-  /// 🔁 Preload NEVER blocked by cooldown
+  /// 🔁 Preload safe
   static Future<void> preload() async {
     if (!_initialized) await initialize();
     if (_interstitialAd != null || _isLoading) return;
@@ -118,19 +153,22 @@ class AdsService {
           _interstitialAd = ad;
           _isLoading = false;
           ad.setImmersiveMode(true);
-          if (kDebugMode) {
-            debugPrint('✅ Interstitial READY');
-          }
+          if (kDebugMode) debugPrint('✅ Interstitial READY');
         },
-        onAdFailedToLoad: (_) {
+        onAdFailedToLoad: (error) {
           _isLoading = false;
           _interstitialAd = null;
+          if (kDebugMode) {
+            debugPrint(
+              '❌ Interstitial failed: ${error.code} | ${error.message}',
+            );
+          }
         },
       ),
     );
   }
 
-  /// 🎯 SAFE show (cooldown + auto reload)
+  /// 🎯 Safe show
   static Future<bool> showIfAllowed() async {
     if (_interstitialAd == null) return false;
     if (!await _cooldownPassed()) return false;
