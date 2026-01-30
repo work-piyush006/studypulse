@@ -24,12 +24,10 @@ class _SettingsPageState extends State<SettingsPage> {
     _loadSettings();
   }
 
-  /* ================= LOAD ================= */
-
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
-
     if (!mounted) return;
+
     setState(() {
       _darkMode = prefs.getBool('dark_mode') ?? false;
       _notificationsEnabled = prefs.getBool('notifications') ?? true;
@@ -37,13 +35,10 @@ class _SettingsPageState extends State<SettingsPage> {
     });
   }
 
-  /* ================= DARK MODE ================= */
-
   Future<void> _toggleDarkMode(bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('dark_mode', value);
 
-    // 🔥 INSTANT APPLY (NO RESTART, NO BLACK SCREEN)
     await ThemeController.of(context).toggleTheme(value);
 
     if (!mounted) return;
@@ -59,15 +54,13 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  /* ================= NOTIFICATIONS ================= */
-
   Future<void> _toggleNotifications(bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('notifications', value);
 
     if (!value) {
-      // 🔕 Cancel all scheduled notifications
-      await NotificationService.cancelAll();
+      // ✅ Correct + safe
+      await NotificationService.cancelAllExamNotifications();
     }
 
     if (!mounted) return;
@@ -85,8 +78,6 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  /* ================= UI HELPERS ================= */
-
   Widget _settingTile({
     required IconData icon,
     required String title,
@@ -98,10 +89,8 @@ class _SettingsPageState extends State<SettingsPage> {
       margin: const EdgeInsets.symmetric(vertical: 6),
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: Theme.of(context)
-              .colorScheme
-              .primary
-              .withOpacity(0.12),
+          backgroundColor:
+              Theme.of(context).colorScheme.primary.withOpacity(0.12),
           child: Icon(
             icon,
             color: Theme.of(context).colorScheme.primary,
@@ -117,8 +106,6 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  /* ================= BUILD ================= */
-
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -128,13 +115,10 @@ class _SettingsPageState extends State<SettingsPage> {
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Settings'),
-      ),
+      appBar: AppBar(title: const Text('Settings')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // 🌙 DARK MODE
           _settingTile(
             icon: Icons.dark_mode_rounded,
             title: 'Dark Mode',
@@ -144,8 +128,6 @@ class _SettingsPageState extends State<SettingsPage> {
               onChanged: _toggleDarkMode,
             ),
           ),
-
-          // 🔔 NOTIFICATIONS
           _settingTile(
             icon: Icons.notifications_active_rounded,
             title: 'Notifications',
@@ -155,42 +137,7 @@ class _SettingsPageState extends State<SettingsPage> {
               onChanged: _toggleNotifications,
             ),
           ),
-
           const SizedBox(height: 24),
-
-          const Text(
-            'More Features Coming Soon',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 10),
-
-          Card(
-            elevation: 0,
-            child: Container(
-              height: 90,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                color: Theme.of(context)
-                    .colorScheme
-                    .primary
-                    .withOpacity(0.05),
-              ),
-              child: const Text(
-                '🚀 Premium tools & smart study features\ncoming soon!',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey),
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 24),
-          const Divider(),
-          const SizedBox(height: 10),
-
           const Center(
             child: Text(
               'StudyPulse v1.0.0',
