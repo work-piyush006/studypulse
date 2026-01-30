@@ -1,43 +1,26 @@
-// lib/services/ad_click_tracker.dart
-
 import 'ads.dart';
 
 class AdClickTracker {
-  static int _actionCount = 0;
-  static DateTime? _lastAdTime;
+  static int _count = 0;
 
-  /// 🔁 Call ONLY after a meaningful completed action
-  /// Examples:
-  /// - Tool successfully used
-  /// - Navigation to major screen
+  /// Call on REAL actions only
   static void registerClick() {
-    _actionCount++;
+    _count++;
 
-    // 🔒 Safety: prevent infinite growth
-    if (_actionCount > 1000) {
-      _actionCount = _actionCount % 4;
+    // 🔥 Always try preload in background
+    AdsService.preload();
+
+    // 🎯 Show on every 4th action
+    if (_count % 4 == 0) {
+      AdsService.show();
     }
 
-    // 🎯 Show interstitial on every 4th action
-    if (_actionCount % 4 != 0) return;
-
-    // ⏱ Cooldown: minimum 45 sec between ads
-    final now = DateTime.now();
-    if (_lastAdTime != null &&
-        now.difference(_lastAdTime!).inSeconds < 45) {
-      return;
-    }
-
-    // ✅ Show only if ad is ready
-    if (AdsService.isInterstitialReady) {
-      AdsService.showInterstitial();
-      _lastAdTime = now;
+    if (_count > 1000) {
+      _count = _count % 4;
     }
   }
 
-  /// 🔄 Optional: reset on logout / major reset
   static void reset() {
-    _actionCount = 0;
-    _lastAdTime = null;
+    _count = 0;
   }
 }
