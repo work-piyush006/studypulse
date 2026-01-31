@@ -10,10 +10,12 @@ class ExamState {
   static final ValueNotifier<int> daysLeft =
       ValueNotifier<int>(0);
 
-  static int _totalDays = 0;
+  static int _initialTotalDays = 0;
   static Timer? _midnightTimer;
 
-  /// 🔥 MUST CALL IN main.dart BEFORE runApp()
+  /* ================= INIT ================= */
+
+  /// 🔥 MUST CALL BEFORE runApp()
   static Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
     final saved = prefs.getString('exam_date');
@@ -21,21 +23,19 @@ class ExamState {
     if (saved != null) {
       update(DateTime.parse(saved));
     } else {
-      examDate.value = null;
-      daysLeft.value = 0;
-      _totalDays = 0;
+      _reset();
     }
 
     _scheduleMidnightRefresh();
   }
 
-  /// 🔥 CENTRAL UPDATE METHOD (BUG FIXED)
+  /* ================= UPDATE ================= */
+
   static void update(DateTime? date) {
     examDate.value = date;
 
     if (date == null) {
-      daysLeft.value = 0;
-      _totalDays = 0;
+      _reset();
       return;
     }
 
@@ -44,13 +44,24 @@ class ExamState {
     final target = DateTime(date.year, date.month, date.day);
 
     final diff = target.difference(today).inDays;
-    daysLeft.value = diff < 0 ? 0 : diff;
 
-    // ✅ FIX: ALWAYS reset total days when date changes
-    _totalDays = daysLeft.value;
+    // ❌ Exam date passed → AUTO CLEAR
+    if (diff < 0) {
+      clear(); // async-safe
+      return;
+    }
+
+    // ✅ Exam today OR future
+    daysLeft.value = diff;
+
+    // 🔥 Only set initial total days ONCE
+    if (_initialTotalDays == 0) {
+      _initialTotalDays = diff == 0 ? 1 : diff;
+    }
   }
 
-  /// 🌙 AUTO UPDATE AT MIDNIGHT (NO APP RESTART NEEDED)
+  /* ================= MIDNIGHT AUTO REFRESH ================= */
+
   static void _scheduleMidnightRefresh() {
     _midnightTimer?.cancel();
 
@@ -68,27 +79,35 @@ class ExamState {
     });
   }
 
-  /// 📊 PROGRESS FOR LINEAR PROGRESS BAR (0.0 → 1.0)
+  /* ================= PROGRESS ================= */
+
+  /// 📊 0.0 → 1.0 (smooth & stable)
   static double progress() {
-    if (_totalDays <= 0) return 0;
-    return 1 - (daysLeft.value / _totalDays);
+    if (_initialTotalDays <= 0) return 0;
+    return 1 - (daysLeft.value / _initialTotalDays);
   }
 
-  /// 🎨 COLOR LOGIC (USED EVERYWHERE)
+  /* ================= COLOR LOGIC ================= */
+
   static Color colorForDays(int days) {
-    if (days >= 45) return Colors.green;
+    if (days >= 90) return Colors.green;
     if (days >= 30) return Colors.orange;
     return Colors.red;
   }
 
-  /// 🔘 CANCEL COUNTDOWN (RESET EVERYTHING)
+  /* ================= CLEAR ================= */
+
   static Future<void> clear() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('exam_date');
     await prefs.remove('exam_first_notification_done');
 
+    _reset();
+  }
+
+  static void _reset() {
     examDate.value = null;
     daysLeft.value = 0;
-    _totalDays = 0;
+    _initialTotalDays = 0;
   }
 }
