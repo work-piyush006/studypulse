@@ -4,66 +4,66 @@ import 'package:shared_preferences/shared_preferences.dart';
 class NotificationManager {
   NotificationManager._();
 
-  static const String _prefsKey = 'notifications_enabled';
+  static const _enabledKey = 'notifications_enabled';
+  static const _countKey = 'notification_permission_count';
 
-  /* ================= USER TOGGLE ================= */
-
-  static Future<bool> _isUserEnabled() async {
+  static Future<bool> _isEnabled() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_prefsKey) ?? false; // default OFF
+    return prefs.getBool(_enabledKey) ?? false;
   }
 
-  static Future<void> _setUserEnabled(bool value) async {
+  static Future<void> _setEnabled(bool v) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_prefsKey, value);
+    await prefs.setBool(_enabledKey, v);
   }
 
-  /* ================= SYSTEM PERMISSION ================= */
+  static Future<int> _count() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt(_countKey) ?? 0;
+  }
 
-  static Future<bool> _hasPermission() async {
+  static Future<void> _incCount() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_countKey, (await _count()) + 1);
+  }
+
+  /// Splash / Permission screen (max 2 times)
+  static Future<bool> requestOnce() async {
+    if (await _count() >= 2) return false;
+
+    final status = await Permission.notification.request();
+    await _incCount();
+
+    if (status.isGranted) {
+      await _setEnabled(true);
+      return true;
+    }
+
+    await _setEnabled(false);
+    return false;
+  }
+
+  /// ONLY Settings toggle
+  static Future<bool> setFromSettings(bool enable) async {
+    if (!enable) {
+      await _setEnabled(false);
+      return false;
+    }
+
+    final status = await Permission.notification.status;
+    if (status.isGranted) {
+      await _setEnabled(true);
+      return true;
+    }
+
+    return await requestOnce();
+  }
+
+  /// Everywhere else (NO dialog)
+  static Future<bool> canNotify() async {
+    if (!await _isEnabled()) return false;
     return Permission.notification.isGranted;
   }
-
-  static Future<bool> _requestPermission() async {
-    final status = await Permission.notification.status;
-
-    if (status.isGranted) return true;
-    if (status.isPermanentlyDenied) return false;
-
-    final result = await Permission.notification.request();
-    return result.isGranted;
-  }
-
-  /* ================= SETTINGS TOGGLE (ONLY PLACE TO ASK) ================= */
-
-  /// ✅ Call ONLY from Settings switch
-  static Future<bool> setNotifications(bool enable) async {
-    if (!enable) {
-      await _setUserEnabled(false);
-      return false;
-    }
-
-    final allowed = await _requestPermission();
-    if (!allowed) {
-      await _setUserEnabled(false);
-      return false;
-    }
-
-    await _setUserEnabled(true);
-    return true;
-  }
-
-  /* ================= GLOBAL CHECK (NO DIALOG HERE) ================= */
-
-  /// ✅ Use everywhere else (exam, test, schedule)
-  static Future<bool> canNotify() async {
-    final enabled = await _isUserEnabled();
-    if (!enabled) return false;
-
-    return await _hasPermission(); // ❌ never ask here
-  }
-
-  /* ================= HELPERS ================= */
 
   static Future<void> openSystemSettings() async {
     await openAppSettings();
