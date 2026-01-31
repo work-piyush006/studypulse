@@ -1,3 +1,5 @@
+// lib/screens/settings.dart
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -37,7 +39,7 @@ class _SettingsPageState extends State<SettingsPage>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      _load(); // 🔥 resync after system settings
+      _load(); // resync after system settings
     }
   }
 
@@ -53,23 +55,6 @@ class _SettingsPageState extends State<SettingsPage>
     });
   }
 
-  void _snackWithSettings() {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content:
-              const Text('Notifications are blocked'),
-          action: SnackBarAction(
-            label: 'ALLOW',
-            onPressed:
-                NotificationManager.openSystemSettings,
-          ),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-  }
-
   void _snack(String msg, {bool error = false}) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
@@ -78,30 +63,23 @@ class _SettingsPageState extends State<SettingsPage>
           content: Text(msg),
           backgroundColor:
               error ? Colors.redAccent : Colors.green,
-          behavior: SnackBarBehavior.floating,
         ),
       );
   }
 
-  Widget _section(String title) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        child: Text(
-          title,
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            color: Colors.grey.shade600,
+  void _snackWithSettings() {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: const Text('Notifications are blocked'),
+          action: SnackBarAction(
+            label: 'ALLOW',
+            onPressed: NotificationManager.openSystemSettings,
           ),
         ),
       );
-
-  Widget _card(Widget child) => Card(
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-          side: BorderSide(color: Colors.grey.shade200),
-        ),
-        child: child,
-      );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -112,133 +90,86 @@ class _SettingsPageState extends State<SettingsPage>
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Settings'),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: const Text('Settings')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          _section('Appearance'),
-          _card(
-            SwitchListTile(
-              secondary: const Icon(Icons.dark_mode_outlined),
-              title: const Text('Dark Mode'),
-              value: _darkMode,
-              onChanged: (v) async {
-                final prefs =
-                    await SharedPreferences.getInstance();
-                await prefs.setBool('dark_mode', v);
-                await ThemeController.of(context)
-                    .toggleTheme(v);
-                if (!mounted) return;
-                setState(() => _darkMode = v);
-              },
-            ),
+          SwitchListTile(
+            title: const Text('Dark Mode'),
+            value: _darkMode,
+            onChanged: (v) async {
+              final prefs =
+                  await SharedPreferences.getInstance();
+              await prefs.setBool('dark_mode', v);
+              await ThemeController.of(context)
+                  .toggleTheme(v);
+              setState(() => _darkMode = v);
+            },
           ),
+          SwitchListTile(
+            title: const Text('Study Notifications'),
+            value: _notifications,
+            onChanged: (v) async {
+              final ok =
+                  await NotificationManager.setNotifications(v);
 
-          _section('Notifications'),
-          _card(
-            SwitchListTile(
-              secondary:
-                  const Icon(Icons.notifications_active_outlined),
-              title: const Text('Study Notifications'),
-              value: _notifications,
-              onChanged: (v) async {
-                final ok =
-                    await NotificationManager.setNotifications(v);
+              setState(() => _notifications = ok);
 
-                if (!mounted) return;
-                setState(() => _notifications = ok);
-
-                if (!ok && v) {
-                  _snackWithSettings();
-                } else {
-                  _snack(ok
-                      ? 'Notifications enabled'
-                      : 'Notifications disabled');
-                }
-              },
-            ),
+              if (!ok && v) {
+                _snackWithSettings();
+              } else {
+                _snack(ok
+                    ? 'Notifications enabled'
+                    : 'Notifications disabled');
+              }
+            },
           ),
-
-          _card(
-            ListTile(
-              enabled: _notifications,
-              leading: const Icon(Icons.notification_add),
-              title: const Text('Test Notification'),
-              subtitle:
-                  const Text('Preview only (not saved)'),
-              onTap: !_notifications
-                  ? null
-                  : () async {
-                      final examDate =
-                          ExamState.examDate.value;
-                      if (examDate == null) {
-                        _snack(
-                          'Please set exam date first',
-                          error: true,
-                        );
-                        return;
-                      }
-
-                      final today = DateTime.now();
-                      final daysLeft = examDate
-                          .difference(DateTime(
-                              today.year,
-                              today.month,
-                              today.day))
-                          .inDays;
-
-                      if (daysLeft < 0) {
-                        _snack(
-                          'Exam date already passed',
-                          error: true,
-                        );
-                        return;
-                      }
-
-                      final r =
-                          await NotificationService.showInstant(
-                        daysLeft: daysLeft,
-                        quote: 'You’re on track 🚀',
-                        saveToInbox: false,
-                      );
-
+          ListTile(
+            enabled: _notifications,
+            title: const Text('Test Notification'),
+            onTap: !_notifications
+                ? null
+                : () async {
+                    final examDate =
+                        ExamState.examDate.value;
+                    if (examDate == null) {
                       _snack(
-                        r == NotificationResult.success
-                            ? 'Test notification sent'
-                            : 'Notification blocked',
-                        error:
-                            r != NotificationResult.success,
+                        'Please set exam date first',
+                        error: true,
                       );
-                    },
-            ),
-          ),
+                      return;
+                    }
 
-          _section('About'),
-          _card(
-            ListTile(
-              leading:
-                  const Icon(Icons.privacy_tip_outlined),
-              title: const Text('Privacy Policy'),
-              onTap: () => launchUrl(
-                Uri.parse(
-                  'http://studypulse-privacypolicy.blogspot.com',
-                ),
-                mode: LaunchMode.externalApplication,
-              ),
+                    final r =
+                        await NotificationService.showInstant(
+                      daysLeft:
+                          ExamState.daysLeft.value,
+                      quote: 'You’re on track 🚀',
+                      saveToInbox: false,
+                    );
+
+                    _snack(
+                      r == NotificationResult.success
+                          ? 'Test notification sent'
+                          : 'Notification blocked',
+                      error: r != NotificationResult.success,
+                    );
+                  },
+          ),
+          ListTile(
+            title: const Text('Privacy Policy'),
+            onTap: () => launchUrl(
+              Uri.parse(
+                  'http://studypulse-privacypolicy.blogspot.com'),
+              mode: LaunchMode.externalApplication,
             ),
           ),
-          _card(
-            ListTile(
-              leading: const Icon(Icons.info_outline),
-              title: const Text('About StudyPulse'),
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const AboutPage(),
-                ),
+          ListTile(
+            title: const Text('About'),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const AboutPage(),
               ),
             ),
           ),
