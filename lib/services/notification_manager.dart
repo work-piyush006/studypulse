@@ -1,5 +1,3 @@
-// lib/services/notification_manager.dart
-
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -12,7 +10,7 @@ class NotificationManager {
 
   static Future<bool> _isUserEnabled() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_prefsKey) ?? false;
+    return prefs.getBool(_prefsKey) ?? false; // default OFF
   }
 
   static Future<void> _setUserEnabled(bool value) async {
@@ -20,7 +18,7 @@ class NotificationManager {
     await prefs.setBool(_prefsKey, value);
   }
 
-  /* ================= PERMISSION ================= */
+  /* ================= SYSTEM PERMISSION ================= */
 
   static Future<bool> _hasPermission() async {
     return Permission.notification.isGranted;
@@ -36,9 +34,9 @@ class NotificationManager {
     return result.isGranted;
   }
 
-  /* ================= PUBLIC API ================= */
+  /* ================= SETTINGS TOGGLE (ONLY PLACE TO ASK) ================= */
 
-  /// ✅ Call ONLY from Settings toggle
+  /// ✅ Call ONLY from Settings switch
   static Future<bool> setNotifications(bool enable) async {
     if (!enable) {
       await _setUserEnabled(false);
@@ -55,12 +53,17 @@ class NotificationManager {
     return true;
   }
 
-  /// ✅ Use EVERYWHERE else
+  /* ================= GLOBAL CHECK (NO DIALOG HERE) ================= */
+
+  /// ✅ Use everywhere else (exam, test, schedule)
   static Future<bool> canNotify() async {
     final enabled = await _isUserEnabled();
     if (!enabled) return false;
-    return _hasPermission();
+
+    return await _hasPermission(); // ❌ never ask here
   }
+
+  /* ================= HELPERS ================= */
 
   static Future<void> openSystemSettings() async {
     await openAppSettings();

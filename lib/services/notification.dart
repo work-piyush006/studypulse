@@ -1,12 +1,15 @@
 // lib/services/notification.dart
 
+import 'dart:convert';
 import 'dart:math';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
 import 'notification_manager.dart';
+import 'notification_store.dart';
 
 enum NotificationResult {
   success,
@@ -22,9 +25,8 @@ class NotificationService {
 
   static bool _initialized = false;
 
-  static const int _dailyId1 = 4001; // 4 PM
-  static const int _dailyId2 = 4002; // 11 PM
-  static const int _instantBaseId = 5000;
+  static const int _dailyId1 = 4001;
+  static const int _dailyId2 = 4002;
 
   static const AndroidNotificationChannel _channel =
       AndroidNotificationChannel(
@@ -47,6 +49,23 @@ class NotificationService {
 
     await _plugin.initialize(
       const InitializationSettings(android: androidInit),
+
+      // ✅ ONLY SAVE — NO NAVIGATION HERE
+      onDidReceiveNotificationResponse: (response) async {
+        final payload = response.payload;
+        if (payload == null) return;
+
+        final data = jsonDecode(payload);
+
+        if (data['type'] == 'SAVE') {
+          await NotificationStore.save(
+            title: data['title'],
+            body: data['body'],
+            route: data['route'],
+            time: data['time'],
+          );
+        }
+      },
     );
 
     final android =
@@ -63,6 +82,7 @@ class NotificationService {
   static Future<NotificationResult> showInstant({
     required int daysLeft,
     required String quote,
+    bool saveToInbox = true,
   }) async {
     await init();
 
@@ -71,9 +91,17 @@ class NotificationService {
     }
 
     final id =
-        _instantBaseId + DateTime.now().millisecondsSinceEpoch % 1000;
+        DateTime.now().millisecondsSinceEpoch.remainder(100000);
 
     final body = '$daysLeft days left\n$quote';
+
+    final payload = jsonEncode({
+      'type': saveToInbox ? 'SAVE' : 'TEST',
+      'title': '📘 Exam Countdown',
+      'body': body,
+      'route': '/exam',
+      'time': DateTime.now().toIso8601String(),
+    });
 
     try {
       await _plugin.show(
@@ -87,14 +115,16 @@ class NotificationService {
             channelDescription: _channel.description,
             importance: Importance.high,
             priority: Priority.high,
-            icon: 'ic_notification', // ✅ custom icon
+            icon: 'ic_notification',
             styleInformation: BigTextStyleInformation(
               body,
               contentTitle: '📘 Exam Countdown',
             ),
           ),
         ),
+        payload: payload,
       );
+
       return NotificationResult.success;
     } catch (_) {
       return NotificationResult.failed;
@@ -136,6 +166,7 @@ class NotificationService {
     List<String> quotes,
   ) async {
     final now = tz.TZDateTime.now(tz.local);
+
     var time =
         tz.TZDateTime(tz.local, now.year, now.month, now.day, hour);
 
@@ -145,6 +176,14 @@ class NotificationService {
 
     final quote = quotes[Random().nextInt(quotes.length)];
     final body = '$daysLeft days left\n$quote';
+
+    final payload = jsonEncode({
+      'type': 'SAVE',
+      'title': '📚 Study Reminder',
+      'body': body,
+      'route': '/exam',
+      'time': DateTime.now().toIso8601String(),
+    });
 
     await _plugin.zonedSchedule(
       id,
@@ -166,6 +205,7 @@ class NotificationService {
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
       matchDateTimeComponents: DateTimeComponents.time,
+      payload: payload,
     );
   }
 

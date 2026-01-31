@@ -1,3 +1,5 @@
+// lib/services/notification_store.dart
+
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -24,11 +26,13 @@ class NotificationStore {
     return list;
   }
 
-  /* ================= SAVE (DEDUPED) ================= */
+  /* ================= SAVE (FROM NOTIFICATION TAP) ================= */
 
   static Future<void> save({
     required String title,
     required String body,
+    required String route,
+    required String time,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_key);
@@ -37,15 +41,17 @@ class NotificationStore {
         ? <Map<String, dynamic>>[]
         : List<Map<String, dynamic>>.from(jsonDecode(raw));
 
-    final alreadyExists = list.any(
+    // Deduplicate
+    final exists = list.any(
       (n) => n['title'] == title && n['body'] == body,
     );
 
-    if (!alreadyExists) {
+    if (!exists) {
       list.insert(0, {
         'title': title,
         'body': body,
-        'time': DateTime.now().toIso8601String(),
+        'route': route,
+        'time': time,
         'read': false,
       });
     }
@@ -54,9 +60,8 @@ class NotificationStore {
     await _sync(list);
   }
 
-  /* ================= REPLACE (🔥 FIX) ================= */
+  /* ================= REPLACE ================= */
 
-  /// Used by NotificationInbox
   static Future<void> replace(
       List<Map<String, dynamic>> list) async {
     _autoDeleteOld(list);
@@ -113,14 +118,13 @@ class NotificationStore {
     await _updateUnread(list);
   }
 
-  static bool _autoDeleteOld(List<Map<String, dynamic>> list) {
+  static void _autoDeleteOld(List<Map<String, dynamic>> list) {
     final now = DateTime.now();
     list.removeWhere((n) {
       final time = DateTime.tryParse(n['time'] ?? '');
       if (time == null) return false;
       return now.difference(time).inDays >= 30;
     });
-    return true;
   }
 
   /* ================= BADGE ================= */
@@ -135,7 +139,7 @@ class NotificationStore {
     try {
       await AppBadgePlus.updateBadge(unread);
     } catch (_) {
-      // launcher doesn't support badges
+      // launcher may not support badges
     }
   }
 }
