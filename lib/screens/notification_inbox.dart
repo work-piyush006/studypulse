@@ -1,3 +1,5 @@
+// lib/screens/notification_inbox.dart
+
 import 'package:flutter/material.dart';
 import '../services/notification_store.dart';
 
@@ -11,7 +13,8 @@ class NotificationInboxScreen extends StatefulWidget {
 
 class _NotificationInboxScreenState
     extends State<NotificationInboxScreen> {
-  List<Map<String, dynamic>> items = [];
+  List<Map<String, dynamic>> today = [];
+  List<Map<String, dynamic>> earlier = [];
 
   @override
   void initState() {
@@ -26,70 +29,89 @@ class _NotificationInboxScreenState
     super.dispose();
   }
 
-  /* ================= LOAD ================= */
+  /* ================= LOAD & GROUP ================= */
 
   Future<void> _load() async {
     final data = await NotificationStore.getAll();
-    if (mounted) setState(() => items = data);
+    final now = DateTime.now();
+
+    final t = <Map<String, dynamic>>[];
+    final e = <Map<String, dynamic>>[];
+
+    for (final n in data) {
+      final time = DateTime.tryParse(n['time'] ?? '');
+      if (time == null) continue;
+
+      final isToday =
+          time.year == now.year &&
+          time.month == now.month &&
+          time.day == now.day;
+
+      isToday ? t.add(n) : e.add(n);
+    }
+
+    if (!mounted) return;
+    setState(() {
+      today = t;
+      earlier = e;
+    });
   }
 
-  /* ================= MARK READ ================= */
+  /* ================= TAP ================= */
 
-  Future<void> _markRead(int index) async {
-    if (items[index]['read'] == true) return;
+  Future<void> _open(Map<String, dynamic> n) async {
+    if (n['read'] != true) {
+      n['read'] = true;
 
-    items[index]['read'] = true;
-    await NotificationStore.replace(items);
-    setState(() {});
-  }
+      // 🔥 SAFE: always sync with store
+      final all = await NotificationStore.getAll();
+      await NotificationStore.replace(all);
+    }
 
-  /* ================= MARK ALL READ ================= */
-
-  Future<void> _markAllRead() async {
-    await NotificationStore.markAllRead();
-    await _load();
-  }
-
-  /* ================= CONFIRM CLEAR ================= */
-
-  Future<void> _confirmClearAll() async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Delete all notifications?'),
-        content: const Text(
-          'This action cannot be undone.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text(
-              'Delete',
-              style: TextStyle(color: Colors.red),
-            ),
-          ),
-        ],
-      ),
-    );
-
-    if (ok == true) {
-      await NotificationStore.clear();
-      await _load();
+    final route = n['route'];
+    if (route != null && mounted) {
+      Navigator.pushNamed(context, route);
     }
   }
 
   /* ================= UI ================= */
 
+  Widget _section(String title) => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+        child: Text(
+          title,
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            color: Colors.grey,
+          ),
+        ),
+      );
+
+  Widget _item(Map<String, dynamic> n) {
+    final unread = n['read'] == false;
+
+    return ListTile(
+      leading: Icon(
+        Icons.notifications,
+        color: unread
+            ? Theme.of(context).colorScheme.primary
+            : Colors.grey,
+      ),
+      title: Text(
+        n['title'],
+        style: TextStyle(
+          fontWeight:
+              unread ? FontWeight.bold : FontWeight.w500,
+        ),
+      ),
+      subtitle: Text(n['body']),
+      onTap: () => _open(n),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final isDark =
-        Theme.of(context).brightness == Brightness.dark;
-
-    if (items.isEmpty) {
+    if (today.isEmpty && earlier.isEmpty) {
       return Scaffold(
         appBar: AppBar(title: const Text('Notifications')),
         body: const Center(
@@ -106,96 +128,28 @@ class _NotificationInboxScreenState
         title: const Text('Notifications'),
         actions: [
           TextButton(
-            onPressed: _markAllRead,
+            onPressed: () async {
+              await NotificationStore.markAllRead();
+              await _load();
+            },
             child: const Text('Mark all read'),
           ),
           IconButton(
             icon: const Icon(Icons.delete_outline),
-            onPressed: _confirmClearAll,
+            onPressed: () async {
+              await NotificationStore.clear();
+              await _load();
+            },
           ),
         ],
       ),
-      body: ListView.builder(
-        padding: const EdgeInsets.all(12),
-        itemCount: items.length,
-        itemBuilder: (_, i) {
-          final n = items[i];
-          final unread = n['read'] == false;
-
-          final bgColor = unread
-              ? isDark
-                  ? Colors.yellow.withOpacity(0.18)
-                  : Colors.blue.withOpacity(0.14)
-              : Theme.of(context).cardColor;
-
-          return Dismissible(
-            key: ValueKey(n['time']),
-            direction: DismissDirection.endToStart,
-            background: Container(
-              alignment: Alignment.centerRight,
-              padding: const EdgeInsets.only(right: 20),
-              decoration: BoxDecoration(
-                color: Colors.red.shade400,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: const Icon(
-                Icons.delete,
-                color: Colors.white,
-              ),
-            ),
-            onDismissed: (_) async {
-              await NotificationStore.deleteAt(i);
-              await _load();
-            },
-            child: GestureDetector(
-              onTap: () => _markRead(i),
-              child: Container(
-                margin: const EdgeInsets.only(bottom: 10),
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: bgColor,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(
-                      Icons.notifications,
-                      color: unread
-                          ? Theme.of(context)
-                              .colorScheme
-                              .primary
-                          : Colors.grey,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment:
-                            CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            n['title'],
-                            style: TextStyle(
-                              fontWeight: unread
-                                  ? FontWeight.bold
-                                  : FontWeight.w500,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            n['body'],
-                            style: const TextStyle(
-                                color: Colors.grey),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
+      body: ListView(
+        children: [
+          if (today.isNotEmpty) _section('Today'),
+          ...today.map(_item),
+          if (earlier.isNotEmpty) _section('Earlier'),
+          ...earlier.map(_item),
+        ],
       ),
     );
   }

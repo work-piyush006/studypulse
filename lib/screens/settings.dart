@@ -1,5 +1,3 @@
-// lib/screens/settings.dart
-
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -17,7 +15,8 @@ class SettingsPage extends StatefulWidget {
   State<SettingsPage> createState() => _SettingsPageState();
 }
 
-class _SettingsPageState extends State<SettingsPage> {
+class _SettingsPageState extends State<SettingsPage>
+    with WidgetsBindingObserver {
   bool _darkMode = false;
   bool _notifications = false;
   bool _loading = true;
@@ -25,7 +24,21 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _load();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _load(); // 🔥 resync after system settings
+    }
   }
 
   Future<void> _load() async {
@@ -38,6 +51,23 @@ class _SettingsPageState extends State<SettingsPage> {
       _notifications = canNotify;
       _loading = false;
     });
+  }
+
+  void _snackWithSettings() {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content:
+              const Text('Notifications are blocked'),
+          action: SnackBarAction(
+            label: 'ALLOW',
+            onPressed:
+                NotificationManager.openSystemSettings,
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
   }
 
   void _snack(String msg, {bool error = false}) {
@@ -89,14 +119,11 @@ class _SettingsPageState extends State<SettingsPage> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          /* ================= APPEARANCE ================= */
-
           _section('Appearance'),
           _card(
             SwitchListTile(
               secondary: const Icon(Icons.dark_mode_outlined),
               title: const Text('Dark Mode'),
-              subtitle: const Text('Reduce eye strain'),
               value: _darkMode,
               onChanged: (v) async {
                 final prefs =
@@ -104,38 +131,33 @@ class _SettingsPageState extends State<SettingsPage> {
                 await prefs.setBool('dark_mode', v);
                 await ThemeController.of(context)
                     .toggleTheme(v);
-
                 if (!mounted) return;
                 setState(() => _darkMode = v);
               },
             ),
           ),
 
-          /* ================= NOTIFICATIONS ================= */
-
           _section('Notifications'),
           _card(
             SwitchListTile(
-              secondary: const Icon(
-                  Icons.notifications_active_outlined),
+              secondary:
+                  const Icon(Icons.notifications_active_outlined),
               title: const Text('Study Notifications'),
-              subtitle:
-                  const Text('Exam reminders & alerts'),
               value: _notifications,
               onChanged: (v) async {
                 final ok =
-                    await NotificationManager.setNotifications(
-                        v);
+                    await NotificationManager.setNotifications(v);
 
                 if (!mounted) return;
                 setState(() => _notifications = ok);
 
-                _snack(
-                  ok
+                if (!ok && v) {
+                  _snackWithSettings();
+                } else {
+                  _snack(ok
                       ? 'Notifications enabled'
-                      : 'Enable permission from system settings',
-                  error: !ok,
-                );
+                      : 'Notifications disabled');
+                }
               },
             ),
           ),
@@ -145,13 +167,13 @@ class _SettingsPageState extends State<SettingsPage> {
               enabled: _notifications,
               leading: const Icon(Icons.notification_add),
               title: const Text('Test Notification'),
-              subtitle: const Text('Send preview alert'),
+              subtitle:
+                  const Text('Preview only (not saved)'),
               onTap: !_notifications
                   ? null
                   : () async {
                       final examDate =
                           ExamState.examDate.value;
-
                       if (examDate == null) {
                         _snack(
                           'Please set exam date first',
@@ -162,13 +184,10 @@ class _SettingsPageState extends State<SettingsPage> {
 
                       final today = DateTime.now();
                       final daysLeft = examDate
-                          .difference(
-                            DateTime(
+                          .difference(DateTime(
                               today.year,
                               today.month,
-                              today.day,
-                            ),
-                          )
+                              today.day))
                           .inDays;
 
                       if (daysLeft < 0) {
@@ -180,24 +199,22 @@ class _SettingsPageState extends State<SettingsPage> {
                       }
 
                       final r =
-                          await NotificationService
-                              .showInstant(
+                          await NotificationService.showInstant(
                         daysLeft: daysLeft,
                         quote: 'You’re on track 🚀',
+                        saveToInbox: false,
                       );
 
                       _snack(
                         r == NotificationResult.success
                             ? 'Test notification sent'
-                            : 'Notification disabled',
+                            : 'Notification blocked',
                         error:
                             r != NotificationResult.success,
                       );
                     },
             ),
           ),
-
-          /* ================= ABOUT ================= */
 
           _section('About'),
           _card(
