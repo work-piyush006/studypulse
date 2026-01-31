@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../main.dart';
 import '../services/notification.dart';
 import '../services/notification_manager.dart';
+import '../state/exam_state.dart';
 import 'about.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -47,16 +48,20 @@ class _SettingsPageState extends State<SettingsPage> {
           content: Text(msg),
           backgroundColor:
               error ? Colors.redAccent : Colors.green,
+          behavior: SnackBarBehavior.floating,
         ),
       );
   }
 
   Widget _section(String title) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 12),
-        child: Text(title,
-            style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: Colors.grey.shade600)),
+        child: Text(
+          title,
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            color: Colors.grey.shade600,
+          ),
+        ),
       );
 
   Widget _card(Widget child) => Card(
@@ -72,14 +77,20 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget build(BuildContext context) {
     if (_loading) {
       return const Scaffold(
-          body: Center(child: CircularProgressIndicator()));
+        body: Center(child: CircularProgressIndicator()),
+      );
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings'), centerTitle: true),
+      appBar: AppBar(
+        title: const Text('Settings'),
+        centerTitle: true,
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          /* ================= APPEARANCE ================= */
+
           _section('Appearance'),
           _card(
             SwitchListTile(
@@ -91,33 +102,40 @@ class _SettingsPageState extends State<SettingsPage> {
                 final prefs =
                     await SharedPreferences.getInstance();
                 await prefs.setBool('dark_mode', v);
-                await ThemeController.of(context).toggleTheme(v);
+                await ThemeController.of(context)
+                    .toggleTheme(v);
+
                 if (!mounted) return;
                 setState(() => _darkMode = v);
               },
             ),
           ),
 
+          /* ================= NOTIFICATIONS ================= */
+
           _section('Notifications'),
           _card(
             SwitchListTile(
-              secondary:
-                  const Icon(Icons.notifications_active_outlined),
+              secondary: const Icon(
+                  Icons.notifications_active_outlined),
               title: const Text('Study Notifications'),
               subtitle:
                   const Text('Exam reminders & alerts'),
               value: _notifications,
               onChanged: (v) async {
                 final ok =
-                    await NotificationManager.setNotifications(v);
+                    await NotificationManager.setNotifications(
+                        v);
 
                 if (!mounted) return;
                 setState(() => _notifications = ok);
 
-                _snack(ok
-                    ? 'Notifications enabled'
-                    : 'Enable permission from system settings',
-                    error: !ok);
+                _snack(
+                  ok
+                      ? 'Notifications enabled'
+                      : 'Enable permission from system settings',
+                  error: !ok,
+                );
               },
             ),
           ),
@@ -127,32 +145,70 @@ class _SettingsPageState extends State<SettingsPage> {
               enabled: _notifications,
               leading: const Icon(Icons.notification_add),
               title: const Text('Test Notification'),
+              subtitle: const Text('Send preview alert'),
               onTap: !_notifications
                   ? null
                   : () async {
+                      final examDate =
+                          ExamState.examDate.value;
+
+                      if (examDate == null) {
+                        _snack(
+                          'Please set exam date first',
+                          error: true,
+                        );
+                        return;
+                      }
+
+                      final today = DateTime.now();
+                      final daysLeft = examDate
+                          .difference(
+                            DateTime(
+                              today.year,
+                              today.month,
+                              today.day,
+                            ),
+                          )
+                          .inDays;
+
+                      if (daysLeft < 0) {
+                        _snack(
+                          'Exam date already passed',
+                          error: true,
+                        );
+                        return;
+                      }
+
                       final r =
-                          await NotificationService.showInstant(
-                        daysLeft: 10,
-                        quote: 'Everything is working 🚀',
+                          await NotificationService
+                              .showInstant(
+                        daysLeft: daysLeft,
+                        quote: 'You’re on track 🚀',
                       );
+
                       _snack(
                         r == NotificationResult.success
-                            ? 'Notification sent'
+                            ? 'Test notification sent'
                             : 'Notification disabled',
-                        error: r != NotificationResult.success,
+                        error:
+                            r != NotificationResult.success,
                       );
                     },
             ),
           ),
 
+          /* ================= ABOUT ================= */
+
           _section('About'),
           _card(
             ListTile(
-              leading: const Icon(Icons.privacy_tip_outlined),
+              leading:
+                  const Icon(Icons.privacy_tip_outlined),
               title: const Text('Privacy Policy'),
               onTap: () => launchUrl(
                 Uri.parse(
-                    'http://studypulse-privacypolicy.blogspot.com'),
+                  'http://studypulse-privacypolicy.blogspot.com',
+                ),
                 mode: LaunchMode.externalApplication,
               ),
             ),
@@ -164,7 +220,8 @@ class _SettingsPageState extends State<SettingsPage> {
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(
-                    builder: (_) => const AboutPage()),
+                  builder: (_) => const AboutPage(),
+                ),
               ),
             ),
           ),
