@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
@@ -17,15 +18,20 @@ class NotificationService {
   static final _plugin = FlutterLocalNotificationsPlugin();
   static bool _initialized = false;
 
+  static const _channelId = 'exam_channel_v1';
+  static const _groupKey = 'exam_group';
+
   static const _id4pm = 4001;
   static const _id11pm = 4002;
 
   static const _channel = AndroidNotificationChannel(
-    'exam_channel',
+    _channelId,
     'Exam Notifications',
     description: 'Exam reminders & study alerts',
     importance: Importance.high,
   );
+
+  /* ================= INIT ================= */
 
   static Future<void> init() async {
     if (_initialized) return;
@@ -40,6 +46,7 @@ class NotificationService {
       onDidReceiveNotificationResponse: (r) async {
         if (r.payload == null) return;
         final data = jsonDecode(r.payload!);
+
         if (data['save'] == true) {
           await NotificationStore.save(
             title: data['title'],
@@ -59,7 +66,17 @@ class NotificationService {
     _initialized = true;
   }
 
-  /// IMMEDIATE
+  /* ================= ID ================= */
+
+  static Future<int> _nextId() async {
+    final prefs = await SharedPreferences.getInstance();
+    final id = (prefs.getInt('notification_id') ?? 5000) + 1;
+    await prefs.setInt('notification_id', id);
+    return id;
+  }
+
+  /* ================= INSTANT ================= */
+
   static Future<NotificationResult> instant({
     required String title,
     required String body,
@@ -72,17 +89,20 @@ class NotificationService {
       return NotificationResult.disabled;
     }
 
+    final id = await _nextId();
+
     await _plugin.show(
-      DateTime.now().millisecondsSinceEpoch % 100000,
+      id,
       title,
       body,
       NotificationDetails(
         android: AndroidNotificationDetails(
-          _channel.id,
+          _channelId,
           _channel.name,
           importance: Importance.high,
           priority: Priority.high,
           icon: 'ic_notification',
+          groupKey: _groupKey,
         ),
       ),
       payload: jsonEncode({
@@ -97,7 +117,8 @@ class NotificationService {
     return NotificationResult.success;
   }
 
-  /// DAILY
+  /* ================= DAILY ================= */
+
   static Future<void> scheduleDaily({int? daysLeft}) async {
     await init();
     if (!await NotificationManager.canNotify()) return;
@@ -113,6 +134,7 @@ class NotificationService {
     final now = tz.TZDateTime.now(tz.local);
     var time =
         tz.TZDateTime(tz.local, now.year, now.month, now.day, hour);
+
     if (time.isBefore(now)) {
       time = time.add(const Duration(days: 1));
     }
@@ -128,11 +150,12 @@ class NotificationService {
       time,
       NotificationDetails(
         android: AndroidNotificationDetails(
-          _channel.id,
+          _channelId,
           _channel.name,
           importance: Importance.high,
           priority: Priority.high,
           icon: 'ic_notification',
+          groupKey: _groupKey,
         ),
       ),
       payload: jsonEncode({

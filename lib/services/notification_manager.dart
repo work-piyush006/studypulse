@@ -27,7 +27,7 @@ class NotificationManager {
     await prefs.setInt(_countKey, (await _count()) + 1);
   }
 
-  /// Splash / Permission screen (max 2 times)
+  /// Splash / permission screen (max 2 times)
   static Future<bool> requestOnce() async {
     if (await _count() >= 2) return false;
 
@@ -43,15 +43,14 @@ class NotificationManager {
     return false;
   }
 
-  /// ONLY Settings toggle
+  /// ONLY settings toggle
   static Future<bool> setFromSettings(bool enable) async {
     if (!enable) {
       await _setEnabled(false);
       return false;
     }
 
-    final status = await Permission.notification.status;
-    if (status.isGranted) {
+    if (await Permission.notification.isGranted) {
       await _setEnabled(true);
       return true;
     }
@@ -59,7 +58,7 @@ class NotificationManager {
     return await requestOnce();
   }
 
-  /// Everywhere else (NO dialog)
+  /// Everywhere else (NO dialogs)
   static Future<bool> canNotify() async {
     if (!await _isEnabled()) return false;
     return Permission.notification.isGranted;
