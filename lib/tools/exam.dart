@@ -1,5 +1,3 @@
-// lib/tools/exam.dart
-
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -76,21 +74,20 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
 
     if (picked == null || !mounted) return;
 
-    final wasSet = ExamState.examDate.value != null;
+    // 🔥 FIX 1: REAL SOURCE OF TRUTH
+    final prefs = await SharedPreferences.getInstance();
+    final isFirstTime = !prefs.containsKey('exam_date');
 
     final normalized =
         DateTime(picked.year, picked.month, picked.day);
 
-    final prefs = await SharedPreferences.getInstance();
     await prefs.setString('exam_date', normalized.toIso8601String());
-
     ExamState.update(normalized);
 
     final days = ExamState.daysLeft.value;
     final message = '$days days left\n${_quote()}';
 
-    if (!wasSet) {
-      // 🔥 permission + immediate notification ONLY here
+    if (isFirstTime) {
       if (!await NotificationManager.canNotify()) {
         final granted = await NotificationManager.requestOnce();
         if (!granted && mounted) {
@@ -105,6 +102,9 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
           );
           return;
         }
+
+        // 🔥 FIX 2: ANDROID 13–15 SAFETY DELAY
+        await Future.delayed(const Duration(milliseconds: 300));
       }
 
       await NotificationService.instant(
@@ -123,59 +123,41 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
   Future<void> _cancelCountdown() async {
     final confirm = await showModalBottomSheet<bool>(
       context: context,
-      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (ctx) {
-        return SafeArea(
-          top: false,
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(
-              20,
-              20,
-              20,
-              20 + MediaQuery.of(ctx).viewPadding.bottom,
+      builder: (_) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Cancel Exam Countdown?',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+            const SizedBox(height: 12),
+            const Text('All reminders will be removed.'),
+            const SizedBox(height: 20),
+            Row(
               children: [
-                const Icon(Icons.warning_amber_rounded,
-                    size: 42, color: Colors.red),
-                const SizedBox(height: 12),
-                const Text(
-                  'Cancel Exam Countdown?',
-                  style:
-                      TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: const Text('No'),
+                  ),
                 ),
-                const SizedBox(height: 8),
-                const Text(
-                  'This will remove your exam date and reminders.',
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.pop(ctx, false),
-                        child: const Text('No'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: () => Navigator.pop(ctx, true),
-                        child: const Text('Yes'),
-                      ),
-                    ),
-                  ],
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(context, true),
+                    child: const Text('Yes'),
+                  ),
                 ),
               ],
             ),
-          ),
-        );
-      },
+          ],
+        ),
+      ),
     );
 
     if (confirm != true || !mounted) return;
@@ -201,82 +183,74 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Exam Countdown')),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: ValueListenableBuilder<int>(
-                    valueListenable: ExamState.daysLeft,
-                    builder: (_, days, __) {
-                      final color = ExamState.colorForDays(days);
-                      final progress =
-                          days <= 0 ? 0.0 : ExamState.progress();
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: ValueListenableBuilder<int>(
+                  valueListenable: ExamState.daysLeft,
+                  builder: (_, days, __) {
+                    final color = ExamState.colorForDays(days);
+                    final progress =
+                        days <= 0 ? 0.0 : ExamState.progress();
 
-                      return Column(
-                        children: [
-                          const Text('Days Remaining',
-                              style: TextStyle(color: Colors.grey)),
-                          const SizedBox(height: 10),
-                          Text(
-                            days > 0 ? '$days Days' : 'No Exam Set',
-                            style: TextStyle(
-                              fontSize: 36,
-                              fontWeight: FontWeight.bold,
-                              color: color,
-                            ),
+                    return Column(
+                      children: [
+                        const Text('Days Remaining',
+                            style: TextStyle(color: Colors.grey)),
+                        const SizedBox(height: 10),
+                        Text(
+                          days > 0 ? '$days Days' : 'No Exam Set',
+                          style: TextStyle(
+                            fontSize: 36,
+                            fontWeight: FontWeight.bold,
+                            color: color,
                           ),
-                          if (days > 0) ...[
-                            const SizedBox(height: 16),
-                            LinearProgressIndicator(
-                              value: progress,
-                              minHeight: 8,
-                              backgroundColor:
-                                  color.withOpacity(0.2),
-                              valueColor:
-                                  AlwaysStoppedAnimation<Color>(color),
-                            ),
-                          ],
+                        ),
+                        if (days > 0) ...[
+                          const SizedBox(height: 16),
+                          LinearProgressIndicator(
+                            value: progress,
+                            minHeight: 8,
+                            backgroundColor:
+                                color.withOpacity(0.2),
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(color),
+                          ),
                         ],
-                      );
-                    },
-                  ),
+                      ],
+                    );
+                  },
                 ),
               ),
-
-              const SizedBox(height: 24),
-
-              ElevatedButton.icon(
-                onPressed: _pickDate,
-                icon: const Icon(Icons.calendar_today_rounded),
-                label: const Text('Select Exam Date'),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: _pickDate,
+              icon: const Icon(Icons.calendar_today),
+              label: const Text('Select Exam Date'),
+            ),
+            const SizedBox(height: 12),
+            ValueListenableBuilder<DateTime?>(
+              valueListenable: ExamState.examDate,
+              builder: (_, d, __) => OutlinedButton.icon(
+                onPressed: d == null ? null : _cancelCountdown,
+                icon: const Icon(Icons.close),
+                label: const Text('Cancel Countdown'),
               ),
-
-              const SizedBox(height: 12),
-
-              ValueListenableBuilder<DateTime?>(
-                valueListenable: ExamState.examDate,
-                builder: (_, d, __) => OutlinedButton.icon(
-                  onPressed: d == null ? null : _cancelCountdown,
-                  icon: const Icon(Icons.close),
-                  label: const Text('Cancel Countdown'),
-                ),
+            ),
+            const SizedBox(height: 24),
+            if (!isKeyboardOpen)
+              SizedBox(
+                height: 90,
+                child: _bannerLoaded && _bannerAd != null
+                    ? AdWidget(ad: _bannerAd!)
+                    : const AdPlaceholder(),
               ),
-
-              const SizedBox(height: 24),
-
-              if (!isKeyboardOpen)
-                SizedBox(
-                  height: 90,
-                  child: _bannerLoaded && _bannerAd != null
-                      ? AdWidget(ad: _bannerAd!)
-                      : const AdPlaceholder(),
-                ),
-            ],
-          ),
+          ],
         ),
       ),
     );
