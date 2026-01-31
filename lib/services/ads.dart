@@ -1,5 +1,6 @@
 // lib/services/ads.dart
 
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
@@ -9,26 +10,16 @@ import 'package:shared_preferences/shared_preferences.dart';
 class AdsService {
   AdsService._();
 
+  /* ================= FLAGS ================= */
+
   static bool _initialized = false;
-
-  /* ================= BANNER ================= */
-
-  static const int _maxBannerRetry = 3;
-  static int _bannerRetryCount = 0;
-
-  /* ================= INTERSTITIAL ================= */
-
+  static bool _isLoadingInterstitial = false;
   static InterstitialAd? _interstitialAd;
-  static bool _isLoading = false;
 
   /// 🚨 Release build me FALSE hi rahe
   static const bool useTestAds = false;
 
-  /// ⏱️ Cooldown only for interstitial SHOW
-  static const Duration _cooldown = Duration(minutes: 2);
-  static const String _lastShownKey = 'last_interstitial_time';
-
-  /* ================= AD IDS ================= */
+  /* ================= IDS ================= */
 
   static String get bannerId => useTestAds
       ? 'ca-app-pub-3940256099942544/6300978111'
@@ -38,26 +29,31 @@ class AdsService {
       ? 'ca-app-pub-3940256099942544/1033173712'
       : 'ca-app-pub-2139593035914184/1908697513';
 
+  /* ================= INTERSTITIAL RULES ================= */
+
+  static const Duration _cooldown = Duration(minutes: 2);
+  static const String _lastShownKey = 'last_interstitial_time';
+
   /* ================= INIT ================= */
 
   static Future<void> initialize() async {
     if (_initialized) return;
-    try {
-      await MobileAds.instance.initialize();
-      _initialized = true;
-      if (kDebugMode) debugPrint('✅ MobileAds initialized');
-    } catch (e) {
-      if (kDebugMode) debugPrint('❌ MobileAds init failed: $e');
+
+    await MobileAds.instance.initialize();
+    _initialized = true;
+
+    if (kDebugMode) {
+      debugPrint('✅ MobileAds initialized');
     }
   }
 
-  /* ================= BANNER (WITH RETRY) ================= */
+  /* ================= BANNER (SAFE + ADAPTIVE) ================= */
 
   static Future<BannerAd?> createAdaptiveBanner({
     required BuildContext context,
     required void Function(bool loaded) onState,
   }) async {
-    if (!_initialized) await initialize();
+    await initialize();
 
     final hasInternet =
         await InternetConnectionChecker().hasConnection;
@@ -67,6 +63,11 @@ class AdsService {
     }
 
     final width = MediaQuery.of(context).size.width.truncate();
+    if (width <= 0) {
+      onState(false);
+      return null;
+    }
+
     final size =
         await AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(
       width,
@@ -83,67 +84,45 @@ class AdsService {
       request: const AdRequest(),
       listener: BannerAdListener(
         onAdLoaded: (_) {
-          _bannerRetryCount = 0;
           onState(true);
           if (kDebugMode) debugPrint('✅ Banner loaded');
         },
-        onAdFailedToLoad: (ad, error) async {
+        onAdFailedToLoad: (ad, error) {
           ad.dispose();
           onState(false);
-
           if (kDebugMode) {
             debugPrint(
-              '❌ Banner failed (${_bannerRetryCount + 1}/$_maxBannerRetry): '
-              '${error.code} | ${error.message}',
-            );
-          }
-
-          if (_bannerRetryCount < _maxBannerRetry - 1) {
-            _bannerRetryCount++;
-
-            // ⏳ exponential backoff (2s, 4s)
-            await Future.delayed(
-              Duration(seconds: 2 * _bannerRetryCount),
-            );
-
-            if (kDebugMode) {
-              debugPrint('🔁 Retrying banner load...');
-            }
-
-            createAdaptiveBanner(
-              context: context,
-              onState: onState,
+              '❌ Banner failed: ${error.code} | ${error.message}',
             );
           }
         },
       ),
     );
 
-    banner.load();
+    await banner.load();
     return banner;
   }
 
   /* ================= INTERSTITIAL ================= */
 
-  static bool get isReady => _interstitialAd != null;
-
   static Future<bool> _cooldownPassed() async {
     final prefs = await SharedPreferences.getInstance();
-    final lastShown = prefs.getInt(_lastShownKey) ?? 0;
+    final last = prefs.getInt(_lastShownKey) ?? 0;
     final now = DateTime.now().millisecondsSinceEpoch;
-    return now - lastShown >= _cooldown.inMilliseconds;
+    return now - last >= _cooldown.inMilliseconds;
   }
 
-  /// 🔁 Preload safe
-  static Future<void> preload() async {
-    if (!_initialized) await initialize();
-    if (_interstitialAd != null || _isLoading) return;
+  /// 🔁 PRELOAD (CALL ON APP START)
+  static Future<void> preloadInterstitial() async {
+    await initialize();
+
+    if (_interstitialAd != null || _isLoadingInterstitial) return;
 
     final hasInternet =
         await InternetConnectionChecker().hasConnection;
     if (!hasInternet) return;
 
-    _isLoading = true;
+    _isLoadingInterstitial = true;
 
     InterstitialAd.load(
       adUnitId: interstitialId,
@@ -151,13 +130,18 @@ class AdsService {
       adLoadCallback: InterstitialAdLoadCallback(
         onAdLoaded: (ad) {
           _interstitialAd = ad;
-          _isLoading = false;
+          _isLoadingInterstitial = false;
+
           ad.setImmersiveMode(true);
-          if (kDebugMode) debugPrint('✅ Interstitial READY');
+
+          if (kDebugMode) {
+            debugPrint('✅ Interstitial READY');
+          }
         },
         onAdFailedToLoad: (error) {
-          _isLoading = false;
+          _isLoadingInterstitial = false;
           _interstitialAd = null;
+
           if (kDebugMode) {
             debugPrint(
               '❌ Interstitial failed: ${error.code} | ${error.message}',
@@ -168,8 +152,8 @@ class AdsService {
     );
   }
 
-  /// 🎯 Safe show
-  static Future<bool> showIfAllowed() async {
+  /// 🎯 SAFE SHOW
+  static Future<bool> showInterstitialIfAllowed() async {
     if (_interstitialAd == null) return false;
     if (!await _cooldownPassed()) return false;
 
@@ -184,17 +168,18 @@ class AdsService {
       onAdDismissedFullScreenContent: (ad) {
         ad.dispose();
         _interstitialAd = null;
-        preload();
+        preloadInterstitial();
       },
       onAdFailedToShowFullScreenContent: (ad, _) {
         ad.dispose();
         _interstitialAd = null;
-        preload();
+        preloadInterstitial();
       },
     );
 
     _interstitialAd!.show();
     _interstitialAd = null;
+
     return true;
   }
 }
