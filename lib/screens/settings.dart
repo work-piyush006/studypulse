@@ -138,7 +138,7 @@ class _SettingsPageState extends State<SettingsPage>
               value: _notifications,
               onChanged: (v) async {
                 final ok =
-                    await NotificationManager.setNotifications(v);
+                    await NotificationManager.setFromSettings(v);
 
                 setState(() => _notifications = ok);
 

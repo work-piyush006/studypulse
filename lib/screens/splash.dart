@@ -2,6 +2,7 @@
 
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../home.dart';
@@ -30,18 +31,18 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _start() async {
-    // ⏱ Max 1.5 sec splash
+    // ⏱ Minimum splash duration
     await Future.delayed(const Duration(milliseconds: 1500));
     if (!mounted || _navigated) return;
 
-    // 🔹 CORE SAFE INIT (never block UI)
+    // 🔹 Core init (never block navigation)
     try {
       await ExamState.init();
       InternetService.startMonitoring();
       await AdsService.initialize();
     } catch (_) {}
 
-    // 🔹 NOTIFICATIONS (OEM risky → isolated)
+    // 🔹 Notification init (OEM risky → isolated)
     try {
       await NotificationService.init();
     } catch (_) {}
@@ -52,21 +53,29 @@ class _SplashScreenState extends State<SplashScreen> {
     final permissionCount =
         prefs.getInt('notification_permission_count') ?? 0;
 
+    final permissionGranted =
+        await Permission.notification.isGranted;
+
     if (!mounted || _navigated) return;
     _navigated = true;
 
+    // 📥 Deep link from notification
     if (openInbox) {
       await prefs.remove('open_inbox');
       _go(const NotificationInboxScreen());
       return;
     }
 
-    // 🔔 Ask notification permission max 2 times
-    if (permissionCount < 2) {
+    // 🔔 Permission screen logic (MNC-grade)
+    // Conditions:
+    // - Permission NOT granted
+    // - Asked less than 2 times
+    if (!permissionGranted && permissionCount < 2) {
       _go(const PermissionScreen());
       return;
     }
 
+    // ✅ Default → Home
     _go(const Home());
   }
 
@@ -87,7 +96,7 @@ class _SplashScreenState extends State<SplashScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // 🔥 LOGO (SAFE FALLBACK)
+            // 🔥 Logo with safe fallback
             Image.asset(
               'assets/logo.png',
               height: 110,
