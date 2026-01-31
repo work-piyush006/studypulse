@@ -85,9 +85,15 @@ class NotificationService {
   }) async {
     await init();
 
-    if (!await NotificationManager.canNotify()) {
-      return NotificationResult.disabled;
-    }
+    final canNotify = await NotificationManager.canNotify();
+
+if (!canNotify) {
+  // 🔥 last-chance permission request (safe)
+  final requested = await NotificationManager.requestOnce();
+  if (!requested) {
+    return NotificationResult.disabled;
+  }
+}
 
     final id = await _nextId();
 
@@ -121,7 +127,11 @@ class NotificationService {
 
   static Future<void> scheduleDaily({int? daysLeft}) async {
     await init();
-    if (!await NotificationManager.canNotify()) return;
+    final canNotify = await NotificationManager.canNotify();
+if (!canNotify) {
+  final requested = await NotificationManager.requestOnce();
+  if (!requested) return;
+}
 
     await _plugin.cancel(_id4pm);
     await _plugin.cancel(_id11pm);
