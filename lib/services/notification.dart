@@ -8,12 +8,9 @@ import 'package:timezone/timezone.dart' as tz;
 
 import 'notification_manager.dart';
 
-/// ✅ Explicit result → UI can react correctly
 enum NotificationResult {
   success,
-  disabledByUser,
-  permissionDenied,
-  invalidDate,
+  disabled,
   failed,
 }
 
@@ -25,15 +22,15 @@ class NotificationService {
 
   static bool _initialized = false;
 
-  static const int _dailyId1 = 4001; // 4:00 PM
-  static const int _dailyId2 = 4002; // 11:00 PM
+  static const int _dailyId1 = 4001; // 4 PM
+  static const int _dailyId2 = 4002; // 11 PM
   static const int _instantBaseId = 5000;
 
-  static const AndroidNotificationChannel _examChannel =
+  static const AndroidNotificationChannel _channel =
       AndroidNotificationChannel(
     'exam_channel',
     'Exam Notifications',
-    description: 'Exam countdown & study reminders',
+    description: 'Exam reminders & study alerts',
     importance: Importance.high,
   );
 
@@ -56,7 +53,7 @@ class NotificationService {
         _plugin.resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>();
 
-    await android?.createNotificationChannel(_examChannel);
+    await android?.createNotificationChannel(_channel);
 
     _initialized = true;
   }
@@ -69,16 +66,8 @@ class NotificationService {
   }) async {
     await init();
 
-    // 🔕 User toggle OFF
-    if (!await NotificationManager.isUserEnabled()) {
-      return NotificationResult.disabledByUser;
-    }
-
-    // 🔐 Permission
-    final allowed =
-        await NotificationManager.requestPermissionIfNeeded();
-    if (!allowed) {
-      return NotificationResult.permissionDenied;
+    if (!await NotificationManager.canNotify()) {
+      return NotificationResult.disabled;
     }
 
     final id =
@@ -93,12 +82,12 @@ class NotificationService {
         body,
         NotificationDetails(
           android: AndroidNotificationDetails(
-            _examChannel.id,
-            _examChannel.name,
-            channelDescription: _examChannel.description,
+            _channel.id,
+            _channel.name,
+            channelDescription: _channel.description,
             importance: Importance.high,
             priority: Priority.high,
-            icon: '@mipmap/ic_launcher',
+            icon: 'ic_notification', // ✅ custom icon
             styleInformation: BigTextStyleInformation(
               body,
               contentTitle: '📘 Exam Countdown',
@@ -119,38 +108,25 @@ class NotificationService {
   }) async {
     await init();
 
-    if (!await NotificationManager.isUserEnabled()) {
-      return NotificationResult.disabledByUser;
+    if (!await NotificationManager.canNotify()) {
+      return NotificationResult.disabled;
     }
 
-    final allowed =
-        await NotificationManager.requestPermissionIfNeeded();
-    if (!allowed) {
-      return NotificationResult.permissionDenied;
-    }
+    await cancelDaily();
 
     final now = tz.TZDateTime.now(tz.local);
     final today = DateTime(now.year, now.month, now.day);
     final daysLeft = examDate.difference(today).inDays;
 
-    if (daysLeft < 0) {
-      return NotificationResult.invalidDate;
-    }
+    if (daysLeft < 0) return NotificationResult.failed;
 
     final quotes = await _loadQuotes();
-    if (quotes.isEmpty) {
-      return NotificationResult.failed;
-    }
+    if (quotes.isEmpty) return NotificationResult.failed;
 
-    await cancelDaily();
+    await _scheduleAt(_dailyId1, 16, daysLeft, quotes);
+    await _scheduleAt(_dailyId2, 23, daysLeft, quotes);
 
-    try {
-      await _scheduleAt(_dailyId1, 16, daysLeft, quotes);
-      await _scheduleAt(_dailyId2, 23, daysLeft, quotes);
-      return NotificationResult.success;
-    } catch (_) {
-      return NotificationResult.failed;
-    }
+    return NotificationResult.success;
   }
 
   static Future<void> _scheduleAt(
@@ -160,14 +136,8 @@ class NotificationService {
     List<String> quotes,
   ) async {
     final now = tz.TZDateTime.now(tz.local);
-
-    var time = tz.TZDateTime(
-      tz.local,
-      now.year,
-      now.month,
-      now.day,
-      hour,
-    );
+    var time =
+        tz.TZDateTime(tz.local, now.year, now.month, now.day, hour);
 
     if (time.isBefore(now)) {
       time = time.add(const Duration(days: 1));
@@ -183,15 +153,13 @@ class NotificationService {
       time,
       NotificationDetails(
         android: AndroidNotificationDetails(
-          _examChannel.id,
-          _examChannel.name,
+          _channel.id,
+          _channel.name,
           importance: Importance.high,
           priority: Priority.high,
-          icon: '@mipmap/ic_launcher',
-          styleInformation: BigTextStyleInformation(
-            body,
-            contentTitle: '📚 Study Reminder',
-          ),
+          icon: 'ic_notification',
+          styleInformation:
+              BigTextStyleInformation(body, contentTitle: '📚 Study Reminder'),
         ),
       ),
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
@@ -201,14 +169,10 @@ class NotificationService {
     );
   }
 
-  /* ================= CANCEL ================= */
-
   static Future<void> cancelDaily() async {
     await _plugin.cancel(_dailyId1);
     await _plugin.cancel(_dailyId2);
   }
-
-  /* ================= HELPERS ================= */
 
   static Future<List<String>> _loadQuotes() async {
     final raw = await rootBundle.loadString('assets/quotes.txt');
