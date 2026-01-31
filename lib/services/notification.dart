@@ -6,10 +6,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
-import 'notification_manager.dart';
 import 'notification_store.dart';
 
-enum NotificationResult { success, disabled, failed }
+enum NotificationResult { success, failed }
 
 class NotificationService {
   NotificationService._();
@@ -84,15 +83,6 @@ class NotificationService {
   }) async {
     await init();
 
-    // 🔥 CRITICAL FIX:
-    // Immediate notification ALWAYS tries once to request permission
-    if (!await NotificationManager.canNotify()) {
-      final requested = await NotificationManager.requestOnce();
-      if (!requested) {
-        return NotificationResult.disabled;
-      }
-    }
-
     final id = await _nextId();
 
     await _plugin.show(
@@ -125,11 +115,6 @@ class NotificationService {
 
   static Future<void> scheduleDaily({int? daysLeft}) async {
     await init();
-
-    if (!await NotificationManager.canNotify()) {
-      final requested = await NotificationManager.requestOnce();
-      if (!requested) return;
-    }
 
     await _plugin.cancel(_id4pm);
     await _plugin.cancel(_id11pm);
