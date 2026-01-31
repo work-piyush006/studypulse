@@ -18,32 +18,28 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   bool _darkMode = false;
-  bool _notificationsEnabled = true;
+  bool _notifications = false;
   bool _loading = true;
 
   @override
   void initState() {
     super.initState();
-    _loadSettings();
+    _load();
   }
 
-  /* ================= LOAD ================= */
-
-  Future<void> _loadSettings() async {
+  Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
-    final notify = await NotificationManager.isUserEnabled();
+    final canNotify = await NotificationManager.canNotify();
 
     if (!mounted) return;
     setState(() {
       _darkMode = prefs.getBool('dark_mode') ?? false;
-      _notificationsEnabled = notify;
+      _notifications = canNotify;
       _loading = false;
     });
   }
 
-  /* ================= SNACK ================= */
-
-  void _showSnack(String msg, {bool error = false}) {
+  void _snack(String msg, {bool error = false}) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
@@ -51,153 +47,126 @@ class _SettingsPageState extends State<SettingsPage> {
           content: Text(msg),
           backgroundColor:
               error ? Colors.redAccent : Colors.green,
-          behavior: SnackBarBehavior.floating,
         ),
       );
   }
 
-  /* ================= BUILD ================= */
+  Widget _section(String title) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Text(title,
+            style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: Colors.grey.shade600)),
+      );
+
+  Widget _card(Widget child) => Card(
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: BorderSide(color: Colors.grey.shade200),
+        ),
+        child: child,
+      );
 
   @override
   Widget build(BuildContext context) {
     if (_loading) {
       return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+          body: Center(child: CircularProgressIndicator()));
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
+      appBar: AppBar(title: const Text('Settings'), centerTitle: true),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          /* ---------- DARK MODE ---------- */
-
-          SwitchListTile(
-            title: const Text('Dark Mode'),
-            value: _darkMode,
-            onChanged: (value) async {
-              final prefs =
-                  await SharedPreferences.getInstance();
-              await prefs.setBool('dark_mode', value);
-              await ThemeController.of(context)
-                  .toggleTheme(value);
-
-              if (!mounted) return;
-              setState(() => _darkMode = value);
-            },
+          _section('Appearance'),
+          _card(
+            SwitchListTile(
+              secondary: const Icon(Icons.dark_mode_outlined),
+              title: const Text('Dark Mode'),
+              subtitle: const Text('Reduce eye strain'),
+              value: _darkMode,
+              onChanged: (v) async {
+                final prefs =
+                    await SharedPreferences.getInstance();
+                await prefs.setBool('dark_mode', v);
+                await ThemeController.of(context).toggleTheme(v);
+                if (!mounted) return;
+                setState(() => _darkMode = v);
+              },
+            ),
           ),
 
-          /* ---------- NOTIFICATIONS ---------- */
+          _section('Notifications'),
+          _card(
+            SwitchListTile(
+              secondary:
+                  const Icon(Icons.notifications_active_outlined),
+              title: const Text('Study Notifications'),
+              subtitle:
+                  const Text('Exam reminders & alerts'),
+              value: _notifications,
+              onChanged: (v) async {
+                final ok =
+                    await NotificationManager.setNotifications(v);
 
-          SwitchListTile(
-            title: const Text('Notifications'),
-            value: _notificationsEnabled,
-            onChanged: (value) async {
-              await NotificationManager
-                  .setUserEnabled(value);
+                if (!mounted) return;
+                setState(() => _notifications = ok);
 
-              if (!value) {
-                await NotificationService.cancelDaily();
-                _showSnack('Notifications turned OFF');
-              } else {
-                _showSnack('Notifications turned ON');
-              }
-
-              if (!mounted) return;
-              setState(() =>
-                  _notificationsEnabled = value);
-            },
+                _snack(ok
+                    ? 'Notifications enabled'
+                    : 'Enable permission from system settings',
+                    error: !ok);
+              },
+            ),
           ),
 
-          const SizedBox(height: 20),
-
-          /* ---------- TEST NOTIFICATION ---------- */
-
-          ListTile(
-            title: const Text('Test Notification'),
-            enabled: _notificationsEnabled,
-            onTap: !_notificationsEnabled
-                ? null
-                : () async {
-                    final result =
-                        await NotificationService
-                            .showInstant(
-                      daysLeft: 10,
-                      quote:
-                          'Everything is working 🚀',
-                    );
-
-                    switch (result) {
-                      case NotificationResult.success:
-                        _showSnack(
-                            'Test notification sent');
-                        break;
-
-                      case NotificationResult
-                            .permissionDenied:
-                        _showSnack(
-                          'Enable notification permission in system settings',
-                          error: true,
-                        );
-                        break;
-
-                      case NotificationResult
-                            .disabledByUser:
-                        _showSnack(
-                          'Notifications are turned OFF',
-                          error: true,
-                        );
-                        break;
-
-                      case NotificationResult
-                            .invalidDate:
-                        _showSnack(
-                          'Invalid exam date',
-                          error: true,
-                        );
-                        break;
-
-                      case NotificationResult.failed:
-                      default:
-                        _showSnack(
-                          'Notification failed',
-                          error: true,
-                        );
-                    }
-                  },
+          _card(
+            ListTile(
+              enabled: _notifications,
+              leading: const Icon(Icons.notification_add),
+              title: const Text('Test Notification'),
+              onTap: !_notifications
+                  ? null
+                  : () async {
+                      final r =
+                          await NotificationService.showInstant(
+                        daysLeft: 10,
+                        quote: 'Everything is working 🚀',
+                      );
+                      _snack(
+                        r == NotificationResult.success
+                            ? 'Notification sent'
+                            : 'Notification disabled',
+                        error: r != NotificationResult.success,
+                      );
+                    },
+            ),
           ),
 
-          const SizedBox(height: 10),
-
-          /* ---------- PRIVACY POLICY ---------- */
-
-          ListTile(
-            title: const Text('Privacy Policy'),
-            onTap: () {
-              launchUrl(
+          _section('About'),
+          _card(
+            ListTile(
+              leading: const Icon(Icons.privacy_tip_outlined),
+              title: const Text('Privacy Policy'),
+              onTap: () => launchUrl(
                 Uri.parse(
-                  'http://studypulse-privacypolicy.blogspot.com',
-                ),
-                mode:
-                    LaunchMode.externalApplication,
-              );
-            },
+                    'http://studypulse-privacypolicy.blogspot.com'),
+                mode: LaunchMode.externalApplication,
+              ),
+            ),
           ),
-
-          /* ---------- ABOUT ---------- */
-
-          ListTile(
-            title: const Text('About'),
-            onTap: () {
-              Navigator.push(
+          _card(
+            ListTile(
+              leading: const Icon(Icons.info_outline),
+              title: const Text('About StudyPulse'),
+              onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) =>
-                      const AboutPage(),
-                ),
-              );
-            },
+                    builder: (_) => const AboutPage()),
+              ),
+            ),
           ),
         ],
       ),
