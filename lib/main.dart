@@ -1,9 +1,13 @@
+// lib/main.dart
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'screens/splash.dart';
-import 'services/internet_guard.dart';
+import 'screens/notification_inbox.dart';
+import 'tools/exam.dart';
 import 'services/notification.dart';
+import 'services/internet_guard.dart';
 import 'state/exam_state.dart';
 
 final GlobalKey<NavigatorState> navigatorKey =
@@ -59,6 +63,7 @@ class _StudyPulseAppState extends State<StudyPulseApp> {
     return ThemeController(
       toggleTheme: toggleTheme,
       child: MaterialApp(
+        navigatorKey: navigatorKey, // 🔥 REQUIRED
         debugShowCheckedModeBanner: false,
         title: 'StudyPulse',
         themeMode: _theme,
@@ -67,6 +72,10 @@ class _StudyPulseAppState extends State<StudyPulseApp> {
           useMaterial3: true,
           brightness: Brightness.dark,
         ),
+        routes: {
+          '/exam': (_) => const ExamCountdownPage(),
+          '/notifications': (_) => const NotificationInboxScreen(),
+        },
         builder: (c, child) =>
             child == null ? const SizedBox() : InternetGuard(child: child),
         home: const SplashScreen(),
