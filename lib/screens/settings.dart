@@ -17,24 +17,46 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
-  bool _dark = false;
-  bool _notify = true;
+  bool _darkMode = false;
+  bool _notificationsEnabled = true;
   bool _loading = true;
 
   @override
   void initState() {
     super.initState();
-    _load();
+    _loadSettings();
   }
 
-  Future<void> _load() async {
+  /* ================= LOAD ================= */
+
+  Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
+    final notify = await NotificationManager.isUserEnabled();
+
+    if (!mounted) return;
     setState(() {
-      _dark = prefs.getBool('dark_mode') ?? false;
-      _notify = prefs.getBool('notifications') ?? true;
+      _darkMode = prefs.getBool('dark_mode') ?? false;
+      _notificationsEnabled = notify;
       _loading = false;
     });
   }
+
+  /* ================= SNACK ================= */
+
+  void _showSnack(String msg, {bool error = false}) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(msg),
+          backgroundColor:
+              error ? Colors.redAccent : Colors.green,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+  }
+
+  /* ================= BUILD ================= */
 
   @override
   Widget build(BuildContext context) {
@@ -49,42 +71,107 @@ class _SettingsPageState extends State<SettingsPage> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          /* ---------- DARK MODE ---------- */
+
           SwitchListTile(
             title: const Text('Dark Mode'),
-            value: _dark,
-            onChanged: (v) async {
+            value: _darkMode,
+            onChanged: (value) async {
               final prefs =
                   await SharedPreferences.getInstance();
-              await prefs.setBool('dark_mode', v);
-              await ThemeController.of(context).toggleTheme(v);
-              setState(() => _dark = v);
+              await prefs.setBool('dark_mode', value);
+              await ThemeController.of(context)
+                  .toggleTheme(value);
+
+              if (!mounted) return;
+              setState(() => _darkMode = value);
             },
           ),
+
+          /* ---------- NOTIFICATIONS ---------- */
+
           SwitchListTile(
             title: const Text('Notifications'),
-            value: _notify,
-            onChanged: (v) async {
-              await NotificationManager.setUserEnabled(v);
-              if (!v) {
+            value: _notificationsEnabled,
+            onChanged: (value) async {
+              await NotificationManager
+                  .setUserEnabled(value);
+
+              if (!value) {
                 await NotificationService.cancelDaily();
+                _showSnack('Notifications turned OFF');
+              } else {
+                _showSnack('Notifications turned ON');
               }
-              setState(() => _notify = v);
+
+              if (!mounted) return;
+              setState(() =>
+                  _notificationsEnabled = value);
             },
           ),
+
           const SizedBox(height: 20),
+
+          /* ---------- TEST NOTIFICATION ---------- */
+
           ListTile(
             title: const Text('Test Notification'),
-            enabled: _notify,
-            onTap: !_notify
+            enabled: _notificationsEnabled,
+            onTap: !_notificationsEnabled
                 ? null
-                : () {
-                    NotificationService.showInstant(
-                      context: context,
+                : () async {
+                    final result =
+                        await NotificationService
+                            .showInstant(
                       daysLeft: 10,
-                      quote: 'Everything is working 🚀',
+                      quote:
+                          'Everything is working 🚀',
                     );
+
+                    switch (result) {
+                      case NotificationResult.success:
+                        _showSnack(
+                            'Test notification sent');
+                        break;
+
+                      case NotificationResult
+                            .permissionDenied:
+                        _showSnack(
+                          'Enable notification permission in system settings',
+                          error: true,
+                        );
+                        break;
+
+                      case NotificationResult
+                            .disabledByUser:
+                        _showSnack(
+                          'Notifications are turned OFF',
+                          error: true,
+                        );
+                        break;
+
+                      case NotificationResult
+                            .invalidDate:
+                        _showSnack(
+                          'Invalid exam date',
+                          error: true,
+                        );
+                        break;
+
+                      case NotificationResult.failed:
+                      default:
+                        _showSnack(
+                          'Notification failed',
+                          error: true,
+                        );
+                    }
                   },
           ),
+
+          const SizedBox(height: 10),
+
+          /* ---------- PRIVACY POLICY ---------- */
+
           ListTile(
             title: const Text('Privacy Policy'),
             onTap: () {
@@ -92,17 +179,22 @@ class _SettingsPageState extends State<SettingsPage> {
                 Uri.parse(
                   'http://studypulse-privacypolicy.blogspot.com',
                 ),
-                mode: LaunchMode.externalApplication,
+                mode:
+                    LaunchMode.externalApplication,
               );
             },
           ),
+
+          /* ---------- ABOUT ---------- */
+
           ListTile(
             title: const Text('About'),
             onTap: () {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => const AboutPage(),
+                  builder: (_) =>
+                      const AboutPage(),
                 ),
               );
             },
