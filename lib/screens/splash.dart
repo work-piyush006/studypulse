@@ -37,7 +37,6 @@ class _SplashScreenState extends State<SplashScreen> {
 
     // 🔹 Core init (never block navigation)
     try {
-      await ExamState.init();
       InternetService.startMonitoring();
       await AdsService.initialize();
     } catch (_) {}
