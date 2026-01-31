@@ -106,7 +106,6 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
     // 🔔 INSTANT notification (first time only)
     if (!wasAlreadySet) {
       await NotificationService.showInstant(
-        context: context,
         daysLeft: days,
         quote: quote,
       );
@@ -122,7 +121,6 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
 
     // ⏰ DAILY reminders (4 PM & 11 PM)
     await NotificationService.scheduleDaily(
-      context: context,
       examDate: normalized,
     );
   }
