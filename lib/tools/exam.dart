@@ -76,6 +76,8 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
 
     if (picked == null || !mounted) return;
 
+    final wasSet = ExamState.examDate.value != null;
+
     final normalized =
         DateTime(picked.year, picked.month, picked.day);
 
@@ -87,23 +89,32 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
     final days = ExamState.daysLeft.value;
     final message = '$days days left\n${_quote()}';
 
-    // 🔥 ALWAYS TRY IMMEDIATE
-    final result = await NotificationService.instant(
-      title: '📘 Exam Countdown',
-      body: message,
-      save: true,
-    );
+    if (!wasSet) {
+      // 🔥 permission + immediate notification ONLY here
+      if (!await NotificationManager.canNotify()) {
+        final granted = await NotificationManager.requestOnce();
+        if (!granted && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Enable notifications to get reminders'),
+              action: SnackBarAction(
+                label: 'ALLOW',
+                onPressed: NotificationManager.openSystemSettings,
+              ),
+            ),
+          );
+          return;
+        }
+      }
 
-    if (result == NotificationResult.disabled && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Enable notifications to get reminders'),
-          action: SnackBarAction(
-            label: 'ALLOW',
-            onPressed: NotificationManager.openSystemSettings,
-          ),
-        ),
+      await NotificationService.instant(
+        title: '📘 Exam Countdown',
+        body: message,
+        save: true,
       );
+    } else {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
     }
 
     await NotificationService.scheduleDaily(daysLeft: days);
@@ -201,8 +212,7 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
                   child: ValueListenableBuilder<int>(
                     valueListenable: ExamState.daysLeft,
                     builder: (_, days, __) {
-                      final color =
-                          ExamState.colorForDays(days);
+                      final color = ExamState.colorForDays(days);
                       final progress =
                           days <= 0 ? 0.0 : ExamState.progress();
 
