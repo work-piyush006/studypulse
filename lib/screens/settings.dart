@@ -173,12 +173,15 @@ class _SettingsPageState extends State<SettingsPage>
                         return;
                       }
 
+                      final days =
+                          ExamState.daysLeft.value;
+
                       final r =
-                          await NotificationService.showInstant(
-                        daysLeft:
-                            ExamState.daysLeft.value,
-                        quote: 'You’re on track 🚀',
-                        saveToInbox: false,
+                          await NotificationService.instant(
+                        title: '📘 Exam Countdown',
+                        body:
+                            '$days days left\nYou’re on track 🚀',
+                        save: false, // ❌ test = not saved
                       );
 
                       if (r != NotificationResult.success) {
