@@ -10,12 +10,14 @@ class ExamState {
   static final ValueNotifier<int> daysLeft =
       ValueNotifier<int>(0);
 
+  static final ValueNotifier<bool> isExamDay =
+      ValueNotifier<bool>(false);
+
   static int _initialTotalDays = 0;
   static Timer? _midnightTimer;
 
   /* ================= INIT ================= */
 
-  /// 🔥 MUST CALL BEFORE runApp()
   static Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
     final saved = prefs.getString('exam_date');
@@ -45,22 +47,29 @@ class ExamState {
 
     final diff = target.difference(today).inDays;
 
-    // ❌ Exam date passed → AUTO CLEAR
+    // ❌ Exam passed → AUTO RESET
     if (diff < 0) {
-      clear(); // async-safe
+      clear();
       return;
     }
 
-    // ✅ Exam today OR future
+    // 🔥 EXAM DAY
+    if (diff == 0) {
+      daysLeft.value = 0;
+      isExamDay.value = true;
+      return;
+    }
+
+    // ✅ NORMAL COUNTDOWN
+    isExamDay.value = false;
     daysLeft.value = diff;
 
-    // 🔥 Only set initial total days ONCE
     if (_initialTotalDays == 0) {
-      _initialTotalDays = diff == 0 ? 1 : diff;
+      _initialTotalDays = diff;
     }
   }
 
-  /* ================= MIDNIGHT AUTO REFRESH ================= */
+  /* ================= MIDNIGHT REFRESH ================= */
 
   static void _scheduleMidnightRefresh() {
     _midnightTimer?.cancel();
@@ -81,13 +90,12 @@ class ExamState {
 
   /* ================= PROGRESS ================= */
 
-  /// 📊 0.0 → 1.0 (smooth & stable)
   static double progress() {
     if (_initialTotalDays <= 0) return 0;
     return 1 - (daysLeft.value / _initialTotalDays);
   }
 
-  /* ================= COLOR LOGIC ================= */
+  /* ================= COLOR ================= */
 
   static Color colorForDays(int days) {
     if (days >= 90) return Colors.green;
@@ -101,13 +109,13 @@ class ExamState {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('exam_date');
     await prefs.remove('exam_first_notification_done');
-
     _reset();
   }
 
   static void _reset() {
     examDate.value = null;
     daysLeft.value = 0;
+    isExamDay.value = false;
     _initialTotalDays = 0;
   }
 }
