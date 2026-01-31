@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:math';
 
-import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest.dart' as tz;
@@ -85,15 +84,14 @@ class NotificationService {
   }) async {
     await init();
 
-    final canNotify = await NotificationManager.canNotify();
-
-if (!canNotify) {
-  // 🔥 last-chance permission request (safe)
-  final requested = await NotificationManager.requestOnce();
-  if (!requested) {
-    return NotificationResult.disabled;
-  }
-}
+    // 🔥 CRITICAL FIX:
+    // Immediate notification ALWAYS tries once to request permission
+    if (!await NotificationManager.canNotify()) {
+      final requested = await NotificationManager.requestOnce();
+      if (!requested) {
+        return NotificationResult.disabled;
+      }
+    }
 
     final id = await _nextId();
 
@@ -127,11 +125,11 @@ if (!canNotify) {
 
   static Future<void> scheduleDaily({int? daysLeft}) async {
     await init();
-    final canNotify = await NotificationManager.canNotify();
-if (!canNotify) {
-  final requested = await NotificationManager.requestOnce();
-  if (!requested) return;
-}
+
+    if (!await NotificationManager.canNotify()) {
+      final requested = await NotificationManager.requestOnce();
+      if (!requested) return;
+    }
 
     await _plugin.cancel(_id4pm);
     await _plugin.cancel(_id11pm);
