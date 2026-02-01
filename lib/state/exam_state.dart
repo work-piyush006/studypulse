@@ -75,7 +75,7 @@ class ExamState {
     if (diff == 0) {
       daysLeft.value = 0;
       isExamDay.value = true;
-      await NotificationService.scheduleDaily(daysLeft: 0);
+      await NotificationService.cancelDaily();
       return;
     }
 
@@ -135,7 +135,7 @@ class ExamState {
     await prefs.remove(_totalKey);
 
     // 🔥 CANCEL DAILY NOTIFICATIONS
-    await NotificationService.scheduleDaily(daysLeft: 0);
+    await NotificationService.cancelDaily();
 
     _reset();
   }
