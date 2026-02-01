@@ -12,37 +12,14 @@ import 'state/exam_state.dart';
 final GlobalKey<NavigatorState> navigatorKey =
     GlobalKey<NavigatorState>();
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const StudyPulseBootstrap());
-}
 
-/* ================= BOOTSTRAP ================= */
+  // ✅ ONE-TIME INIT ONLY
+  await ExamState.init();
+  await NotificationService.init();
 
-class StudyPulseBootstrap extends StatelessWidget {
-  const StudyPulseBootstrap({super.key});
-
-  Future<void> _init() async {
-    await ExamState.init();
-    await NotificationService.init();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder(
-      future: _init(),
-      builder: (_, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
-          return const MaterialApp(
-            home: Scaffold(
-              body: Center(child: CircularProgressIndicator()),
-            ),
-          );
-        }
-        return const StudyPulseApp();
-      },
-    );
-  }
+  runApp(const StudyPulseApp());
 }
 
 /* ================= APP ================= */
@@ -66,6 +43,7 @@ class _StudyPulseAppState extends State<StudyPulseApp> {
   Future<void> _loadTheme() async {
     final prefs = await SharedPreferences.getInstance();
     final isDark = prefs.getBool('dark_mode') ?? false;
+    if (!mounted) return;
     setState(() {
       _theme = isDark ? ThemeMode.dark : ThemeMode.light;
     });
@@ -74,6 +52,7 @@ class _StudyPulseAppState extends State<StudyPulseApp> {
   Future<void> toggleTheme(bool dark) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('dark_mode', dark);
+    if (!mounted) return;
     setState(() {
       _theme = dark ? ThemeMode.dark : ThemeMode.light;
     });
