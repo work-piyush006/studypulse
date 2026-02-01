@@ -1,10 +1,10 @@
-// lib/screens/splash.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../home.dart';
+import '../tools/exam.dart';
 import 'permission.dart';
 import 'notification_inbox.dart';
 import 'oem_permission.dart';
@@ -32,48 +32,70 @@ class _SplashScreenState extends State<SplashScreen> {
     await Future.delayed(const Duration(milliseconds: 1200));
     if (!mounted || _navigated) return;
 
+    final prefs = await SharedPreferences.getInstance();
+
+    // 🔥 Notification deep-link
+    final route = prefs.getString('notification_route');
+    if (route != null) {
+      await prefs.remove('notification_route');
+      _navigated = true;
+
+      if (route == '/notifications') {
+        _replace(const NotificationInboxScreen());
+        return;
+      }
+
+      if (route == '/exam') {
+        _replace(const ExamCountdownPage());
+        return;
+      }
+
+      _replace(const Home());
+      return;
+    }
+
     try {
       InternetService.startMonitoring();
       await AdsService.initialize();
     } catch (_) {}
 
-    final prefs = await SharedPreferences.getInstance();
-
     final openInbox = prefs.getBool('open_inbox') ?? false;
     final permissionAsked =
         prefs.getInt('notification_permission_count') ?? 0;
     final oemDone = prefs.getBool('oem_permission_done') ?? false;
-
     final permissionGranted =
         await Permission.notification.isGranted;
 
     if (!mounted || _navigated) return;
     _navigated = true;
 
-    // 📥 Notification deep-link
     if (openInbox) {
       await prefs.remove('open_inbox');
-      _go(const NotificationInboxScreen());
+      _replace(const NotificationInboxScreen());
       return;
     }
 
-    // 🔔 Ask notification permission (max 2 times)
     if (!permissionGranted && permissionAsked < 2) {
-      _go(const PermissionScreen());
+      _replace(const PermissionScreen());
       return;
     }
 
-    // 🏭 OEM guidance (ONLY navigate, NO flag here)
     if (permissionGranted && !oemDone) {
-      _go(const OemPermissionScreen());
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          fullscreenDialog: true,
+          builder: (_) => const OemWarningScreen(),
+        ),
+      );
+      _replace(const Home());
       return;
     }
 
-    // ✅ Normal app flow
-    _go(const Home());
+    _replace(const Home());
   }
 
-  void _go(Widget page) {
+  void _replace(Widget page) {
     if (!mounted) return;
     Navigator.pushReplacement(
       context,
@@ -105,17 +127,15 @@ class _SplashScreenState extends State<SplashScreen> {
               const Text(
                 'StudyPulse',
                 style: TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.bold,
-                ),
+                    fontSize: 26, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 6),
               Text(
                 'Focus • Track • Succeed',
                 style: TextStyle(
-                  fontSize: 14,
-                  color: isDark ? Colors.grey : Colors.black54,
-                ),
+                    fontSize: 14,
+                    color:
+                        isDark ? Colors.grey : Colors.black54),
               ),
               const SizedBox(height: 28),
               const CircularProgressIndicator(strokeWidth: 2),
