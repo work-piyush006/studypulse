@@ -180,7 +180,7 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
     if (confirm != true || !mounted) return;
 
     await ExamState.clear();
-    await NotificationService.scheduleDaily(daysLeft: null);
+    await NotificationService.cancelDaily();
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
