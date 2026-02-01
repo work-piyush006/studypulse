@@ -8,7 +8,7 @@
     <!-- NOTIFICATIONS (Android 13+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
-    <!-- EXACT ALARM (daily reminders) -->
+    <!-- EXACT ALARM (Daily reminders) -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
 
     <application
