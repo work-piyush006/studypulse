@@ -15,14 +15,18 @@ enum NotificationResult { success, disabled }
 class NotificationService {
   NotificationService._();
 
-  static final _plugin = FlutterLocalNotificationsPlugin();
+  static final FlutterLocalNotificationsPlugin _plugin =
+      FlutterLocalNotificationsPlugin();
+
   static bool _initialized = false;
 
-  static const _channelId = 'exam_channel_v1';
-  static const _groupKey = 'exam_group';
+  static const String _channelId = 'exam_channel_v1';
+  static const String _groupKey = 'exam_group';
+  static const String _channelResetKey =
+      'notification_channel_reset_done_v1';
 
-  static const _id4pm = 4001;
-  static const _id11pm = 4002;
+  static const int _id4pm = 4001;
+  static const int _id11pm = 4002;
 
   static const AndroidNotificationChannel _channel =
       AndroidNotificationChannel(
@@ -37,6 +41,7 @@ class NotificationService {
   static Future<void> init() async {
     if (_initialized) return;
 
+    // 🔹 Timezone (MANDATORY for exact alarms)
     tz.initializeTimeZones();
     tz.setLocalLocation(tz.getLocation('Asia/Kolkata'));
 
@@ -59,14 +64,22 @@ class NotificationService {
       },
     );
 
+    // 🔥 ONE-TIME CHANNEL HARD RESET (OEM SAFE)
+    final prefs = await SharedPreferences.getInstance();
+    final alreadyReset = prefs.getBool(_channelResetKey) ?? false;
+
     final android =
         _plugin.resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>();
 
-    if (android != null) {
-      // 🔥 HARD RESET CHANNEL (OEM FIX)
-      await android.deleteNotificationChannel(_channelId);
-      await android.createNotificationChannel(_channel);
+    if (android != null && !alreadyReset) {
+      try {
+        await android.deleteNotificationChannel(_channelId);
+        await android.createNotificationChannel(_channel);
+        await prefs.setBool(_channelResetKey, true);
+      } catch (_) {
+        // OEM may block delete → ignore safely
+      }
     }
 
     _initialized = true;
@@ -75,6 +88,7 @@ class NotificationService {
   /* ================= SYSTEM CHECK ================= */
 
   static Future<bool> _systemAllowsNotifications() async {
+    // Runtime permission (Android 13+)
     if (!await Permission.notification.isGranted) return false;
 
     final android =
@@ -83,6 +97,7 @@ class NotificationService {
 
     if (android == null) return true;
 
+    // OEM notification toggle
     return await android.areNotificationsEnabled() ?? false;
   }
 
@@ -103,12 +118,13 @@ class NotificationService {
   }) async {
     await init();
 
+    // ❌ System / OEM blocked
     if (!await _systemAllowsNotifications()) {
       return NotificationResult.disabled;
     }
 
-    // 🔥 Android 13–15 settle delay
-    await Future.delayed(const Duration(milliseconds: 400));
+    // 🔥 ANDROID 13–15 OEM SETTLE WINDOW
+    await Future.delayed(const Duration(milliseconds: 450));
 
     final id = await _nextId();
 
@@ -153,9 +169,10 @@ class NotificationService {
     await _schedule(_id11pm, 23, daysLeft);
   }
 
-  static Future<void> _schedule(int id, int hour, int? daysLeft) async {
+  static Future<void> _schedule(
+      int id, int hour, int? daysLeft) async {
     final now = tz.TZDateTime.now(tz.local);
-    var time =
+    tz.TZDateTime time =
         tz.TZDateTime(tz.local, now.year, now.month, now.day, hour);
 
     if (time.isBefore(now)) {
@@ -193,7 +210,8 @@ class NotificationService {
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
       matchDateTimeComponents: DateTimeComponents.time,
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      androidScheduleMode:
+          AndroidScheduleMode.exactAllowWhileIdle,
     );
   }
 
