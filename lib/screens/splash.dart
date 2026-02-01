@@ -1,6 +1,6 @@
 // lib/screens/splash.dart
 import 'dart:async';
-import 'oem_warning_screen.dart';
+import 'oem_warning.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
