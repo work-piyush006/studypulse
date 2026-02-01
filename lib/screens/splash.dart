@@ -6,7 +6,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../home.dart';
 import '../tools/exam.dart';
-import '../services/notification.dart';
 import 'permission.dart';
 import 'notification_inbox.dart';
 import 'oem_warning.dart';
@@ -28,75 +27,64 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _start() async {
-    await Future.delayed(const Duration(milliseconds: 900));
-    if (!mounted || _navigated) return;
+    try {
+      await Future.delayed(const Duration(milliseconds: 900));
+      if (!mounted || _navigated) return;
 
-    final prefs = await SharedPreferences.getInstance();
+      final prefs = await SharedPreferences.getInstance();
 
-    /* ========== DEEP LINK FROM NOTIFICATION ========== */
-    final route = prefs.getString('notification_route');
-    if (route != null) {
-      await prefs.remove('notification_route');
+      /* ========= NOTIFICATION DEEP LINK ========= */
+      final route = prefs.getString('notification_route');
+      if (route != null) {
+        await prefs.remove('notification_route');
+        _navigated = true;
+
+        if (route == '/notifications') {
+          _replace(const NotificationInboxScreen());
+          return;
+        }
+        if (route == '/exam') {
+          _replace(const ExamCountdownPage());
+          return;
+        }
+      }
+
+      /* ========= NORMAL FLOW ========= */
+      final asked =
+          prefs.getInt('notification_permission_count') ?? 0;
+      final oemDone =
+          prefs.getBool('oem_permission_done') ?? false;
+
+      final granted =
+          await Permission.notification.isGranted
+              .timeout(const Duration(seconds: 2),
+                  onTimeout: () => false);
+
       _navigated = true;
 
-      if (route == '/notifications') {
-        _replace(const NotificationInboxScreen());
-        return;
-      }
-      if (route == '/exam') {
-        _replace(const ExamCountdownPage());
+      if (!granted && asked < 2) {
+        _replace(const PermissionScreen());
         return;
       }
 
+      if (granted && !oemDone) {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            fullscreenDialog: true,
+            builder: (_) => const OemWarningScreen(),
+          ),
+        );
+      }
+
       _replace(const Home());
-      return;
+    } catch (_) {
+      // 🔥 FAIL-SAFE: NEVER STUCK
+      if (!_navigated) {
+        _navigated = true;
+        _replace(const Home());
+      }
     }
-
-    /* ========== NORMAL FLOW ========== */
-
-    final asked =
-        prefs.getInt('notification_permission_count') ?? 0;
-    final oemDone =
-        prefs.getBool('oem_permission_done') ?? false;
-    final granted =
-        await Permission.notification.isGranted;
-
-    // 🔥 INIT NOTIFICATION SYSTEM (VERY IMPORTANT)
-    await NotificationService.init();
-
-    // 🔔 SHOW TEST NOTIFICATION (FIRST TIME ONLY)
-    final testShown =
-        prefs.getBool('test_notification_shown') ?? false;
-
-    if (granted && !testShown) {
-      await NotificationService.instant(
-        title: 'Notifications Enabled 🎉',
-        body: 'You’ll receive exam reminders and motivation here.',
-        save: false,
-      );
-      await prefs.setBool('test_notification_shown', true);
-    }
-
-    _navigated = true;
-
-    if (!granted && asked < 2) {
-      _replace(const PermissionScreen());
-      return;
-    }
-
-    if (granted && !oemDone) {
-      await Navigator.push(
-        context,
-        MaterialPageRoute(
-          fullscreenDialog: true,
-          builder: (_) => const OemWarningScreen(),
-        ),
-      );
-      _replace(const Home());
-      return;
-    }
-
-    _replace(const Home());
   }
 
   void _replace(Widget page) {
