@@ -1,6 +1,7 @@
 // lib/screens/splash.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../home.dart';
@@ -28,12 +29,12 @@ class _SplashScreenState extends State<SplashScreen> {
 
   Future<void> _start() async {
     try {
-      await Future.delayed(const Duration(milliseconds: 700));
+      await Future.delayed(const Duration(milliseconds: 600));
       if (!mounted || _navigated) return;
 
       final prefs = await SharedPreferences.getInstance();
 
-      /* ========= NOTIFICATION DEEP LINK ========= */
+      /* ===== Notification Deep Link ===== */
       final route = prefs.getString('notification_route');
       if (route != null) {
         await prefs.remove('notification_route');
@@ -49,24 +50,25 @@ class _SplashScreenState extends State<SplashScreen> {
         return;
       }
 
-      /* ========= CORE INIT (AS-IS) ========= */
+      /* ===== Init notifications (safe) ===== */
       await NotificationService.init();
 
-      /* ========= PERMISSION FLOW (FIXED) ========= */
-
+      /* ===== Permission Logic ===== */
       final asked =
           prefs.getInt('notification_permission_count') ?? 0;
-      final oemDone =
-          prefs.getBool('oem_permission_done') ?? false;
+      final granted = await Permission.notification.isGranted;
 
-      // 🔥 FIX: FIRST INSTALL → ALWAYS SHOW PermissionScreen
-      if (asked == 0) {
+      // 🔥 FIRST TIME or ONE RETRY
+      if (!granted && asked < 2) {
         _go(() => const PermissionScreen());
         return;
       }
 
-      // OEM screen stays as-is
-      if (!oemDone) {
+      /* ===== OEM Warning (ONLY if granted) ===== */
+      final oemDone =
+          prefs.getBool('oem_permission_done') ?? false;
+
+      if (granted && !oemDone) {
         await Navigator.push(
           context,
           MaterialPageRoute(
@@ -85,7 +87,6 @@ class _SplashScreenState extends State<SplashScreen> {
   void _go(Widget Function() builder) {
     if (!mounted || _navigated) return;
     _navigated = true;
-
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(builder: (_) => builder()),
@@ -116,9 +117,7 @@ class _SplashScreenState extends State<SplashScreen> {
               const Text(
                 'StudyPulse',
                 style: TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.bold,
-                ),
+                    fontSize: 26, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 6),
               Text(
