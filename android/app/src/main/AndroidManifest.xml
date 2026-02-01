@@ -1,36 +1,26 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.example.studypulse">
 
-    <!-- ================= CORE ================= -->
+    <!-- INTERNET -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
 
-    <!-- ================= NOTIFICATIONS ================= -->
-
-    <!-- Android 13+ runtime notification permission -->
+    <!-- NOTIFICATIONS (Android 13+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
-    <!-- Exact alarms (daily reminders, countdown) -->
+    <!-- EXACT ALARM (daily reminders) -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
-
-    <!-- Required to reschedule alarms after reboot -->
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
-
-    <!-- OEM safety (Samsung / OnePlus / Vivo / iQOO) -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
 
     <application
         android:name="${applicationName}"
         android:label="StudyPulse"
-        android:icon="@mipmap/ic_launcher"
-        android:usesCleartextTraffic="false">
+        android:icon="@mipmap/ic_launcher">
 
-        <!-- ================= ADMOB ================= -->
+        <!-- ADMOB -->
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
             android:value="ca-app-pub-2139593035914184~9894998746"/>
 
-        <!-- ================= MAIN ACTIVITY ================= -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -50,39 +40,17 @@
             </intent-filter>
         </activity>
 
-        <!-- ================= FLUTTER LOCAL NOTIFICATIONS ================= -->
-
-        <!-- Required for scheduled notifications -->
+        <!-- FLUTTER LOCAL NOTIFICATIONS -->
         <receiver
             android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver"
             android:exported="false"/>
 
-        <!-- Required for actions (tap, dismiss) -->
         <receiver
             android:name="com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver"
             android:exported="false"/>
-
-        <!-- 🔥 CRITICAL: Reschedule notifications after reboot/update -->
-        <receiver
-            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="android.intent.action.BOOT_COMPLETED"/>
-                <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
-            </intent-filter>
-        </receiver>
 
         <meta-data
             android:name="flutterEmbedding"
             android:value="2"/>
     </application>
-
-    <!-- ================= QUERIES ================= -->
-    <queries>
-        <intent>
-            <action android:name="android.intent.action.PROCESS_TEXT"/>
-            <data android:mimeType="text/plain"/>
-        </intent>
-    </queries>
-
 </manifest>
