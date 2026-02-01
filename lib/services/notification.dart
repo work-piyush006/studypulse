@@ -81,21 +81,11 @@ class NotificationService {
     _initialized = true;
   }
 
-  /* ================= PERMISSION CHECK ================= */
+  /* ================= PERMISSION ================= */
 
   static Future<bool> _canNotify() async {
-    final granted = await Permission.notification.isGranted;
-    if (!granted) return false;
-
-    final android =
-        _plugin.resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>();
-
-    if (android != null) {
-      return await android.areNotificationsEnabled() ?? false;
-    }
-
-    return true;
+    final status = await Permission.notification.status;
+    return status.isGranted;
   }
 
   /* ================= INSTANT ================= */
@@ -208,6 +198,60 @@ class NotificationService {
           AndroidScheduleMode.exactAllowWhileIdle,
     );
   }
+  
+  // ADD inside NotificationService
+
+static Future<void> examDayMorning() async {
+  await init();
+  if (!await _canNotify()) return;
+
+  // 🔥 ADD THIS (critical)
+  await _plugin.cancel(9001);
+
+  final now = tz.TZDateTime.now(tz.local);
+
+  var time = tz.TZDateTime(
+    tz.local,
+    now.year,
+    now.month,
+    now.day,
+    6,
+  );
+
+  if (time.isBefore(now)) {
+    time = now.add(const Duration(seconds: 2));
+  }
+
+  const title = '🤞🏼 Best of Luck!';
+  const body = 'Your exam is today.\nYou’ve got this 💪📘';
+
+  await _plugin.zonedSchedule(
+    9001,
+    title,
+    body,
+    time,
+    NotificationDetails(
+      android: AndroidNotificationDetails(
+        _channelId,
+        _channel.name,
+        channelDescription: _channel.description,
+        importance: Importance.high,
+        priority: Priority.high,
+        icon: 'ic_notification',
+      ),
+    ),
+    payload: jsonEncode({
+      'save': true,
+      'title': title,
+      'body': body,
+      'route': '/exam',
+      'time': DateTime.now().toIso8601String(),
+    }),
+    uiLocalNotificationDateInterpretation:
+        UILocalNotificationDateInterpretation.absoluteTime,
+    androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+  );
+}
 
   /* ================= CANCEL ================= */
 
