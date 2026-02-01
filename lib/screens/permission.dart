@@ -1,4 +1,3 @@
-// lib/screens/permission.dart
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -18,6 +17,8 @@ class _PermissionScreenState extends State<PermissionScreen> {
   static const String _countKey = 'notification_permission_count';
 
   Future<void> _requestPermission() async {
+    if (loading) return;
+
     setState(() => loading = true);
 
     final prefs = await SharedPreferences.getInstance();
@@ -26,16 +27,29 @@ class _PermissionScreenState extends State<PermissionScreen> {
 
     final status = await Permission.notification.request();
 
+    // 🔔 Permission GRANTED
     if (status.isGranted) {
-      // 🔥 Android 13–15 settle window
-      await Future.delayed(const Duration(milliseconds: 800));
+      // Android settle time
+      await Future.delayed(const Duration(milliseconds: 600));
 
-      // 🔥 Re-init notification system AFTER permission
+      // Re-init notifications AFTER permission
       await NotificationService.init();
+
+      // ✅ TEST / CONFIRMATION NOTIFICATION
+      await NotificationService.instant(
+        title: 'Notifications Enabled 🎉',
+        body: 'You’ll now receive exam reminders and daily motivation.',
+        save: false,
+      );
     }
 
     if (!mounted) return;
+
     setState(() => loading = false);
+
+    // UX smoothing (prevents "stuck" feeling)
+    await Future.delayed(const Duration(milliseconds: 300));
+
     _goHome();
   }
 
