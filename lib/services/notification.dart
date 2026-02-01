@@ -48,8 +48,8 @@ class NotificationService {
       ),
       onDidReceiveNotificationResponse: (r) async {
         if (r.payload == null) return;
-
         final data = jsonDecode(r.payload!);
+
         if (data['save'] == true) {
           await NotificationStore.save(
             title: data['title'],
@@ -72,7 +72,7 @@ class NotificationService {
     _initialized = true;
   }
 
-  /* ================= PERMISSION ================= */
+  /* ================= PERMISSION CHECK ================= */
 
   static Future<bool> _canNotify() async {
     return Permission.notification.isGranted;
@@ -92,7 +92,7 @@ class NotificationService {
       return NotificationResult.disabled;
     }
 
-    // ✅ SAVE IMMEDIATELY (even if user doesn’t tap)
+    // ✅ SAVE IMMEDIATELY (inbox)
     if (save) {
       await NotificationStore.save(
         title: title,
@@ -114,11 +114,15 @@ class NotificationService {
           importance: Importance.high,
           priority: Priority.high,
           groupKey: _groupKey,
-          smallIcon: 'ic_notification',
+
+          // ✅ FULL EXPANDED TEXT
           styleInformation: BigTextStyleInformation(
             body,
             contentTitle: title,
           ),
+
+          // ✅ CORRECT PARAM (17.x compatible)
+          icon: 'ic_notification',
         ),
       ),
       payload: jsonEncode({
@@ -159,15 +163,9 @@ class NotificationService {
       time = time.add(const Duration(days: 1));
     }
 
-    final body = () {
-      if (daysLeft == null) {
-        return 'Start your preparation today 📘\nTap to set exam countdown';
-      }
-      if (daysLeft == 0) {
-        return 'Exam Day 🎯\nGive your best 💪🔥';
-      }
-      return '$daysLeft days left\n${_quote()}';
-    }();
+    final body = daysLeft == null
+        ? 'Start preparing today 📘'
+        : '$daysLeft days left\n${_quote()}';
 
     await _plugin.zonedSchedule(
       id,
@@ -182,7 +180,9 @@ class NotificationService {
           importance: Importance.high,
           priority: Priority.high,
           groupKey: _groupKey,
-          smallIcon: 'ic_notification',
+
+          // ✅ SAME HERE
+          icon: 'ic_notification',
           styleInformation: BigTextStyleInformation(body),
         ),
       ),
