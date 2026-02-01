@@ -1,6 +1,5 @@
 // lib/screens/splash.dart
 import 'dart:async';
-import 'oem_warning.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -9,8 +8,7 @@ import '../home.dart';
 import '../tools/exam.dart';
 import 'permission.dart';
 import 'notification_inbox.dart';
-import '../services/ads.dart';
-import '../services/internet.dart';
+import 'oem_warning.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -34,6 +32,8 @@ class _SplashScreenState extends State<SplashScreen> {
 
     final prefs = await SharedPreferences.getInstance();
 
+    /* ================= NOTIFICATION DEEP LINK ================= */
+
     final route = prefs.getString('notification_route');
     if (route != null) {
       await prefs.remove('notification_route');
@@ -53,10 +53,7 @@ class _SplashScreenState extends State<SplashScreen> {
       return;
     }
 
-    try {
-      InternetService.startMonitoring();
-      await AdsService.initialize();
-    } catch (_) {}
+    /* ================= NORMAL FLOW ================= */
 
     final openInbox = prefs.getBool('open_inbox') ?? false;
     final asked =
@@ -83,7 +80,7 @@ class _SplashScreenState extends State<SplashScreen> {
         context,
         MaterialPageRoute(
           fullscreenDialog: true,
-          builder: (_) => OemWarningScreen(), // ❌ no const
+          builder: (_) => OemWarningScreen(),
         ),
       );
       _replace(const Home());
@@ -124,8 +121,10 @@ class _SplashScreenState extends State<SplashScreen> {
               const SizedBox(height: 20),
               const Text(
                 'StudyPulse',
-                style:
-                    TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               const SizedBox(height: 6),
               Text(
