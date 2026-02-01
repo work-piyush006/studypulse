@@ -1,7 +1,8 @@
-// lib/state/exam_state.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../services/notification.dart';
 
 class ExamState {
   /* ================= STATE ================= */
@@ -22,6 +23,8 @@ class ExamState {
 
   static const String _dateKey = 'exam_date';
   static const String _totalKey = 'exam_total_days';
+
+  static int? _cachedTotalDays;
 
   /* ================= INIT ================= */
 
@@ -57,10 +60,18 @@ class ExamState {
 
     final diff = target.difference(today).inDays;
 
-    // 🔴 Exam already passed
+    // 🔴 Exam already passed → COMPLETE
     if (diff < 0) {
       await clear();
       isExamCompleted.value = true;
+
+      // 🔥 Notify user
+      await NotificationService.instant(
+        title: '🎉 Exam Completed',
+        body: 'Any next exam left?\nStart preparing today 📘',
+        save: true,
+        route: '/exam',
+      );
       return;
     }
 
@@ -77,23 +88,20 @@ class ExamState {
 
     if (!prefs.containsKey(_totalKey)) {
       await prefs.setInt(_totalKey, diff);
+      _cachedTotalDays = diff;
     }
   }
 
-  /* ================= PROGRESS (SYNC) ================= */
+  /* ================= PROGRESS ================= */
 
   static double progress() {
     if (daysLeft.value <= 0) return 0;
-
     return _totalDays <= 0
         ? 0
         : 1 - (daysLeft.value / _totalDays);
   }
 
-  static int get _totalDays =>
-      _cachedTotalDays ?? 0;
-
-  static int? _cachedTotalDays;
+  static int get _totalDays => _cachedTotalDays ?? 0;
 
   /* ================= MIDNIGHT REFRESH ================= */
 
@@ -104,17 +112,18 @@ class ExamState {
     final nextMidnight =
         DateTime(now.year, now.month, now.day + 1);
 
-    final duration = nextMidnight.difference(now);
+    _midnightTimer = Timer(
+      nextMidnight.difference(now),
+      () async {
+        final prefs = await SharedPreferences.getInstance();
+        _cachedTotalDays = prefs.getInt(_totalKey);
 
-    _midnightTimer = Timer(duration, () async {
-      final prefs = await SharedPreferences.getInstance();
-      _cachedTotalDays = prefs.getInt(_totalKey);
-
-      if (examDate.value != null) {
-        await update(examDate.value);
-      }
-      _scheduleMidnightRefresh();
-    });
+        if (examDate.value != null) {
+          await update(examDate.value);
+        }
+        _scheduleMidnightRefresh();
+      },
+    );
   }
 
   /* ================= HELPERS ================= */
