@@ -7,27 +7,42 @@ class NotificationManager {
   static const _enabledKey = 'notifications_enabled';
   static const _countKey = 'notification_permission_count';
 
-  static Future<bool> _isEnabled() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_enabledKey) ?? false;
+  /* ================= INTERNAL ================= */
+
+  static Future<SharedPreferences> _prefs() async {
+    return SharedPreferences.getInstance();
   }
 
-  static Future<void> _setEnabled(bool v) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_enabledKey, v);
+  static Future<bool> _isUserEnabled() async {
+    final p = await _prefs();
+    return p.getBool(_enabledKey) ?? false;
+  }
+
+  static Future<void> _setUserEnabled(bool v) async {
+    final p = await _prefs();
+    await p.setBool(_enabledKey, v);
   }
 
   static Future<int> _count() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getInt(_countKey) ?? 0;
+    final p = await _prefs();
+    return p.getInt(_countKey) ?? 0;
   }
 
   static Future<void> _incCount() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(_countKey, (await _count()) + 1);
+    final p = await _prefs();
+    await p.setInt(_countKey, (await _count()) + 1);
   }
 
-  /// Splash / permission screen (max 2 times)
+  /* ================= PERMISSION ================= */
+
+  static Future<bool> _hasSystemPermission() async {
+    final status = await Permission.notification.status;
+    return status.isGranted;
+  }
+
+  /* ================= REQUEST (MAX 2 TIMES) ================= */
+
+  /// Call ONLY on important user actions (exam set, test notification)
   static Future<bool> requestOnce() async {
     if (await _count() >= 2) return false;
 
@@ -35,35 +50,51 @@ class NotificationManager {
     await _incCount();
 
     if (status.isGranted) {
-      await _setEnabled(true);
+      await _setUserEnabled(true);
       return true;
     }
 
-    await _setEnabled(false);
+    await _setUserEnabled(false);
     return false;
   }
 
-  /// ONLY settings toggle
+  /* ================= SETTINGS TOGGLE ================= */
+
+  /// Call ONLY from Settings screen switch
   static Future<bool> setFromSettings(bool enable) async {
     if (!enable) {
-      await _setEnabled(false);
+      await _setUserEnabled(false);
       return false;
     }
 
-    if (await Permission.notification.isGranted) {
-      await _setEnabled(true);
+    if (await _hasSystemPermission()) {
+      await _setUserEnabled(true);
       return true;
     }
 
-    return await requestOnce();
+    final granted = await requestOnce();
+    await _setUserEnabled(granted);
+    return granted;
   }
 
-  /// Everywhere else (NO dialogs)
+  /* ================= GLOBAL CHECK ================= */
+
+  /// SAFE check → use everywhere else
   static Future<bool> canNotify() async {
-    if (!await _isEnabled()) return false;
-    return Permission.notification.isGranted;
+    final systemGranted = await _hasSystemPermission();
+
+    // 🔥 AUTO-RECOVER CASE
+    // User enabled from system settings manually
+    if (systemGranted && !await _isUserEnabled()) {
+      await _setUserEnabled(true);
+    }
+
+    return systemGranted && await _isUserEnabled();
   }
 
+  /* ================= OEM / SYSTEM SETTINGS ================= */
+
+  /// Universal & Play-Store safe
   static Future<void> openSystemSettings() async {
     await openAppSettings();
   }
