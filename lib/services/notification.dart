@@ -3,12 +3,13 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
 import 'notification_store.dart';
 
-enum NotificationResult { success }
+enum NotificationResult { success, disabled }
 
 class NotificationService {
   NotificationService._();
@@ -18,8 +19,8 @@ class NotificationService {
 
   static bool _initialized = false;
 
-  // 🔥 VERSIONED CHANNEL (never reuse old IDs)
-  static const String _channelId = 'exam_channel_v_final_high';
+  // 🔥 STABLE CHANNEL (DO NOT CHANGE AGAIN)
+  static const String _channelId = 'exam_channel_stable_v1';
   static const String _groupKey = 'exam_group';
 
   static const int _id4pm = 4001;
@@ -31,8 +32,6 @@ class NotificationService {
     'Exam Notifications',
     description: 'Exam reminders & study alerts',
     importance: Importance.high,
-    playSound: true,
-    enableVibration: true,
   );
 
   /* ================= INIT ================= */
@@ -40,7 +39,6 @@ class NotificationService {
   static Future<void> init() async {
     if (_initialized) return;
 
-    // ✅ REQUIRED for exact alarms
     tz.initializeTimeZones();
     tz.setLocalLocation(tz.getLocation('Asia/Kolkata'));
 
@@ -68,11 +66,16 @@ class NotificationService {
             AndroidFlutterLocalNotificationsPlugin>();
 
     if (android != null) {
-      // ✅ ONLY CREATE — NEVER DELETE (OEM SAFE)
       await android.createNotificationChannel(_channel);
     }
 
     _initialized = true;
+  }
+
+  /* ================= PERMISSION CHECK ================= */
+
+  static Future<bool> _canNotify() async {
+    return await Permission.notification.isGranted;
   }
 
   /* ================= INSTANT ================= */
@@ -85,6 +88,10 @@ class NotificationService {
   }) async {
     await init();
 
+    if (!await _canNotify()) {
+      return NotificationResult.disabled;
+    }
+
     await _plugin.show(
       DateTime.now().millisecondsSinceEpoch ~/ 1000,
       title,
@@ -96,10 +103,7 @@ class NotificationService {
           channelDescription: _channel.description,
           importance: Importance.high,
           priority: Priority.high,
-          playSound: true,
-          enableVibration: true,
-          visibility: NotificationVisibility.public,
-          icon: 'ic_notification', // drawable
+          icon: '@mipmap/ic_launcher',
           groupKey: _groupKey,
         ),
       ),
@@ -119,6 +123,7 @@ class NotificationService {
 
   static Future<void> scheduleDaily({int? daysLeft}) async {
     await init();
+    if (!await _canNotify()) return;
 
     await _plugin.cancel(_id4pm);
     await _plugin.cancel(_id11pm);
@@ -153,10 +158,7 @@ class NotificationService {
           channelDescription: _channel.description,
           importance: Importance.high,
           priority: Priority.high,
-          playSound: true,
-          enableVibration: true,
-          visibility: NotificationVisibility.public,
-          icon: 'ic_notification',
+          icon: '@mipmap/ic_launcher',
           groupKey: _groupKey,
         ),
       ),
