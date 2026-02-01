@@ -248,7 +248,14 @@ class _HomeMainState extends State<HomeMain>
                 }
 
                 if (days == 0) {
-                  return const SizedBox.shrink(); // exam day
+  return Text(
+    'Today is your exam 💪',
+    style: TextStyle(
+      fontSize: 18,
+      fontWeight: FontWeight.bold,
+    ),
+  );
+} // exam day
                 }
 
                 final color = _colorForDays(days);
