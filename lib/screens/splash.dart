@@ -64,9 +64,8 @@ class _SplashScreenState extends State<SplashScreen> {
       return;
     }
 
-    // 🏭 OEM guidance (only once)
+    // 🏭 OEM guidance (only once, AFTER permission)
     if (permissionGranted && !oemDone) {
-      await prefs.setBool('oem_permission_done', true);
       _go(const OemPermissionScreen());
       return;
     }
@@ -76,6 +75,7 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   void _go(Widget page) {
+    if (!mounted) return;
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(builder: (_) => page),
