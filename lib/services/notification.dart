@@ -15,16 +15,17 @@ enum NotificationResult { success, disabled }
 class NotificationService {
   NotificationService._();
 
+  /* ================= CORE ================= */
+
   static final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
 
   static bool _initialized = false;
 
+  /* ================= CHANNEL ================= */
+
   static const String _channelId = 'exam_channel_stable_v1';
   static const String _groupKey = 'exam_group';
-
-  static const int _id4pm = 4001;
-  static const int _id11pm = 4002;
 
   static const AndroidNotificationChannel _channel =
       AndroidNotificationChannel(
@@ -33,6 +34,11 @@ class NotificationService {
     description: 'Exam reminders & study alerts',
     importance: Importance.high,
   );
+
+  /* ================= IDS ================= */
+
+  static const int _id4pm = 4001;
+  static const int _id11pm = 4002;
 
   /* ================= INIT ================= */
 
@@ -46,12 +52,13 @@ class NotificationService {
       const InitializationSettings(
         android: AndroidInitializationSettings('ic_notification'),
       ),
-      onDidReceiveNotificationResponse: (r) async {
-        if (r.payload == null) return;
+      onDidReceiveNotificationResponse: (response) async {
+        if (response.payload == null) return;
 
-        final data = jsonDecode(r.payload!);
+        final data = jsonDecode(response.payload!);
         final prefs = await SharedPreferences.getInstance();
 
+        // 📥 Save to inbox
         if (data['save'] == true) {
           await NotificationStore.save(
             title: data['title'],
@@ -61,9 +68,12 @@ class NotificationService {
           );
         }
 
+        // 🔁 Tell Splash where to go
         if (data['route'] != null) {
           await prefs.setString(
-              'notification_route', data['route']);
+            'notification_route',
+            data['route'],
+          );
         }
       },
     );
@@ -82,18 +92,15 @@ class NotificationService {
   /* ================= PERMISSION CHECK ================= */
 
   static Future<bool> _canNotify() async {
-    final permissionGranted =
-        await Permission.notification.isGranted;
-
-    if (!permissionGranted) return false;
+    final granted = await Permission.notification.isGranted;
+    if (!granted) return false;
 
     final android =
         _plugin.resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>();
 
     if (android != null) {
-      final enabled = await android.areNotificationsEnabled();
-      return enabled ?? false;
+      return await android.areNotificationsEnabled() ?? false;
     }
 
     return true;
@@ -112,8 +119,10 @@ class NotificationService {
       return NotificationResult.disabled;
     }
 
+    final id = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+
     await _plugin.show(
-      DateTime.now().millisecondsSinceEpoch ~/ 1000,
+      id,
       title,
       body,
       NotificationDetails(
@@ -149,14 +158,14 @@ class NotificationService {
     return NotificationResult.success;
   }
 
-  /* ================= DAILY ================= */
+  /* ================= DAILY SCHEDULE ================= */
 
   static Future<void> scheduleDaily({required int daysLeft}) async {
     await init();
     if (!await _canNotify()) return;
 
-    await _plugin.cancel(_id4pm);
-    await _plugin.cancel(_id11pm);
+    // 🔥 Clear old ones first
+    await cancelDaily();
 
     await _schedule(_id4pm, 16, daysLeft);
     await _schedule(_id11pm, 23, daysLeft);
@@ -210,12 +219,22 @@ class NotificationService {
     );
   }
 
+  /* ================= CANCEL ================= */
+
+  static Future<void> cancelDaily() async {
+    await init();
+    await _plugin.cancel(_id4pm);
+    await _plugin.cancel(_id11pm);
+  }
+
+  /* ================= HELPERS ================= */
+
   static String _quote() {
-    const q = [
+    const quotes = [
       'Stay consistent 🚀',
       'Small steps daily 📘',
       'You are closer than you think 💪',
     ];
-    return q[Random().nextInt(q.length)];
+    return quotes[Random().nextInt(quotes.length)];
   }
 }
