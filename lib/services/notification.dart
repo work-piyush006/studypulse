@@ -15,14 +15,10 @@ enum NotificationResult { success, disabled }
 class NotificationService {
   NotificationService._();
 
-  /* ================= CORE ================= */
-
   static final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
 
   static bool _initialized = false;
-
-  /* ================= CHANNEL ================= */
 
   static const String _channelId = 'exam_channel_stable_v1';
   static const String _groupKey = 'exam_group';
@@ -35,12 +31,10 @@ class NotificationService {
     importance: Importance.high,
   );
 
-  /* ================= IDS ================= */
-
   static const int _id4pm = 4001;
   static const int _id11pm = 4002;
 
-  /* ================= INIT (CRITICAL FIX HERE) ================= */
+  /* ================= INIT ================= */
 
   static Future<void> init() async {
     if (_initialized) return;
@@ -48,17 +42,16 @@ class NotificationService {
     tz.initializeTimeZones();
     tz.setLocalLocation(tz.getLocation('Asia/Kolkata'));
 
-    const androidInit = AndroidInitializationSettings('ic_notification');
-
     await _plugin.initialize(
-      const InitializationSettings(android: androidInit),
+      const InitializationSettings(
+        android: AndroidInitializationSettings('ic_notification'),
+      ),
       onDidReceiveNotificationResponse: (response) async {
         if (response.payload == null) return;
 
         final data = jsonDecode(response.payload!);
         final prefs = await SharedPreferences.getInstance();
 
-        // Save to inbox
         if (data['save'] == true) {
           await NotificationStore.save(
             title: data['title'],
@@ -68,7 +61,6 @@ class NotificationService {
           );
         }
 
-        // Deep-link support
         if (data['route'] != null) {
           await prefs.setString(
             'notification_route',
@@ -83,9 +75,6 @@ class NotificationService {
             AndroidFlutterLocalNotificationsPlugin>();
 
     if (android != null) {
-      // 🔥🔥🔥 ANDROID 13+ FIX (THIS WAS MISSING) 🔥🔥🔥
-      await android.requestPermission();
-
       await android.createNotificationChannel(_channel);
     }
 
@@ -118,7 +107,6 @@ class NotificationService {
     String route = '/exam',
   }) async {
     await init();
-
     if (!await _canNotify()) {
       return NotificationResult.disabled;
     }
@@ -162,13 +150,12 @@ class NotificationService {
     return NotificationResult.success;
   }
 
-  /* ================= DAILY SCHEDULE ================= */
+  /* ================= DAILY ================= */
 
   static Future<void> scheduleDaily({required int daysLeft}) async {
     await init();
     if (!await _canNotify()) return;
 
-    // Clear old notifications first
     await cancelDaily();
 
     await _schedule(_id4pm, 16, daysLeft);
@@ -217,7 +204,8 @@ class NotificationService {
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
       matchDateTimeComponents: DateTimeComponents.time,
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      androidScheduleMode:
+          AndroidScheduleMode.exactAllowWhileIdle,
     );
   }
 
@@ -228,8 +216,6 @@ class NotificationService {
     await _plugin.cancel(_id4pm);
     await _plugin.cancel(_id11pm);
   }
-
-  /* ================= HELPERS ================= */
 
   static String _quote() {
     const quotes = [
