@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../home.dart';
 import '../tools/exam.dart';
+import '../services/notification.dart';
 import 'permission.dart';
 import 'notification_inbox.dart';
 import 'oem_warning.dart';
@@ -23,47 +24,58 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _start());
+
+    // 🚀 Run after first frame only
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _start();
+    });
   }
 
   Future<void> _start() async {
     try {
-      await Future.delayed(const Duration(milliseconds: 900));
+      // 👁️ Small visual delay (UX only)
+      await Future.delayed(const Duration(milliseconds: 700));
       if (!mounted || _navigated) return;
 
       final prefs = await SharedPreferences.getInstance();
 
-      /* ========= NOTIFICATION DEEP LINK ========= */
+      /* ================= DEEP LINK FROM NOTIFICATION ================= */
+
       final route = prefs.getString('notification_route');
       if (route != null) {
         await prefs.remove('notification_route');
-        _navigated = true;
-
-        if (route == '/notifications') {
-          _replace(const NotificationInboxScreen());
-          return;
-        }
-        if (route == '/exam') {
-          _replace(const ExamCountdownPage());
-          return;
-        }
+        _navigateOnce(() {
+          if (route == '/notifications') {
+            return const NotificationInboxScreen();
+          }
+          if (route == '/exam') {
+            return const ExamCountdownPage();
+          }
+          return const Home();
+        });
+        return;
       }
 
-      /* ========= NORMAL FLOW ========= */
+      /* ================= CORE INIT (SAFE) ================= */
+
+      // 🔥 Init notifications HERE (never in main)
+      await NotificationService.init();
+
+      /* ================= PERMISSION FLOW ================= */
+
       final asked =
           prefs.getInt('notification_permission_count') ?? 0;
       final oemDone =
           prefs.getBool('oem_permission_done') ?? false;
 
-      final granted =
-          await Permission.notification.isGranted
-              .timeout(const Duration(seconds: 2),
-                  onTimeout: () => false);
-
-      _navigated = true;
+      final granted = await Permission.notification.isGranted
+          .timeout(
+            const Duration(seconds: 2),
+            onTimeout: () => false,
+          );
 
       if (!granted && asked < 2) {
-        _replace(const PermissionScreen());
+        _navigateOnce(() => const PermissionScreen());
         return;
       }
 
@@ -77,23 +89,26 @@ class _SplashScreenState extends State<SplashScreen> {
         );
       }
 
-      _replace(const Home());
-    } catch (_) {
-      // 🔥 FAIL-SAFE: NEVER STUCK
-      if (!_navigated) {
-        _navigated = true;
-        _replace(const Home());
-      }
+      _navigateOnce(() => const Home());
+    } catch (e) {
+      // 🧯 HARD FAIL-SAFE — app must NEVER stay on splash
+      _navigateOnce(() => const Home());
     }
   }
 
-  void _replace(Widget page) {
-    if (!mounted) return;
+  /* ================= SAFE NAVIGATION ================= */
+
+  void _navigateOnce(Widget Function() builder) {
+    if (!mounted || _navigated) return;
+    _navigated = true;
+
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (_) => page),
+      MaterialPageRoute(builder: (_) => builder()),
     );
   }
+
+  /* ================= UI ================= */
 
   @override
   Widget build(BuildContext context) {
