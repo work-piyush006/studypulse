@@ -1,5 +1,4 @@
 // lib/main.dart
-
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -63,7 +62,7 @@ class _StudyPulseAppState extends State<StudyPulseApp> {
     return ThemeController(
       toggleTheme: toggleTheme,
       child: MaterialApp(
-        navigatorKey: navigatorKey, // 🔥 REQUIRED
+        navigatorKey: navigatorKey,
         debugShowCheckedModeBanner: false,
         title: 'StudyPulse',
         themeMode: _theme,
