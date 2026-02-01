@@ -19,6 +19,7 @@ class ExamState {
 
   static const String _dateKey = 'exam_date';
   static const String _totalKey = 'exam_total_days';
+  static const String _examDayNotifiedKey = 'exam_day_notified';
 
   static int? _cachedTotalDays;
 
@@ -52,12 +53,11 @@ class ExamState {
 
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final target =
-        DateTime(date.year, date.month, date.day);
+    final target = DateTime(date.year, date.month, date.day);
 
     final diff = target.difference(today).inDays;
 
-    // ❌ Past exam
+    /* ===== Past exam ===== */
     if (diff < 0) {
       await clear();
       isExamCompleted.value = true;
@@ -71,24 +71,47 @@ class ExamState {
       return;
     }
 
-    // 🎯 Exam day
+    /* ===== Exam day ===== */
     if (diff == 0) {
       daysLeft.value = 0;
       isExamDay.value = true;
+
+      // Stop daily reminders
       await NotificationService.cancelDaily();
+
+      final alreadyNotified =
+          prefs.getBool(_examDayNotifiedKey) ?? false;
+
+      if (!alreadyNotified) {
+        // 🔥 IMMEDIATE notification (user feedback)
+        await NotificationService.instant(
+          title: '🤞🏼 Best of Luck!',
+          body: 'Your exam is today.\nYou’ve got this 💪📘',
+          save: true,
+          route: '/exam',
+        );
+
+        // 🔔 Morning / fallback scheduled notification
+        await NotificationService.examDayMorning();
+
+        await prefs.setBool(_examDayNotifiedKey, true);
+      }
+
       return;
     }
 
-    // 📅 Future exam
+    /* ===== Future exam ===== */
     isExamDay.value = false;
     daysLeft.value = diff;
+
+    // Reset exam-day flag if date changes
+    await prefs.remove(_examDayNotifiedKey);
 
     if (!prefs.containsKey(_totalKey)) {
       await prefs.setInt(_totalKey, diff);
       _cachedTotalDays = diff;
     }
 
-    // 🔥 CRITICAL FIX
     await NotificationService.scheduleDaily(daysLeft: diff);
   }
 
@@ -133,9 +156,7 @@ class ExamState {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_dateKey);
     await prefs.remove(_totalKey);
-
-    // 🔥 CANCEL DAILY NOTIFICATIONS
-    await NotificationService.cancelDaily();
+    await prefs.remove(_examDayNotifiedKey);
 
     _reset();
   }
