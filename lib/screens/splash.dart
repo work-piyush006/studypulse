@@ -1,3 +1,4 @@
+// lib/screens/splash.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -10,7 +11,6 @@ import 'oem_permission.dart';
 
 import '../services/ads.dart';
 import '../services/internet.dart';
-import '../state/exam_state.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -34,7 +34,6 @@ class _SplashScreenState extends State<SplashScreen> {
     if (!mounted || _navigated) return;
 
     try {
-      await ExamState.init();
       InternetService.startMonitoring();
       await AdsService.initialize();
     } catch (_) {}
@@ -52,23 +51,27 @@ class _SplashScreenState extends State<SplashScreen> {
     if (!mounted || _navigated) return;
     _navigated = true;
 
+    // 📥 Notification deep-link
     if (openInbox) {
       await prefs.remove('open_inbox');
       _go(const NotificationInboxScreen());
       return;
     }
 
+    // 🔔 Ask notification permission (max 2 times)
     if (!permissionGranted && permissionAsked < 2) {
       _go(const PermissionScreen());
       return;
     }
 
+    // 🏭 OEM guidance (only once)
     if (permissionGranted && !oemDone) {
       await prefs.setBool('oem_permission_done', true);
       _go(const OemPermissionScreen());
       return;
     }
 
+    // ✅ Normal app flow
     _go(const Home());
   }
 
@@ -119,9 +122,7 @@ class _SplashScreenState extends State<SplashScreen> {
                 'Focus • Track • Succeed',
                 style: TextStyle(
                   fontSize: 14,
-                  color: isDark
-                      ? Colors.grey
-                      : Colors.black54,
+                  color: isDark ? Colors.grey : Colors.black54,
                 ),
               ),
 

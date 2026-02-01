@@ -1,5 +1,4 @@
 // lib/screens/permission.dart
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -18,22 +17,6 @@ class _PermissionScreenState extends State<PermissionScreen> {
   bool loading = false;
   static const String _countKey = 'notification_permission_count';
 
-  @override
-  void initState() {
-    super.initState();
-    _checkAlreadyGranted();
-  }
-
-  Future<void> _checkAlreadyGranted() async {
-    final status = await Permission.notification.status;
-    if (status.isGranted) {
-      // 🔥 Let Android fully settle
-      await Future.delayed(const Duration(milliseconds: 600));
-      if (!mounted) return;
-      _goHome();
-    }
-  }
-
   Future<void> _requestPermission() async {
     setState(() => loading = true);
 
@@ -44,10 +27,10 @@ class _PermissionScreenState extends State<PermissionScreen> {
     final status = await Permission.notification.request();
 
     if (status.isGranted) {
-      // 🔥 CRITICAL: Android 13–15 settle window
+      // 🔥 Android 13–15 settle window
       await Future.delayed(const Duration(milliseconds: 800));
 
-      // 🔥 Force init notification system AFTER permission
+      // 🔥 Re-init notification system AFTER permission
       await NotificationService.init();
     }
 
@@ -86,7 +69,10 @@ class _PermissionScreenState extends State<PermissionScreen> {
 
               const Text(
                 'Enable Notifications',
-                style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
 
               const SizedBox(height: 12),
