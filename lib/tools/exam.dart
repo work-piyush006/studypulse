@@ -1,4 +1,3 @@
-// lib/tools/exam.dart
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -15,13 +14,16 @@ class ExamCountdownPage extends StatefulWidget {
   const ExamCountdownPage({super.key});
 
   @override
-  State<ExamCountdownPage> createState() => _ExamCountdownPageState();
+  State<ExamCountdownPage> createState() =>
+      _ExamCountdownPageState();
 }
 
 class _ExamCountdownPageState extends State<ExamCountdownPage> {
   static List<String>? _quotes;
   BannerAd? _bannerAd;
   bool _bannerLoaded = false;
+
+  late VoidCallback _examListener;
 
   @override
   void initState() {
@@ -30,8 +32,7 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
     _loadQuotes();
     _loadBanner();
 
-    // 🔥 Exam completed feedback
-    ExamState.isExamCompleted.addListener(() {
+    _examListener = () {
       if (ExamState.isExamCompleted.value && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -45,13 +46,23 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
           ),
         );
       }
-    });
+    };
+
+    ExamState.isExamCompleted.addListener(_examListener);
+  }
+
+  @override
+  void dispose() {
+    ExamState.isExamCompleted.removeListener(_examListener);
+    _bannerAd?.dispose();
+    super.dispose();
   }
 
   Future<void> _loadQuotes() async {
     if (_quotes != null) return;
     try {
-      final raw = await rootBundle.loadString('assets/quotes.txt');
+      final raw =
+          await rootBundle.loadString('assets/quotes.txt');
       _quotes = raw
           .split('\n')
           .map((e) => e.trim())
@@ -96,7 +107,8 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
     final normalized =
         DateTime(picked.year, picked.month, picked.day);
 
-    await prefs.setString('exam_date', normalized.toIso8601String());
+    await prefs.setString(
+        'exam_date', normalized.toIso8601String());
     await ExamState.update(normalized);
 
     final days = ExamState.daysLeft.value;
@@ -110,11 +122,9 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
 
     await NotificationService.scheduleDaily(daysLeft: days);
 
-    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('Exam set • $days days remaining'),
-        duration: const Duration(seconds: 2),
       ),
     );
   }
@@ -122,61 +132,55 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
   Future<void> _cancelCountdown() async {
     final confirm = await showModalBottomSheet<bool>(
       context: context,
-      isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Material(
-            borderRadius:
-                const BorderRadius.vertical(top: Radius.circular(20)),
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'Cancel Exam Countdown?',
-                    style: TextStyle(
+        child: Material(
+          borderRadius:
+              const BorderRadius.vertical(top: Radius.circular(20)),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Cancel Exam Countdown?',
+                  style: TextStyle(
                       fontSize: 18,
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+                const Text('All reminders will be removed.'),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () =>
+                            Navigator.pop(ctx, false),
+                        child: const Text('No'),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  const Text('All reminders will be removed.'),
-                  const SizedBox(height: 24),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () =>
-                              Navigator.pop(ctx, false),
-                          child: const Text('No'),
-                        ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () =>
+                            Navigator.pop(ctx, true),
+                        child: const Text('Yes'),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () =>
-                              Navigator.pop(ctx, true),
-                          child: const Text('Yes'),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
         ),
       ),
     );
 
-    if (confirm != true || !mounted) return;
+    if (confirm != true) return;
 
     await ExamState.clear();
-    await NotificationService.scheduleDaily(daysLeft: null);
+    await NotificationService.scheduleDaily(daysLeft: -1);
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -207,86 +211,72 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
                   valueListenable: ExamState.daysLeft,
                   builder: (_, __, ___) {
                     final days = ExamState.daysLeft.value;
-                    final isExamDay = ExamState.isExamDay.value;
+                    final isExamDay =
+                        ExamState.isExamDay.value;
                     final hasExam = ExamState.hasExam;
-                    final color = ExamState.colorForDays(days);
+                    final color =
+                        ExamState.colorForDays(days);
+
+                    if (!hasExam) {
+                      return const Text(
+                        'No exam set',
+                        style: TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold),
+                      );
+                    }
+
+                    if (isExamDay) {
+                      return Column(
+                        children: [
+                          const Text(
+                            'Today is your exam 💪',
+                            style: TextStyle(
+                                fontSize: 26,
+                                fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            _quote(),
+                            textAlign: TextAlign.center,
+                            style:
+                                const TextStyle(color: Colors.grey),
+                          ),
+                        ],
+                      );
+                    }
 
                     return Column(
                       children: [
-                        const Text(
-                          'Exam Status',
-                          style: TextStyle(color: Colors.grey),
-                        ),
-                        const SizedBox(height: 12),
-
-                        if (!hasExam)
-                          const Text(
-                            'No exam set',
-                            style: TextStyle(
-                              fontSize: 28,
+                        Text(
+                          '$days Days',
+                          style: TextStyle(
+                              fontSize: 36,
                               fontWeight: FontWeight.bold,
-                            ),
-                          )
-                        else if (isExamDay)
-                          Column(
-                            children: [
-                              const Text(
-                                'Today is your exam 💪',
-                                style: TextStyle(
-                                  fontSize: 26,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              Text(
-                                _quote(),
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  color: Colors.grey,
-                                ),
-                              ),
-                            ],
-                          )
-                        else
-                          Column(
-                            children: [
-                              Text(
-                                '$days Days',
-                                style: TextStyle(
-                                  fontSize: 36,
-                                  fontWeight: FontWeight.bold,
-                                  color: color,
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              LinearProgressIndicator(
-                                value: ExamState.progress(),
-                                minHeight: 8,
-                                backgroundColor:
-                                    color.withOpacity(0.2),
-                                valueColor:
-                                    AlwaysStoppedAnimation<Color>(color),
-                              ),
-                            ],
-                          ),
+                              color: color),
+                        ),
+                        const SizedBox(height: 16),
+                        LinearProgressIndicator(
+                          value: ExamState.progress(),
+                          minHeight: 8,
+                          backgroundColor:
+                              color.withOpacity(0.2),
+                          valueColor:
+                              AlwaysStoppedAnimation(color),
+                        ),
                       ],
                     );
                   },
                 ),
               ),
             ),
-
             const SizedBox(height: 24),
-
             ElevatedButton.icon(
               onPressed: _pickDate,
               icon: const Icon(Icons.calendar_today),
               label: const Text('Select Exam Date'),
             ),
-
             const SizedBox(height: 12),
-
             ValueListenableBuilder<DateTime?>(
               valueListenable: ExamState.examDate,
               builder: (_, d, __) => OutlinedButton.icon(
@@ -295,9 +285,7 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
                 label: const Text('Cancel Countdown'),
               ),
             ),
-
             const SizedBox(height: 24),
-
             if (!isKeyboardOpen)
               SizedBox(
                 height: 90,
