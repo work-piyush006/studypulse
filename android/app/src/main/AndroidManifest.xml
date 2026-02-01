@@ -5,9 +5,14 @@
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
 
-    <!-- NOTIFICATIONS -->
+    <!-- NOTIFICATIONS (Android 13+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+
+    <!-- EXACT ALARM (Daily reminders) -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
+
+    <!-- FOREGROUND SERVICE (OEM SAFETY: Samsung / OnePlus / Vivo) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
 
     <application
         android:name="${applicationName}"
@@ -39,9 +44,13 @@
             </intent-filter>
         </activity>
 
-        <!-- REQUIRED FOR SCHEDULED NOTIFICATIONS -->
+        <!-- FLUTTER LOCAL NOTIFICATIONS (REQUIRED) -->
         <receiver
             android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver"
+            android:exported="false"/>
+
+        <receiver
+            android:name="com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver"
             android:exported="false"/>
 
         <meta-data
