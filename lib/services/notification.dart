@@ -3,11 +3,12 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
 import 'notification_store.dart';
+
+enum NotificationResult { success }
 
 class NotificationService {
   NotificationService._();
@@ -17,7 +18,8 @@ class NotificationService {
 
   static bool _initialized = false;
 
-  static const String _channelId = 'exam_channel_v4_prod';
+  // 🔥 VERSIONED CHANNEL (never reuse old IDs)
+  static const String _channelId = 'exam_channel_v_final_high';
   static const String _groupKey = 'exam_group';
 
   static const int _id4pm = 4001;
@@ -28,7 +30,7 @@ class NotificationService {
     _channelId,
     'Exam Notifications',
     description: 'Exam reminders & study alerts',
-    importance: Importance.max,
+    importance: Importance.high,
     playSound: true,
     enableVibration: true,
   );
@@ -38,12 +40,13 @@ class NotificationService {
   static Future<void> init() async {
     if (_initialized) return;
 
+    // ✅ REQUIRED for exact alarms
     tz.initializeTimeZones();
     tz.setLocalLocation(tz.getLocation('Asia/Kolkata'));
 
     await _plugin.initialize(
       const InitializationSettings(
-        android: AndroidInitializationSettings('@drawable/ic_notification'),
+        android: AndroidInitializationSettings('@mipmap/ic_launcher'),
       ),
       onDidReceiveNotificationResponse: (r) async {
         if (r.payload == null) return;
@@ -65,31 +68,22 @@ class NotificationService {
             AndroidFlutterLocalNotificationsPlugin>();
 
     if (android != null) {
+      // ✅ ONLY CREATE — NEVER DELETE (OEM SAFE)
       await android.createNotificationChannel(_channel);
     }
 
     _initialized = true;
   }
 
-  /* ================= PERMISSION (MANDATORY) ================= */
-
-  static Future<void> _ensurePermission() async {
-    final status = await Permission.notification.status;
-    if (!status.isGranted) {
-      await Permission.notification.request();
-    }
-  }
-
   /* ================= INSTANT ================= */
 
-  static Future<void> instant({
+  static Future<NotificationResult> instant({
     required String title,
     required String body,
     required bool save,
     String route = '/exam',
   }) async {
     await init();
-    await _ensurePermission();
 
     await _plugin.show(
       DateTime.now().millisecondsSinceEpoch ~/ 1000,
@@ -100,10 +94,12 @@ class NotificationService {
           _channelId,
           _channel.name,
           channelDescription: _channel.description,
-          importance: Importance.max,
-          priority: Priority.max,
-          icon: '@drawable/ic_notification',
+          importance: Importance.high,
+          priority: Priority.high,
+          playSound: true,
+          enableVibration: true,
           visibility: NotificationVisibility.public,
+          icon: 'ic_notification', // drawable
           groupKey: _groupKey,
         ),
       ),
@@ -115,13 +111,14 @@ class NotificationService {
         'time': DateTime.now().toIso8601String(),
       }),
     );
+
+    return NotificationResult.success;
   }
 
   /* ================= DAILY ================= */
 
   static Future<void> scheduleDaily({int? daysLeft}) async {
     await init();
-    await _ensurePermission();
 
     await _plugin.cancel(_id4pm);
     await _plugin.cancel(_id11pm);
@@ -133,7 +130,7 @@ class NotificationService {
   static Future<void> _schedule(
       int id, int hour, int? daysLeft) async {
     final now = tz.TZDateTime.now(tz.local);
-    var time =
+    tz.TZDateTime time =
         tz.TZDateTime(tz.local, now.year, now.month, now.day, hour);
 
     if (time.isBefore(now)) {
@@ -154,13 +151,22 @@ class NotificationService {
           _channelId,
           _channel.name,
           channelDescription: _channel.description,
-          importance: Importance.max,
-          priority: Priority.max,
-          icon: '@drawable/ic_notification',
+          importance: Importance.high,
+          priority: Priority.high,
+          playSound: true,
+          enableVibration: true,
           visibility: NotificationVisibility.public,
+          icon: 'ic_notification',
           groupKey: _groupKey,
         ),
       ),
+      payload: jsonEncode({
+        'save': true,
+        'title': '📚 Study Reminder',
+        'body': body,
+        'route': '/exam',
+        'time': DateTime.now().toIso8601String(),
+      }),
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
       matchDateTimeComponents: DateTimeComponents.time,
