@@ -1,9 +1,11 @@
+// lib/state/exam_state.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ExamState {
-  /// 🔥 SINGLE SOURCE OF TRUTH
+  /* ================= STATE ================= */
+
   static final ValueNotifier<DateTime?> examDate =
       ValueNotifier<DateTime?>(null);
 
@@ -13,17 +15,22 @@ class ExamState {
   static final ValueNotifier<bool> isExamDay =
       ValueNotifier<bool>(false);
 
-  static int _initialTotalDays = 0;
+  static final ValueNotifier<bool> isExamCompleted =
+      ValueNotifier<bool>(false);
+
   static Timer? _midnightTimer;
+
+  static const String _dateKey = 'exam_date';
+  static const String _totalKey = 'exam_total_days';
 
   /* ================= INIT ================= */
 
   static Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getString('exam_date');
+    final savedDate = prefs.getString(_dateKey);
 
-    if (saved != null) {
-      update(DateTime.parse(saved));
+    if (savedDate != null) {
+      await update(DateTime.parse(savedDate));
     } else {
       _reset();
     }
@@ -33,13 +40,16 @@ class ExamState {
 
   /* ================= UPDATE ================= */
 
-  static void update(DateTime? date) {
-    examDate.value = date;
+  static Future<void> update(DateTime? date) async {
+    final prefs = await SharedPreferences.getInstance();
 
     if (date == null) {
-      _reset();
+      await clear();
       return;
     }
+
+    examDate.value = date;
+    isExamCompleted.value = false;
 
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
@@ -47,27 +57,43 @@ class ExamState {
 
     final diff = target.difference(today).inDays;
 
-    // ❌ Exam passed → AUTO RESET
+    // 🔴 Exam already passed
     if (diff < 0) {
-      clear();
+      await clear();
+      isExamCompleted.value = true;
       return;
     }
 
-    // 🔥 EXAM DAY
+    // 🟡 Exam day
     if (diff == 0) {
       daysLeft.value = 0;
       isExamDay.value = true;
       return;
     }
 
-    // ✅ NORMAL COUNTDOWN
+    // 🟢 Normal countdown
     isExamDay.value = false;
     daysLeft.value = diff;
 
-    if (_initialTotalDays == 0) {
-      _initialTotalDays = diff;
+    if (!prefs.containsKey(_totalKey)) {
+      await prefs.setInt(_totalKey, diff);
     }
   }
+
+  /* ================= PROGRESS (SYNC) ================= */
+
+  static double progress() {
+    if (daysLeft.value <= 0) return 0;
+
+    return _totalDays <= 0
+        ? 0
+        : 1 - (daysLeft.value / _totalDays);
+  }
+
+  static int get _totalDays =>
+      _cachedTotalDays ?? 0;
+
+  static int? _cachedTotalDays;
 
   /* ================= MIDNIGHT REFRESH ================= */
 
@@ -80,22 +106,20 @@ class ExamState {
 
     final duration = nextMidnight.difference(now);
 
-    _midnightTimer = Timer(duration, () {
+    _midnightTimer = Timer(duration, () async {
+      final prefs = await SharedPreferences.getInstance();
+      _cachedTotalDays = prefs.getInt(_totalKey);
+
       if (examDate.value != null) {
-        update(examDate.value);
+        await update(examDate.value);
       }
       _scheduleMidnightRefresh();
     });
   }
 
-  /* ================= PROGRESS ================= */
+  /* ================= HELPERS ================= */
 
-  static double progress() {
-    if (_initialTotalDays <= 0) return 0;
-    return 1 - (daysLeft.value / _initialTotalDays);
-  }
-
-  /* ================= COLOR ================= */
+  static bool get hasExam => examDate.value != null;
 
   static Color colorForDays(int days) {
     if (days >= 90) return Colors.green;
@@ -107,8 +131,8 @@ class ExamState {
 
   static Future<void> clear() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('exam_date');
-    await prefs.remove('exam_first_notification_done');
+    await prefs.remove(_dateKey);
+    await prefs.remove(_totalKey);
     _reset();
   }
 
@@ -116,6 +140,7 @@ class ExamState {
     examDate.value = null;
     daysLeft.value = 0;
     isExamDay.value = false;
-    _initialTotalDays = 0;
+    isExamCompleted.value = false;
+    _cachedTotalDays = null;
   }
 }
