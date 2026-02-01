@@ -1,10 +1,11 @@
 // lib/screens/permission.dart
-
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../home.dart';
+import '../services/notification.dart';
 
 class PermissionScreen extends StatefulWidget {
   const PermissionScreen({super.key});
@@ -15,29 +16,20 @@ class PermissionScreen extends StatefulWidget {
 
 class _PermissionScreenState extends State<PermissionScreen> {
   bool loading = false;
-
-  static const String _key = 'notification_permission_count';
+  static const String _countKey = 'notification_permission_count';
 
   @override
   void initState() {
     super.initState();
-    _checkStatus();
+    _checkAlreadyGranted();
   }
 
-  Future<void> _checkStatus() async {
-    final prefs = await SharedPreferences.getInstance();
-    final count = prefs.getInt(_key) ?? 0;
-
+  Future<void> _checkAlreadyGranted() async {
     final status = await Permission.notification.status;
-
-    // ✅ Already granted → go home
     if (status.isGranted) {
-      _goHome();
-      return;
-    }
-
-    // ❌ Asked twice already → never auto ask again
-    if (count >= 2) {
+      // 🔥 Let Android fully settle
+      await Future.delayed(const Duration(milliseconds: 600));
+      if (!mounted) return;
       _goHome();
     }
   }
@@ -46,17 +38,25 @@ class _PermissionScreenState extends State<PermissionScreen> {
     setState(() => loading = true);
 
     final prefs = await SharedPreferences.getInstance();
-    final count = prefs.getInt(_key) ?? 0;
-    await prefs.setInt(_key, count + 1);
+    final count = prefs.getInt(_countKey) ?? 0;
+    await prefs.setInt(_countKey, count + 1);
 
-    await Permission.notification.request();
+    final status = await Permission.notification.request();
 
+    if (status.isGranted) {
+      // 🔥 CRITICAL: Android 13–15 settle window
+      await Future.delayed(const Duration(milliseconds: 800));
+
+      // 🔥 Force init notification system AFTER permission
+      await NotificationService.init();
+    }
+
+    if (!mounted) return;
     setState(() => loading = false);
     _goHome();
   }
 
   void _goHome() {
-    if (!mounted) return;
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(builder: (_) => const Home()),
@@ -86,10 +86,7 @@ class _PermissionScreenState extends State<PermissionScreen> {
 
               const Text(
                 'Enable Notifications',
-                style: TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
               ),
 
               const SizedBox(height: 12),
