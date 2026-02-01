@@ -1,5 +1,6 @@
 // lib/screens/splash.dart
 import 'dart:async';
+import 'oem_warning_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -8,8 +9,6 @@ import '../home.dart';
 import '../tools/exam.dart';
 import 'permission.dart';
 import 'notification_inbox.dart';
-import 'oem_permission.dart';
-
 import '../services/ads.dart';
 import '../services/internet.dart';
 
