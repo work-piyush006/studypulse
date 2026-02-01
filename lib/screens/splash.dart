@@ -1,4 +1,3 @@
-// lib/screens/splash.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -30,7 +29,7 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _start() async {
-    // ⏱ Minimum splash
+    // ⏱ Minimum splash duration
     await Future.delayed(const Duration(milliseconds: 1200));
     if (!mounted || _navigated) return;
 
@@ -53,27 +52,23 @@ class _SplashScreenState extends State<SplashScreen> {
     if (!mounted || _navigated) return;
     _navigated = true;
 
-    // 📥 Notification deep link
     if (openInbox) {
       await prefs.remove('open_inbox');
       _go(const NotificationInboxScreen());
       return;
     }
 
-    // 🔔 Notification permission screen
     if (!permissionGranted && permissionAsked < 2) {
       _go(const PermissionScreen());
       return;
     }
 
-    // 🏭 OEM guidance — ONLY ONCE
     if (permissionGranted && !oemDone) {
       await prefs.setBool('oem_permission_done', true);
       _go(const OemPermissionScreen());
       return;
     }
 
-    // ✅ Normal flow
     _go(const Home());
   }
 
@@ -86,9 +81,57 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(
-        child: CircularProgressIndicator(),
+    final isDark =
+        Theme.of(context).brightness == Brightness.dark;
+
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // 🔥 LOGO
+              Image.asset(
+                'assets/logo.png',
+                height: 110,
+                errorBuilder: (_, __, ___) => Icon(
+                  Icons.school_rounded,
+                  size: 90,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              // 🔥 APP NAME
+              const Text(
+                'StudyPulse',
+                style: TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+
+              const SizedBox(height: 6),
+
+              // 🔥 TAGLINE
+              Text(
+                'Focus • Track • Succeed',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: isDark
+                      ? Colors.grey
+                      : Colors.black54,
+                ),
+              ),
+
+              const SizedBox(height: 28),
+
+              // 🔄 LOADER
+              const CircularProgressIndicator(strokeWidth: 2),
+            ],
+          ),
+        ),
       ),
     );
   }
