@@ -24,7 +24,8 @@ class NotificationService {
   static const _id4pm = 4001;
   static const _id11pm = 4002;
 
-  static const _channel = AndroidNotificationChannel(
+  static const AndroidNotificationChannel _channel =
+      AndroidNotificationChannel(
     _channelId,
     'Exam Notifications',
     description: 'Exam reminders & study alerts',
@@ -58,18 +59,31 @@ class NotificationService {
       },
     );
 
-    await _plugin
-        .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(_channel);
+    final android =
+        _plugin.resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
+
+    if (android != null) {
+      // 🔥 HARD RESET CHANNEL (OEM FIX)
+      await android.deleteNotificationChannel(_channelId);
+      await android.createNotificationChannel(_channel);
+    }
 
     _initialized = true;
   }
 
-  /* ================= INTERNAL ================= */
+  /* ================= SYSTEM CHECK ================= */
 
-  static Future<bool> _canNotify() async {
-    return await Permission.notification.isGranted;
+  static Future<bool> _systemAllowsNotifications() async {
+    if (!await Permission.notification.isGranted) return false;
+
+    final android =
+        _plugin.resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
+
+    if (android == null) return true;
+
+    return await android.areNotificationsEnabled() ?? false;
   }
 
   static Future<int> _nextId() async {
@@ -89,13 +103,12 @@ class NotificationService {
   }) async {
     await init();
 
-    // 🔥 ANDROID 15 HARD CHECK
-    if (!await _canNotify()) {
+    if (!await _systemAllowsNotifications()) {
       return NotificationResult.disabled;
     }
 
-    // 🔥 REQUIRED small delay after permission / resume
-    await Future.delayed(const Duration(milliseconds: 350));
+    // 🔥 Android 13–15 settle delay
+    await Future.delayed(const Duration(milliseconds: 400));
 
     final id = await _nextId();
 
@@ -107,8 +120,10 @@ class NotificationService {
         android: AndroidNotificationDetails(
           _channelId,
           _channel.name,
+          channelDescription: _channel.description,
           importance: Importance.high,
           priority: Priority.high,
+          visibility: NotificationVisibility.public,
           icon: 'ic_notification',
           groupKey: _groupKey,
         ),
@@ -129,7 +144,7 @@ class NotificationService {
 
   static Future<void> scheduleDaily({int? daysLeft}) async {
     await init();
-    if (!await _canNotify()) return;
+    if (!await _systemAllowsNotifications()) return;
 
     await _plugin.cancel(_id4pm);
     await _plugin.cancel(_id11pm);
@@ -160,8 +175,10 @@ class NotificationService {
         android: AndroidNotificationDetails(
           _channelId,
           _channel.name,
+          channelDescription: _channel.description,
           importance: Importance.high,
           priority: Priority.high,
+          visibility: NotificationVisibility.public,
           icon: 'ic_notification',
           groupKey: _groupKey,
         ),
