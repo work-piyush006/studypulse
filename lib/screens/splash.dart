@@ -1,3 +1,4 @@
+// lib/screens/splash.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -34,7 +35,6 @@ class _SplashScreenState extends State<SplashScreen> {
 
     final prefs = await SharedPreferences.getInstance();
 
-    // 🔥 Notification deep-link
     final route = prefs.getString('notification_route');
     if (route != null) {
       await prefs.remove('notification_route');
@@ -60,13 +60,12 @@ class _SplashScreenState extends State<SplashScreen> {
     } catch (_) {}
 
     final openInbox = prefs.getBool('open_inbox') ?? false;
-    final permissionAsked =
+    final asked =
         prefs.getInt('notification_permission_count') ?? 0;
     final oemDone = prefs.getBool('oem_permission_done') ?? false;
-    final permissionGranted =
+    final granted =
         await Permission.notification.isGranted;
 
-    if (!mounted || _navigated) return;
     _navigated = true;
 
     if (openInbox) {
@@ -75,17 +74,17 @@ class _SplashScreenState extends State<SplashScreen> {
       return;
     }
 
-    if (!permissionGranted && permissionAsked < 2) {
+    if (!granted && asked < 2) {
       _replace(const PermissionScreen());
       return;
     }
 
-    if (permissionGranted && !oemDone) {
+    if (granted && !oemDone) {
       await Navigator.push(
         context,
         MaterialPageRoute(
           fullscreenDialog: true,
-          builder: (_) => const OemWarningScreen(),
+          builder: (_) => OemWarningScreen(), // ❌ no const
         ),
       );
       _replace(const Home());
@@ -126,16 +125,16 @@ class _SplashScreenState extends State<SplashScreen> {
               const SizedBox(height: 20),
               const Text(
                 'StudyPulse',
-                style: TextStyle(
-                    fontSize: 26, fontWeight: FontWeight.bold),
+                style:
+                    TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 6),
               Text(
                 'Focus • Track • Succeed',
                 style: TextStyle(
-                    fontSize: 14,
-                    color:
-                        isDark ? Colors.grey : Colors.black54),
+                  fontSize: 14,
+                  color: isDark ? Colors.grey : Colors.black54,
+                ),
               ),
               const SizedBox(height: 28),
               const CircularProgressIndicator(strokeWidth: 2),
