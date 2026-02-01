@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../home.dart';
 import '../tools/exam.dart';
+import '../services/notification.dart';
 import 'permission.dart';
 import 'notification_inbox.dart';
 import 'oem_warning.dart';
@@ -27,13 +28,12 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _start() async {
-    await Future.delayed(const Duration(milliseconds: 1200));
+    await Future.delayed(const Duration(milliseconds: 900));
     if (!mounted || _navigated) return;
 
     final prefs = await SharedPreferences.getInstance();
 
-    /* ================= NOTIFICATION DEEP LINK ================= */
-
+    /* ========== DEEP LINK FROM NOTIFICATION ========== */
     final route = prefs.getString('notification_route');
     if (route != null) {
       await prefs.remove('notification_route');
@@ -43,7 +43,6 @@ class _SplashScreenState extends State<SplashScreen> {
         _replace(const NotificationInboxScreen());
         return;
       }
-
       if (route == '/exam') {
         _replace(const ExamCountdownPage());
         return;
@@ -53,22 +52,32 @@ class _SplashScreenState extends State<SplashScreen> {
       return;
     }
 
-    /* ================= NORMAL FLOW ================= */
+    /* ========== NORMAL FLOW ========== */
 
-    final openInbox = prefs.getBool('open_inbox') ?? false;
     final asked =
         prefs.getInt('notification_permission_count') ?? 0;
-    final oemDone = prefs.getBool('oem_permission_done') ?? false;
+    final oemDone =
+        prefs.getBool('oem_permission_done') ?? false;
     final granted =
         await Permission.notification.isGranted;
 
-    _navigated = true;
+    // 🔥 INIT NOTIFICATION SYSTEM (VERY IMPORTANT)
+    await NotificationService.init();
 
-    if (openInbox) {
-      await prefs.remove('open_inbox');
-      _replace(const NotificationInboxScreen());
-      return;
+    // 🔔 SHOW TEST NOTIFICATION (FIRST TIME ONLY)
+    final testShown =
+        prefs.getBool('test_notification_shown') ?? false;
+
+    if (granted && !testShown) {
+      await NotificationService.instant(
+        title: 'Notifications Enabled 🎉',
+        body: 'You’ll receive exam reminders and motivation here.',
+        save: false,
+      );
+      await prefs.setBool('test_notification_shown', true);
     }
+
+    _navigated = true;
 
     if (!granted && asked < 2) {
       _replace(const PermissionScreen());
@@ -80,7 +89,7 @@ class _SplashScreenState extends State<SplashScreen> {
         context,
         MaterialPageRoute(
           fullscreenDialog: true,
-          builder: (_) => OemWarningScreen(),
+          builder: (_) => const OemWarningScreen(),
         ),
       );
       _replace(const Home());

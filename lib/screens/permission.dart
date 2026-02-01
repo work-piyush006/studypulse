@@ -1,9 +1,7 @@
+// lib/screens/permission.dart
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
-import '../home.dart';
-import '../services/notification.dart';
 
 class PermissionScreen extends StatefulWidget {
   const PermissionScreen({super.key});
@@ -18,46 +16,24 @@ class _PermissionScreenState extends State<PermissionScreen> {
 
   Future<void> _requestPermission() async {
     if (loading) return;
-
     setState(() => loading = true);
 
     final prefs = await SharedPreferences.getInstance();
     final count = prefs.getInt(_countKey) ?? 0;
     await prefs.setInt(_countKey, count + 1);
 
-    final status = await Permission.notification.request();
-
-    // 🔔 Permission GRANTED
-    if (status.isGranted) {
-      // Android settle time
-      await Future.delayed(const Duration(milliseconds: 600));
-
-      // Re-init notifications AFTER permission
-      await NotificationService.init();
-
-      // ✅ TEST / CONFIRMATION NOTIFICATION
-      await NotificationService.instant(
-        title: 'Notifications Enabled 🎉',
-        body: 'You’ll now receive exam reminders and daily motivation.',
-        save: false,
-      );
-    }
+    await Permission.notification.request();
 
     if (!mounted) return;
-
     setState(() => loading = false);
 
-    // UX smoothing (prevents "stuck" feeling)
-    await Future.delayed(const Duration(milliseconds: 300));
-
-    _goHome();
+    // ✅ VERY IMPORTANT
+    // PermissionScreen never decides navigation
+    Navigator.pop(context);
   }
 
-  void _goHome() {
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => const Home()),
-    );
+  void _skip() {
+    Navigator.pop(context);
   }
 
   @override
@@ -123,7 +99,7 @@ class _PermissionScreenState extends State<PermissionScreen> {
 
               Center(
                 child: TextButton(
-                  onPressed: loading ? null : _goHome,
+                  onPressed: loading ? null : _skip,
                   child: const Text(
                     'Skip for now',
                     style: TextStyle(color: Colors.grey),
