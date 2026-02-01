@@ -1,3 +1,4 @@
+// lib/state/exam_state.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -5,17 +6,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../services/notification.dart';
 
 class ExamState {
-  /* ================= STATE ================= */
-
   static final ValueNotifier<DateTime?> examDate =
       ValueNotifier<DateTime?>(null);
-
   static final ValueNotifier<int> daysLeft =
       ValueNotifier<int>(0);
-
   static final ValueNotifier<bool> isExamDay =
       ValueNotifier<bool>(false);
-
   static final ValueNotifier<bool> isExamCompleted =
       ValueNotifier<bool>(false);
 
@@ -26,22 +22,18 @@ class ExamState {
 
   static int? _cachedTotalDays;
 
-  /* ================= INIT ================= */
-
   static Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
-    final savedDate = prefs.getString(_dateKey);
+    final saved = prefs.getString(_dateKey);
 
-    if (savedDate != null) {
-      await update(DateTime.parse(savedDate));
+    if (saved != null) {
+      await update(DateTime.parse(saved));
     } else {
       _reset();
     }
 
     _scheduleMidnightRefresh();
   }
-
-  /* ================= UPDATE ================= */
 
   static Future<void> update(DateTime? date) async {
     final prefs = await SharedPreferences.getInstance();
@@ -56,16 +48,15 @@ class ExamState {
 
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final target = DateTime(date.year, date.month, date.day);
+    final target =
+        DateTime(date.year, date.month, date.day);
 
     final diff = target.difference(today).inDays;
 
-    // 🔴 Exam already passed → COMPLETE
     if (diff < 0) {
       await clear();
       isExamCompleted.value = true;
 
-      // 🔥 Notify user
       await NotificationService.instant(
         title: '🎉 Exam Completed',
         body: 'Any next exam left?\nStart preparing today 📘',
@@ -75,14 +66,12 @@ class ExamState {
       return;
     }
 
-    // 🟡 Exam day
     if (diff == 0) {
       daysLeft.value = 0;
       isExamDay.value = true;
       return;
     }
 
-    // 🟢 Normal countdown
     isExamDay.value = false;
     daysLeft.value = diff;
 
@@ -92,8 +81,6 @@ class ExamState {
     }
   }
 
-  /* ================= PROGRESS ================= */
-
   static double progress() {
     if (daysLeft.value <= 0) return 0;
     return _totalDays <= 0
@@ -102,8 +89,6 @@ class ExamState {
   }
 
   static int get _totalDays => _cachedTotalDays ?? 0;
-
-  /* ================= MIDNIGHT REFRESH ================= */
 
   static void _scheduleMidnightRefresh() {
     _midnightTimer?.cancel();
@@ -126,8 +111,6 @@ class ExamState {
     );
   }
 
-  /* ================= HELPERS ================= */
-
   static bool get hasExam => examDate.value != null;
 
   static Color colorForDays(int days) {
@@ -135,8 +118,6 @@ class ExamState {
     if (days >= 30) return Colors.orange;
     return Colors.red;
   }
-
-  /* ================= CLEAR ================= */
 
   static Future<void> clear() async {
     final prefs = await SharedPreferences.getInstance();
