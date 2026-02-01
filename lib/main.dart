@@ -14,8 +14,6 @@ final GlobalKey<NavigatorState> navigatorKey =
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // 🔥 NEVER block first frame
   runApp(const StudyPulseBootstrap());
 }
 
@@ -24,19 +22,26 @@ void main() {
 class StudyPulseBootstrap extends StatelessWidget {
   const StudyPulseBootstrap({super.key});
 
+  Future<void> _init() async {
+    await ExamState.init();
+    await NotificationService.init();
+  }
+
   @override
   Widget build(BuildContext context) {
     return FutureBuilder(
       future: _init(),
-      builder: (_, __) {
+      builder: (_, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const MaterialApp(
+            home: Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            ),
+          );
+        }
         return const StudyPulseApp();
       },
     );
-  }
-
-  Future<void> _init() async {
-    await ExamState.init();
-    await NotificationService.init();
   }
 }
 
@@ -93,7 +98,9 @@ class _StudyPulseAppState extends State<StudyPulseApp> {
           '/notifications': (_) => const NotificationInboxScreen(),
         },
         builder: (_, child) =>
-            child == null ? const SizedBox() : InternetGuard(child: child),
+            child == null
+                ? const SizedBox()
+                : InternetGuard(child: child),
         home: const SplashScreen(),
       ),
     );
