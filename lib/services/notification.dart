@@ -40,7 +40,7 @@ class NotificationService {
   static const int _id4pm = 4001;
   static const int _id11pm = 4002;
 
-  /* ================= INIT ================= */
+  /* ================= INIT (CRITICAL FIX HERE) ================= */
 
   static Future<void> init() async {
     if (_initialized) return;
@@ -48,17 +48,17 @@ class NotificationService {
     tz.initializeTimeZones();
     tz.setLocalLocation(tz.getLocation('Asia/Kolkata'));
 
+    const androidInit = AndroidInitializationSettings('ic_notification');
+
     await _plugin.initialize(
-      const InitializationSettings(
-        android: AndroidInitializationSettings('ic_notification'),
-      ),
+      const InitializationSettings(android: androidInit),
       onDidReceiveNotificationResponse: (response) async {
         if (response.payload == null) return;
 
         final data = jsonDecode(response.payload!);
         final prefs = await SharedPreferences.getInstance();
 
-        // 📥 Save to inbox
+        // Save to inbox
         if (data['save'] == true) {
           await NotificationStore.save(
             title: data['title'],
@@ -68,7 +68,7 @@ class NotificationService {
           );
         }
 
-        // 🔁 Tell Splash where to go
+        // Deep-link support
         if (data['route'] != null) {
           await prefs.setString(
             'notification_route',
@@ -83,6 +83,9 @@ class NotificationService {
             AndroidFlutterLocalNotificationsPlugin>();
 
     if (android != null) {
+      // 🔥🔥🔥 ANDROID 13+ FIX (THIS WAS MISSING) 🔥🔥🔥
+      await android.requestPermission();
+
       await android.createNotificationChannel(_channel);
     }
 
@@ -115,6 +118,7 @@ class NotificationService {
     String route = '/exam',
   }) async {
     await init();
+
     if (!await _canNotify()) {
       return NotificationResult.disabled;
     }
@@ -164,7 +168,7 @@ class NotificationService {
     await init();
     if (!await _canNotify()) return;
 
-    // 🔥 Clear old ones first
+    // Clear old notifications first
     await cancelDaily();
 
     await _schedule(_id4pm, 16, daysLeft);
@@ -184,8 +188,7 @@ class NotificationService {
       time = time.add(const Duration(days: 1));
     }
 
-    final body =
-        '$daysLeft days left\n${_quote()}';
+    final body = '$daysLeft days left\n${_quote()}';
 
     await _plugin.zonedSchedule(
       id,
@@ -214,8 +217,7 @@ class NotificationService {
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
       matchDateTimeComponents: DateTimeComponents.time,
-      androidScheduleMode:
-          AndroidScheduleMode.exactAllowWhileIdle,
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
     );
   }
 
