@@ -1,3 +1,4 @@
+// lib/tools/exam.dart
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -14,8 +15,7 @@ class ExamCountdownPage extends StatefulWidget {
   const ExamCountdownPage({super.key});
 
   @override
-  State<ExamCountdownPage> createState() =>
-      _ExamCountdownPageState();
+  State<ExamCountdownPage> createState() => _ExamCountdownPageState();
 }
 
 class _ExamCountdownPageState extends State<ExamCountdownPage> {
@@ -23,7 +23,7 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
   BannerAd? _bannerAd;
   bool _bannerLoaded = false;
 
-  late VoidCallback _examListener;
+  late final VoidCallback _examListener;
 
   @override
   void initState() {
@@ -36,9 +36,8 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
       if (ExamState.isExamCompleted.value && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text(
-              'Exam completed 🎉 Any next exam left?',
-            ),
+            content:
+                const Text('Exam completed 🎉 Any next exam left?'),
             action: SnackBarAction(
               label: 'Set new',
               onPressed: _pickDate,
@@ -73,10 +72,12 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
     }
   }
 
-  String _quote() =>
-      (_quotes == null || _quotes!.isEmpty)
-          ? 'Stay focused 📘'
-          : _quotes![Random().nextInt(_quotes!.length)];
+  String _quote() {
+    if (_quotes == null || _quotes!.isEmpty) {
+      return 'Stay focused 📘';
+    }
+    return _quotes![Random().nextInt(_quotes!.length)];
+  }
 
   void _loadBanner() {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -122,10 +123,9 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
 
     await NotificationService.scheduleDaily(daysLeft: days);
 
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Exam set • $days days remaining'),
-      ),
+      SnackBar(content: Text('Exam set • $days days remaining')),
     );
   }
 
@@ -177,10 +177,10 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
       ),
     );
 
-    if (confirm != true) return;
+    if (confirm != true || !mounted) return;
 
     await ExamState.clear();
-    await NotificationService.scheduleDaily(daysLeft: -1);
+    await NotificationService.scheduleDaily(daysLeft: null);
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -207,10 +207,9 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(24),
-                child: ValueListenableBuilder(
+                child: ValueListenableBuilder<int>(
                   valueListenable: ExamState.daysLeft,
-                  builder: (_, __, ___) {
-                    final days = ExamState.daysLeft.value;
+                  builder: (_, days, __) {
                     final isExamDay =
                         ExamState.isExamDay.value;
                     final hasExam = ExamState.hasExam;
