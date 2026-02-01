@@ -13,8 +13,6 @@ class AdsService {
   /* ================= FLAGS ================= */
 
   static bool _initialized = false;
-  static bool _isLoadingInterstitial = false;
-  static InterstitialAd? _interstitialAd;
 
   /// 🚨 Release build me FALSE hi rahe
   static const bool useTestAds = false;
@@ -29,10 +27,14 @@ class AdsService {
       ? 'ca-app-pub-3940256099942544/1033173712'
       : 'ca-app-pub-2139593035914184/1908697513';
 
-  /* ================= INTERSTITIAL RULES ================= */
+  /* ================= BANNER RETRY RULES ================= */
 
-  static const Duration _cooldown = Duration(minutes: 2);
-  static const String _lastShownKey = 'last_interstitial_time';
+  static const int _maxBannerRetry = 3;
+  static const Duration _retryGap = Duration(seconds: 2);
+  static const Duration _cooldown = Duration(minutes: 3);
+
+  static const String _retryCountKey = 'banner_retry_count';
+  static const String _cooldownUntilKey = 'banner_cooldown_until';
 
   /* ================= INIT ================= */
 
@@ -47,13 +49,23 @@ class AdsService {
     }
   }
 
-  /* ================= BANNER (SAFE + ADAPTIVE) ================= */
+  /* ================= BANNER (RETRY SAFE) ================= */
 
   static Future<BannerAd?> createAdaptiveBanner({
     required BuildContext context,
     required void Function(bool loaded) onState,
   }) async {
     await initialize();
+
+    final prefs = await SharedPreferences.getInstance();
+
+    /// ⛔ Cooldown active?
+    final cooldownUntil = prefs.getInt(_cooldownUntilKey) ?? 0;
+    if (DateTime.now().millisecondsSinceEpoch < cooldownUntil) {
+      if (kDebugMode) debugPrint('⏸ Banner cooldown active');
+      onState(false);
+      return null;
+    }
 
     final hasInternet =
         await InternetConnectionChecker().hasConnection;
@@ -83,18 +95,51 @@ class AdsService {
       size: size,
       request: const AdRequest(),
       listener: BannerAdListener(
-        onAdLoaded: (_) {
+        onAdLoaded: (_) async {
+          await prefs.setInt(_retryCountKey, 0);
           onState(true);
           if (kDebugMode) debugPrint('✅ Banner loaded');
         },
-        onAdFailedToLoad: (ad, error) {
+        onAdFailedToLoad: (ad, error) async {
           ad.dispose();
-          onState(false);
+
+          int retry = prefs.getInt(_retryCountKey) ?? 0;
+          retry++;
+
+          if (retry >= _maxBannerRetry) {
+            // 🔥 STOP + COOLDOWN
+            await prefs.setInt(_retryCountKey, 0);
+            await prefs.setInt(
+              _cooldownUntilKey,
+              DateTime.now()
+                  .add(_cooldown)
+                  .millisecondsSinceEpoch,
+            );
+
+            if (kDebugMode) {
+              debugPrint(
+                  '⛔ Banner stopped. Cooldown for ${_cooldown.inMinutes} min');
+            }
+
+            onState(false);
+            return;
+          }
+
+          await prefs.setInt(_retryCountKey, retry);
+
           if (kDebugMode) {
             debugPrint(
-              '❌ Banner failed: ${error.code} | ${error.message}',
+              '🔁 Banner retry $retry/$_maxBannerRetry',
             );
           }
+
+          // 🔁 RETRY AFTER GAP
+          Future.delayed(_retryGap, () {
+            createAdaptiveBanner(
+              context: context,
+              onState: onState,
+            );
+          });
         },
       ),
     );
@@ -103,16 +148,22 @@ class AdsService {
     return banner;
   }
 
-  /* ================= INTERSTITIAL ================= */
+  /* ================= INTERSTITIAL (UNCHANGED & SAFE) ================= */
+
+  static InterstitialAd? _interstitialAd;
+  static bool _isLoadingInterstitial = false;
+
+  static const Duration _interstitialCooldown =
+      Duration(minutes: 2);
+  static const String _lastShownKey = 'last_interstitial_time';
 
   static Future<bool> _cooldownPassed() async {
     final prefs = await SharedPreferences.getInstance();
     final last = prefs.getInt(_lastShownKey) ?? 0;
     final now = DateTime.now().millisecondsSinceEpoch;
-    return now - last >= _cooldown.inMilliseconds;
+    return now - last >= _interstitialCooldown.inMilliseconds;
   }
 
-  /// 🔁 PRELOAD (CALL ON APP START)
   static Future<void> preloadInterstitial() async {
     await initialize();
 
@@ -131,28 +182,16 @@ class AdsService {
         onAdLoaded: (ad) {
           _interstitialAd = ad;
           _isLoadingInterstitial = false;
-
           ad.setImmersiveMode(true);
-
-          if (kDebugMode) {
-            debugPrint('✅ Interstitial READY');
-          }
         },
-        onAdFailedToLoad: (error) {
+        onAdFailedToLoad: (_) {
           _isLoadingInterstitial = false;
           _interstitialAd = null;
-
-          if (kDebugMode) {
-            debugPrint(
-              '❌ Interstitial failed: ${error.code} | ${error.message}',
-            );
-          }
         },
       ),
     );
   }
 
-  /// 🎯 SAFE SHOW
   static Future<bool> showInterstitialIfAllowed() async {
     if (_interstitialAd == null) return false;
     if (!await _cooldownPassed()) return false;
@@ -179,7 +218,6 @@ class AdsService {
 
     _interstitialAd!.show();
     _interstitialAd = null;
-
     return true;
   }
 }
