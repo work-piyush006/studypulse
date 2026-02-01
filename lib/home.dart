@@ -1,5 +1,4 @@
 // lib/home.dart
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
@@ -134,7 +133,7 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
         currentIndex: _index,
         onTap: (i) {
           if (i == _index) return;
-          AdClickTracker.registerClick(); // 🔥 keep ads logic
+          AdClickTracker.registerClick(); // 🔥 ads logic intact
           setState(() => _index = i);
           _loadQuote();
         },
@@ -220,7 +219,7 @@ class _HomeMainState extends State<HomeMain>
 
         const SizedBox(height: 20),
 
-        /// 🔥 QUOTE (ALWAYS SHOWN)
+        /// 🔥 QUOTE
         ValueListenableBuilder<String>(
           valueListenable: widget.quote,
           builder: (_, q, __) {
@@ -237,28 +236,21 @@ class _HomeMainState extends State<HomeMain>
 
         const SizedBox(height: 20),
 
-        /// 🔥 EXAM STATUS CARD
+        /// 🔥 EXAM STATUS
         ValueListenableBuilder<DateTime?>(
           valueListenable: ExamState.examDate,
           builder: (_, date, __) {
             return ValueListenableBuilder<int>(
               valueListenable: ExamState.daysLeft,
               builder: (_, days, __) {
-                // ❌ No exam set
                 if (date == null) {
-                  return _ctaCard(
-                    context,
-                    'No exam set',
-                    'Start preparing today',
-                  );
+                  return _ctaCard(context);
                 }
 
-                // 🔥 Exam day → NO progress bar
                 if (days == 0) {
-                  return const SizedBox.shrink();
+                  return const SizedBox.shrink(); // exam day
                 }
 
-                // ✅ Normal countdown
                 final color = _colorForDays(days);
                 return Container(
                   padding: const EdgeInsets.all(16),
@@ -310,16 +302,12 @@ class _HomeMainState extends State<HomeMain>
     );
   }
 
-  Widget _ctaCard(
-    BuildContext context,
-    String title,
-    String subtitle,
-  ) {
+  Widget _ctaCard(BuildContext context) {
     return Card(
       child: ListTile(
         leading: const Icon(Icons.flag_outlined),
-        title: Text(title),
-        subtitle: Text(subtitle),
+        title: const Text('No exam set'),
+        subtitle: const Text('Start preparing today'),
         trailing: const Icon(Icons.arrow_forward_ios, size: 16),
         onTap: () async {
           AdClickTracker.registerClick();
