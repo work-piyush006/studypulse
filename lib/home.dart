@@ -134,9 +134,7 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
         currentIndex: _index,
         onTap: (i) {
           if (i == _index) return;
-
-          // ✅ valid ad action
-          AdClickTracker.registerClick();
+          AdClickTracker.registerClick(); // 🔥 keep ads logic
           setState(() => _index = i);
           _loadQuote();
         },
@@ -222,6 +220,7 @@ class _HomeMainState extends State<HomeMain>
 
         const SizedBox(height: 20),
 
+        /// 🔥 QUOTE (ALWAYS SHOWN)
         ValueListenableBuilder<String>(
           valueListenable: widget.quote,
           builder: (_, q, __) {
@@ -238,32 +237,51 @@ class _HomeMainState extends State<HomeMain>
 
         const SizedBox(height: 20),
 
-        ValueListenableBuilder<int>(
-          valueListenable: ExamState.daysLeft,
-          builder: (_, days, __) {
-            if (days <= 0) return const SizedBox.shrink();
-            final color = _colorForDays(days);
+        /// 🔥 EXAM STATUS CARD
+        ValueListenableBuilder<DateTime?>(
+          valueListenable: ExamState.examDate,
+          builder: (_, date, __) {
+            return ValueListenableBuilder<int>(
+              valueListenable: ExamState.daysLeft,
+              builder: (_, days, __) {
+                // ❌ No exam set
+                if (date == null) {
+                  return _ctaCard(
+                    context,
+                    'No exam set',
+                    'Start preparing today',
+                  );
+                }
 
-            return Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.12),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.timer, color: color),
-                  const SizedBox(width: 10),
-                  Text(
-                    '$days DAYS LEFT',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: color,
-                    ),
+                // 🔥 Exam day → NO progress bar
+                if (days == 0) {
+                  return const SizedBox.shrink();
+                }
+
+                // ✅ Normal countdown
+                final color = _colorForDays(days);
+                return Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                ],
-              ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.timer, color: color),
+                      const SizedBox(width: 10),
+                      Text(
+                        '$days DAYS LEFT',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: color,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
             );
           },
         ),
@@ -289,6 +307,30 @@ class _HomeMainState extends State<HomeMain>
           const ExamCountdownPage(),
         ),
       ],
+    );
+  }
+
+  Widget _ctaCard(
+    BuildContext context,
+    String title,
+    String subtitle,
+  ) {
+    return Card(
+      child: ListTile(
+        leading: const Icon(Icons.flag_outlined),
+        title: Text(title),
+        subtitle: Text(subtitle),
+        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+        onTap: () async {
+          AdClickTracker.registerClick();
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const ExamCountdownPage(),
+            ),
+          );
+        },
+      ),
     );
   }
 
