@@ -8,7 +8,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../services/ads.dart';
 import '../services/ad_click_tracker.dart';
 import '../services/notification.dart';
-import '../services/notification_manager.dart';
 import '../widgets/ad_placeholder.dart';
 import '../state/exam_state.dart';
 
@@ -46,12 +45,10 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
     }
   }
 
-  String _quote() {
-    if (_quotes == null || _quotes!.isEmpty) {
-      return 'Stay focused 📘';
-    }
-    return _quotes![Random().nextInt(_quotes!.length)];
-  }
+  String _quote() =>
+      (_quotes == null || _quotes!.isEmpty)
+          ? 'Stay focused 📘'
+          : _quotes![Random().nextInt(_quotes!.length)];
 
   void _loadBanner() {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -66,23 +63,18 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
     });
   }
 
-  /* ================= PICK DATE ================= */
-
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
       context: context,
       firstDate: DateTime.now(),
       lastDate: DateTime(DateTime.now().year + 5),
       initialDate:
-          ExamState.examDate.value ??
-              DateTime.now().add(const Duration(days: 30)),
+          ExamState.examDate.value ?? DateTime.now().add(const Duration(days: 30)),
     );
 
     if (picked == null || !mounted) return;
 
     final prefs = await SharedPreferences.getInstance();
-    final isFirstTime = !prefs.containsKey('exam_date');
-
     final normalized =
         DateTime(picked.year, picked.month, picked.day);
 
@@ -92,45 +84,14 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
     final days = ExamState.daysLeft.value;
     final message = '$days days left\n${_quote()}';
 
-    if (isFirstTime) {
-      // 🔔 Permission + OEM-safe activation
-      if (!await NotificationManager.canNotify()) {
-        final granted = await NotificationManager.requestOnce();
-        if (!granted && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content:
-                  const Text('Enable notifications to get reminders'),
-              action: SnackBarAction(
-                label: 'ALLOW',
-                onPressed: NotificationManager.openSystemSettings,
-              ),
-            ),
-          );
-          return;
-        }
-      }
+    await NotificationService.instant(
+      title: '📘 Exam Countdown',
+      body: message,
+      save: true,
+    );
 
-      // 🔥 OEM CRITICAL: let system bind notification channel
-      await Future.delayed(const Duration(milliseconds: 600));
-
-      // 🔔 Guaranteed immediate notification
-      await NotificationService.instant(
-        title: '📘 Exam Countdown Set',
-        body: message,
-        save: true,
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
-    }
-
-    // ⏰ Daily reminders
     await NotificationService.scheduleDaily(daysLeft: days);
   }
-
-  /* ================= CANCEL ================= */
 
   Future<void> _cancelCountdown() async {
     final confirm = await showModalBottomSheet<bool>(
@@ -146,8 +107,7 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
           children: [
             const Text(
               'Cancel Exam Countdown?',
-              style:
-                  TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
             const Text('All reminders will be removed.'),
@@ -190,8 +150,6 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
     );
   }
 
-  /* ================= UI ================= */
-
   @override
   Widget build(BuildContext context) {
     final isKeyboardOpen =
@@ -215,10 +173,8 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
 
                     return Column(
                       children: [
-                        const Text(
-                          'Days Remaining',
-                          style: TextStyle(color: Colors.grey),
-                        ),
+                        const Text('Days Remaining',
+                            style: TextStyle(color: Colors.grey)),
                         const SizedBox(height: 10),
                         Text(
                           days > 0 ? '$days Days' : 'No Exam Set',
