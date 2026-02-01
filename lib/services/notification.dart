@@ -4,6 +4,7 @@ import 'dart:math';
 
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
@@ -19,7 +20,6 @@ class NotificationService {
 
   static bool _initialized = false;
 
-  // 🔥 STABLE CHANNEL (DO NOT CHANGE)
   static const String _channelId = 'exam_channel_stable_v1';
   static const String _groupKey = 'exam_group';
 
@@ -48,8 +48,11 @@ class NotificationService {
       ),
       onDidReceiveNotificationResponse: (r) async {
         if (r.payload == null) return;
-        final data = jsonDecode(r.payload!);
 
+        final data = jsonDecode(r.payload!);
+        final prefs = await SharedPreferences.getInstance();
+
+        // ✅ Save to inbox
         if (data['save'] == true) {
           await NotificationStore.save(
             title: data['title'],
@@ -57,6 +60,11 @@ class NotificationService {
             route: data['route'],
             time: data['time'],
           );
+        }
+
+        // 🔥 Tell Splash where to go
+        if (data['route'] != null) {
+          await prefs.setString('notification_route', data['route']);
         }
       },
     );
@@ -72,8 +80,6 @@ class NotificationService {
     _initialized = true;
   }
 
-  /* ================= PERMISSION CHECK ================= */
-
   static Future<bool> _canNotify() async {
     return Permission.notification.isGranted;
   }
@@ -87,12 +93,8 @@ class NotificationService {
     String route = '/exam',
   }) async {
     await init();
+    if (!await _canNotify()) return NotificationResult.disabled;
 
-    if (!await _canNotify()) {
-      return NotificationResult.disabled;
-    }
-
-    // ✅ SAVE IMMEDIATELY (inbox)
     if (save) {
       await NotificationStore.save(
         title: title,
@@ -114,15 +116,8 @@ class NotificationService {
           importance: Importance.high,
           priority: Priority.high,
           groupKey: _groupKey,
-
-          // ✅ FULL EXPANDED TEXT
-          styleInformation: BigTextStyleInformation(
-            body,
-            contentTitle: title,
-          ),
-
-          // ✅ CORRECT PARAM (17.x compatible)
-          icon: 'ic_notification',
+          icon: 'ic_notification', // ✅ CORRECT
+          styleInformation: BigTextStyleInformation(body),
         ),
       ),
       payload: jsonEncode({
@@ -180,9 +175,7 @@ class NotificationService {
           importance: Importance.high,
           priority: Priority.high,
           groupKey: _groupKey,
-
-          // ✅ SAME HERE
-          icon: 'ic_notification',
+          icon: 'ic_notification', // ✅ CORRECT
           styleInformation: BigTextStyleInformation(body),
         ),
       ),
