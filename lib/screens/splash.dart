@@ -1,5 +1,5 @@
 // lib/screens/splash.dart
-
+import 'oem_permission.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -10,7 +10,6 @@ import 'permission.dart';
 import 'notification_inbox.dart';
 
 import '../services/ads.dart';
-import '../services/notification.dart';
 import '../services/internet.dart';
 import '../state/exam_state.dart';
 
@@ -31,50 +30,47 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _start() async {
-    // ⏱ Minimum splash duration
-    await Future.delayed(const Duration(milliseconds: 1500));
+    // ⏱ Minimum splash
+    await Future.delayed(const Duration(milliseconds: 1200));
     if (!mounted || _navigated) return;
 
-    // 🔹 Core init (never block navigation)
     try {
+      await ExamState.init();
       InternetService.startMonitoring();
       await AdsService.initialize();
     } catch (_) {}
 
-    // 🔹 Notification init (OEM risky → isolated)
-    try {
-      await NotificationService.init();
-    } catch (_) {}
-
     final prefs = await SharedPreferences.getInstance();
-
     final openInbox = prefs.getBool('open_inbox') ?? false;
-    final permissionCount =
-        prefs.getInt('notification_permission_count') ?? 0;
 
+    final permissionAsked =
+        prefs.getInt('notification_permission_count') ?? 0;
     final permissionGranted =
         await Permission.notification.isGranted;
 
     if (!mounted || _navigated) return;
     _navigated = true;
 
-    // 📥 Deep link from notification
+    // 📥 Notification deep link
     if (openInbox) {
       await prefs.remove('open_inbox');
       _go(const NotificationInboxScreen());
       return;
     }
 
-    // 🔔 Permission screen logic (MNC-grade)
-    // Conditions:
-    // - Permission NOT granted
-    // - Asked less than 2 times
-    if (!permissionGranted && permissionCount < 2) {
-      _go(const PermissionScreen());
-      return;
-    }
+    // 🔔 Permission screen (ONLY navigation)
+    if (!permissionGranted && permissionAsked < 2) {
+  _go(const PermissionScreen());
+  return;
+}
 
-    // ✅ Default → Home
+// 🔥 OEM SAFETY CHECK (Android 13+)
+if (permissionGranted) {
+  _go(const OemPermissionScreen());
+  return;
+}
+
+    // ✅ Home
     _go(const Home());
   }
 
@@ -87,48 +83,9 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark =
-        Theme.of(context).brightness == Brightness.dark;
-
-    return Scaffold(
+    return const Scaffold(
       body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // 🔥 Logo with safe fallback
-            Image.asset(
-              'assets/logo.png',
-              height: 110,
-              errorBuilder: (_, __, ___) {
-                return Icon(
-                  Icons.school_rounded,
-                  size: 90,
-                  color: Theme.of(context).colorScheme.primary,
-                );
-              },
-            ),
-
-            const SizedBox(height: 20),
-
-            const Text(
-              'StudyPulse',
-              style: TextStyle(
-                fontSize: 26,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-
-            const SizedBox(height: 6),
-
-            Text(
-              'Focus • Track • Succeed',
-              style: TextStyle(
-                fontSize: 14,
-                color: isDark ? Colors.grey : Colors.black54,
-              ),
-            ),
-          ],
-        ),
+        child: CircularProgressIndicator(),
       ),
     );
   }
