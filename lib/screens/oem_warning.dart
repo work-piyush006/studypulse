@@ -13,10 +13,9 @@ class OemWarningScreen extends StatelessWidget {
     await prefs.setBool('oem_permission_done', true);
 
     if (!context.mounted) return;
-    Navigator.pushAndRemoveUntil(
-      context,
+
+    Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (_) => const Home()),
-      (_) => false,
     );
   }
 
@@ -24,10 +23,9 @@ class OemWarningScreen extends StatelessWidget {
     try {
       await OemBatteryHelper.openBatterySettings();
     } catch (_) {
-      // ❌ OEM intent failed — ignore silently
+      // OEM intent fail — ignore
     }
 
-    // 🔥 ALWAYS EXIT SCREEN AFTER ACTION
     await _finish(context);
   }
 
@@ -36,7 +34,7 @@ class OemWarningScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Important'),
-        automaticallyImplyLeading: false, // 🔥 NO BACK
+        automaticallyImplyLeading: false, // 🚫 no back button
       ),
       body: SafeArea(
         child: Padding(
@@ -66,7 +64,6 @@ class OemWarningScreen extends StatelessWidget {
                 textAlign: TextAlign.center,
               ),
               const Spacer(),
-
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
@@ -74,9 +71,7 @@ class OemWarningScreen extends StatelessWidget {
                   child: const Text('Open Settings'),
                 ),
               ),
-
               const SizedBox(height: 8),
-
               TextButton(
                 onPressed: () => _finish(context),
                 child: const Text('I’ll do it later'),
