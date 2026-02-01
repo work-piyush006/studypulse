@@ -44,12 +44,12 @@ class NotificationService {
 
     await _plugin.initialize(
       const InitializationSettings(
-        android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+        android: AndroidInitializationSettings('ic_notification'),
       ),
       onDidReceiveNotificationResponse: (r) async {
         if (r.payload == null) return;
-        final data = jsonDecode(r.payload!);
 
+        final data = jsonDecode(r.payload!);
         if (data['save'] == true) {
           await NotificationStore.save(
             title: data['title'],
@@ -72,10 +72,10 @@ class NotificationService {
     _initialized = true;
   }
 
-  /* ================= PERMISSION CHECK ================= */
+  /* ================= PERMISSION ================= */
 
   static Future<bool> _canNotify() async {
-    return await Permission.notification.isGranted;
+    return Permission.notification.isGranted;
   }
 
   /* ================= INSTANT ================= */
@@ -92,7 +92,7 @@ class NotificationService {
       return NotificationResult.disabled;
     }
 
-    // 🔥 FIX #1: SAVE IMMEDIATELY (not only on tap)
+    // ✅ SAVE IMMEDIATELY (even if user doesn’t tap)
     if (save) {
       await NotificationStore.save(
         title: title,
@@ -111,20 +111,14 @@ class NotificationService {
           _channelId,
           _channel.name,
           channelDescription: _channel.description,
-
-          // 🔥 FIX #2: FULL EXPANDED NOTIFICATION
+          importance: Importance.high,
+          priority: Priority.high,
+          groupKey: _groupKey,
+          smallIcon: 'ic_notification',
           styleInformation: BigTextStyleInformation(
             body,
             contentTitle: title,
           ),
-
-          importance: Importance.high,
-          priority: Priority.high,
-
-          // 🔥 FIX #3: PROPER NOTIFICATION ICON
-          icon: 'ic_notification',
-
-          groupKey: _groupKey,
         ),
       ),
       payload: jsonEncode({
@@ -153,7 +147,10 @@ class NotificationService {
   }
 
   static Future<void> _schedule(
-      int id, int hour, int? daysLeft) async {
+    int id,
+    int hour,
+    int? daysLeft,
+  ) async {
     final now = tz.TZDateTime.now(tz.local);
     tz.TZDateTime time =
         tz.TZDateTime(tz.local, now.year, now.month, now.day, hour);
@@ -162,9 +159,15 @@ class NotificationService {
       time = time.add(const Duration(days: 1));
     }
 
-    final body = daysLeft == null
-        ? 'Set your exam countdown\nStart preparing today 📘'
-        : '$daysLeft days left\n${_quote()}';
+    final body = () {
+      if (daysLeft == null) {
+        return 'Start your preparation today 📘\nTap to set exam countdown';
+      }
+      if (daysLeft == 0) {
+        return 'Exam Day 🎯\nGive your best 💪🔥';
+      }
+      return '$daysLeft days left\n${_quote()}';
+    }();
 
     await _plugin.zonedSchedule(
       id,
@@ -176,13 +179,11 @@ class NotificationService {
           _channelId,
           _channel.name,
           channelDescription: _channel.description,
-
-          styleInformation: BigTextStyleInformation(body),
-
           importance: Importance.high,
           priority: Priority.high,
-          icon: 'ic_notification',
           groupKey: _groupKey,
+          smallIcon: 'ic_notification',
+          styleInformation: BigTextStyleInformation(body),
         ),
       ),
       payload: jsonEncode({
