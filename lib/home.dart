@@ -34,6 +34,10 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+
+    // 🔥 INIT ADMOB SDK (ONLY ONCE)
+    AdsService.initialize();
+
     WidgetsBinding.instance.addObserver(this);
     _loadQuote();
   }
@@ -133,7 +137,7 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
         currentIndex: _index,
         onTap: (i) {
           if (i == _index) return;
-          AdClickTracker.registerClick(); // 🔥 ads logic intact
+          AdClickTracker.registerClick();
           setState(() => _index = i);
           _loadQuote();
         },
@@ -236,51 +240,50 @@ class _HomeMainState extends State<HomeMain>
 
         const SizedBox(height: 20),
 
-        
         /// 🔥 EXAM STATUS
-ValueListenableBuilder<DateTime?>(
-  valueListenable: ExamState.examDate,
-  builder: (_, date, __) {
-    return ValueListenableBuilder<int>(
-      valueListenable: ExamState.daysLeft,
-      builder: (_, days, __) {
-        if (date == null) {
-          return _ctaCard(context);
-        }
+        ValueListenableBuilder<DateTime?>(
+          valueListenable: ExamState.examDate,
+          builder: (_, date, __) {
+            return ValueListenableBuilder<int>(
+              valueListenable: ExamState.daysLeft,
+              builder: (_, days, __) {
+                if (date == null) {
+                  return _ctaCard(context);
+                }
 
-        if (days == 0) {
-          return const SizedBox.shrink();
-        }
+                if (days == 0) {
+                  return const SizedBox.shrink();
+                }
 
-        final color = _colorForDays(days);
+                final color = _colorForDays(days);
 
-        return Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.12),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            children: [
-              Icon(Icons.timer, color: color),
-              const SizedBox(width: 10),
-              Text(
-                '$days DAYS LEFT',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: color,
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  },
-),
+                return Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.timer, color: color),
+                      const SizedBox(width: 10),
+                      Text(
+                        '$days DAYS LEFT',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: color,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            );
+          },
+        ),
 
-const SizedBox(height: 30),
+        const SizedBox(height: 30),
 
         _tool(
           context,

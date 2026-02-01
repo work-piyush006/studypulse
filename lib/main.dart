@@ -12,41 +12,58 @@ import 'state/exam_state.dart';
 final GlobalKey<NavigatorState> navigatorKey =
     GlobalKey<NavigatorState>();
 
-Future<void> main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await NotificationService.init();
-  await ExamState.init();
-
-  final prefs = await SharedPreferences.getInstance();
-  final isDark = prefs.getBool('dark_mode') ?? false;
-
-  runApp(
-    StudyPulseApp(
-      initialTheme: isDark ? ThemeMode.dark : ThemeMode.light,
-    ),
-  );
+  // 🔥 NEVER block first frame
+  runApp(const StudyPulseBootstrap());
 }
 
-class StudyPulseApp extends StatefulWidget {
-  final ThemeMode initialTheme;
+/* ================= BOOTSTRAP ================= */
 
-  const StudyPulseApp({
-    super.key,
-    required this.initialTheme,
-  });
+class StudyPulseBootstrap extends StatelessWidget {
+  const StudyPulseBootstrap({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder(
+      future: _init(),
+      builder: (_, __) {
+        return const StudyPulseApp();
+      },
+    );
+  }
+
+  Future<void> _init() async {
+    await ExamState.init();
+    await NotificationService.init();
+  }
+}
+
+/* ================= APP ================= */
+
+class StudyPulseApp extends StatefulWidget {
+  const StudyPulseApp({super.key});
 
   @override
   State<StudyPulseApp> createState() => _StudyPulseAppState();
 }
 
 class _StudyPulseAppState extends State<StudyPulseApp> {
-  late ThemeMode _theme;
+  ThemeMode _theme = ThemeMode.system;
 
   @override
   void initState() {
     super.initState();
-    _theme = widget.initialTheme;
+    _loadTheme();
+  }
+
+  Future<void> _loadTheme() async {
+    final prefs = await SharedPreferences.getInstance();
+    final isDark = prefs.getBool('dark_mode') ?? false;
+    setState(() {
+      _theme = isDark ? ThemeMode.dark : ThemeMode.light;
+    });
   }
 
   Future<void> toggleTheme(bool dark) async {
@@ -75,13 +92,15 @@ class _StudyPulseAppState extends State<StudyPulseApp> {
           '/exam': (_) => const ExamCountdownPage(),
           '/notifications': (_) => const NotificationInboxScreen(),
         },
-        builder: (c, child) =>
+        builder: (_, child) =>
             child == null ? const SizedBox() : InternetGuard(child: child),
         home: const SplashScreen(),
       ),
     );
   }
 }
+
+/* ================= THEME CONTROLLER ================= */
 
 class ThemeController extends InheritedWidget {
   final Future<void> Function(bool) toggleTheme;
