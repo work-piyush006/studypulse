@@ -1,7 +1,6 @@
 // lib/screens/splash.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../home.dart';
@@ -24,27 +23,21 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-
-    // 🚀 Run after first frame only
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _start();
-    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _start());
   }
 
   Future<void> _start() async {
     try {
-      // 👁️ Small visual delay (UX only)
       await Future.delayed(const Duration(milliseconds: 700));
       if (!mounted || _navigated) return;
 
       final prefs = await SharedPreferences.getInstance();
 
-      /* ================= DEEP LINK FROM NOTIFICATION ================= */
-
+      /* ========= NOTIFICATION DEEP LINK ========= */
       final route = prefs.getString('notification_route');
       if (route != null) {
         await prefs.remove('notification_route');
-        _navigateOnce(() {
+        _go(() {
           if (route == '/notifications') {
             return const NotificationInboxScreen();
           }
@@ -56,30 +49,24 @@ class _SplashScreenState extends State<SplashScreen> {
         return;
       }
 
-      /* ================= CORE INIT (SAFE) ================= */
-
-      // 🔥 Init notifications HERE (never in main)
+      /* ========= CORE INIT (AS-IS) ========= */
       await NotificationService.init();
 
-      /* ================= PERMISSION FLOW ================= */
+      /* ========= PERMISSION FLOW (FIXED) ========= */
 
       final asked =
           prefs.getInt('notification_permission_count') ?? 0;
       final oemDone =
           prefs.getBool('oem_permission_done') ?? false;
 
-      final granted = await Permission.notification.isGranted
-          .timeout(
-            const Duration(seconds: 2),
-            onTimeout: () => false,
-          );
-
-      if (!granted && asked < 2) {
-        _navigateOnce(() => const PermissionScreen());
+      // 🔥 FIX: FIRST INSTALL → ALWAYS SHOW PermissionScreen
+      if (asked == 0) {
+        _go(() => const PermissionScreen());
         return;
       }
 
-      if (granted && !oemDone) {
+      // OEM screen stays as-is
+      if (!oemDone) {
         await Navigator.push(
           context,
           MaterialPageRoute(
@@ -89,16 +76,13 @@ class _SplashScreenState extends State<SplashScreen> {
         );
       }
 
-      _navigateOnce(() => const Home());
-    } catch (e) {
-      // 🧯 HARD FAIL-SAFE — app must NEVER stay on splash
-      _navigateOnce(() => const Home());
+      _go(() => const Home());
+    } catch (_) {
+      _go(() => const Home());
     }
   }
 
-  /* ================= SAFE NAVIGATION ================= */
-
-  void _navigateOnce(Widget Function() builder) {
+  void _go(Widget Function() builder) {
     if (!mounted || _navigated) return;
     _navigated = true;
 
@@ -107,8 +91,6 @@ class _SplashScreenState extends State<SplashScreen> {
       MaterialPageRoute(builder: (_) => builder()),
     );
   }
-
-  /* ================= UI ================= */
 
   @override
   Widget build(BuildContext context) {
