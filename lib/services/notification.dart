@@ -1,14 +1,16 @@
+// lib/services/notification.dart
 import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
 import 'notification_store.dart';
 
-enum NotificationResult { success, failed }
+enum NotificationResult { success, disabled }
 
 class NotificationService {
   NotificationService._();
@@ -64,7 +66,11 @@ class NotificationService {
     _initialized = true;
   }
 
-  /* ================= ID ================= */
+  /* ================= INTERNAL ================= */
+
+  static Future<bool> _canNotify() async {
+    return await Permission.notification.isGranted;
+  }
 
   static Future<int> _nextId() async {
     final prefs = await SharedPreferences.getInstance();
@@ -82,6 +88,14 @@ class NotificationService {
     String route = '/exam',
   }) async {
     await init();
+
+    // 🔥 ANDROID 15 HARD CHECK
+    if (!await _canNotify()) {
+      return NotificationResult.disabled;
+    }
+
+    // 🔥 REQUIRED small delay after permission / resume
+    await Future.delayed(const Duration(milliseconds: 350));
 
     final id = await _nextId();
 
@@ -115,6 +129,7 @@ class NotificationService {
 
   static Future<void> scheduleDaily({int? daysLeft}) async {
     await init();
+    if (!await _canNotify()) return;
 
     await _plugin.cancel(_id4pm);
     await _plugin.cancel(_id11pm);
