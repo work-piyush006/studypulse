@@ -52,7 +52,6 @@ class NotificationService {
         final data = jsonDecode(r.payload!);
         final prefs = await SharedPreferences.getInstance();
 
-        // ✅ Save to inbox
         if (data['save'] == true) {
           await NotificationStore.save(
             title: data['title'],
@@ -62,9 +61,9 @@ class NotificationService {
           );
         }
 
-        // 🔥 Tell Splash where to go
         if (data['route'] != null) {
-          await prefs.setString('notification_route', data['route']);
+          await prefs.setString(
+              'notification_route', data['route']);
         }
       },
     );
@@ -80,8 +79,24 @@ class NotificationService {
     _initialized = true;
   }
 
+  /* ================= PERMISSION CHECK ================= */
+
   static Future<bool> _canNotify() async {
-    return Permission.notification.isGranted;
+    final permissionGranted =
+        await Permission.notification.isGranted;
+
+    if (!permissionGranted) return false;
+
+    final android =
+        _plugin.resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
+
+    if (android != null) {
+      final enabled = await android.areNotificationsEnabled();
+      return enabled ?? false;
+    }
+
+    return true;
   }
 
   /* ================= INSTANT ================= */
@@ -93,15 +108,8 @@ class NotificationService {
     String route = '/exam',
   }) async {
     await init();
-    if (!await _canNotify()) return NotificationResult.disabled;
-
-    if (save) {
-      await NotificationStore.save(
-        title: title,
-        body: body,
-        route: route,
-        time: DateTime.now().toIso8601String(),
-      );
+    if (!await _canNotify()) {
+      return NotificationResult.disabled;
     }
 
     await _plugin.show(
@@ -116,7 +124,7 @@ class NotificationService {
           importance: Importance.high,
           priority: Priority.high,
           groupKey: _groupKey,
-          icon: 'ic_notification', // ✅ CORRECT
+          icon: 'ic_notification',
           styleInformation: BigTextStyleInformation(body),
         ),
       ),
@@ -129,12 +137,21 @@ class NotificationService {
       }),
     );
 
+    if (save) {
+      await NotificationStore.save(
+        title: title,
+        body: body,
+        route: route,
+        time: DateTime.now().toIso8601String(),
+      );
+    }
+
     return NotificationResult.success;
   }
 
   /* ================= DAILY ================= */
 
-  static Future<void> scheduleDaily({int? daysLeft}) async {
+  static Future<void> scheduleDaily({required int daysLeft}) async {
     await init();
     if (!await _canNotify()) return;
 
@@ -148,19 +165,18 @@ class NotificationService {
   static Future<void> _schedule(
     int id,
     int hour,
-    int? daysLeft,
+    int daysLeft,
   ) async {
     final now = tz.TZDateTime.now(tz.local);
-    tz.TZDateTime time =
+    var time =
         tz.TZDateTime(tz.local, now.year, now.month, now.day, hour);
 
     if (time.isBefore(now)) {
       time = time.add(const Duration(days: 1));
     }
 
-    final body = daysLeft == null
-        ? 'Start preparing today 📘'
-        : '$daysLeft days left\n${_quote()}';
+    final body =
+        '$daysLeft days left\n${_quote()}';
 
     await _plugin.zonedSchedule(
       id,
@@ -175,7 +191,7 @@ class NotificationService {
           importance: Importance.high,
           priority: Priority.high,
           groupKey: _groupKey,
-          icon: 'ic_notification', // ✅ CORRECT
+          icon: 'ic_notification',
           styleInformation: BigTextStyleInformation(body),
         ),
       ),
@@ -189,7 +205,8 @@ class NotificationService {
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
       matchDateTimeComponents: DateTimeComponents.time,
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      androidScheduleMode:
+          AndroidScheduleMode.exactAllowWhileIdle,
     );
   }
 
