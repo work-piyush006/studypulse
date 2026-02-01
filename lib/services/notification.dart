@@ -19,7 +19,7 @@ class NotificationService {
 
   static bool _initialized = false;
 
-  // 🔥 STABLE CHANNEL (DO NOT CHANGE AGAIN)
+  // 🔥 STABLE CHANNEL (DO NOT CHANGE)
   static const String _channelId = 'exam_channel_stable_v1';
   static const String _groupKey = 'exam_group';
 
@@ -92,6 +92,16 @@ class NotificationService {
       return NotificationResult.disabled;
     }
 
+    // 🔥 FIX #1: SAVE IMMEDIATELY (not only on tap)
+    if (save) {
+      await NotificationStore.save(
+        title: title,
+        body: body,
+        route: route,
+        time: DateTime.now().toIso8601String(),
+      );
+    }
+
     await _plugin.show(
       DateTime.now().millisecondsSinceEpoch ~/ 1000,
       title,
@@ -101,9 +111,19 @@ class NotificationService {
           _channelId,
           _channel.name,
           channelDescription: _channel.description,
+
+          // 🔥 FIX #2: FULL EXPANDED NOTIFICATION
+          styleInformation: BigTextStyleInformation(
+            body,
+            contentTitle: title,
+          ),
+
           importance: Importance.high,
           priority: Priority.high,
-          icon: '@mipmap/ic_launcher',
+
+          // 🔥 FIX #3: PROPER NOTIFICATION ICON
+          icon: 'ic_notification',
+
           groupKey: _groupKey,
         ),
       ),
@@ -156,9 +176,12 @@ class NotificationService {
           _channelId,
           _channel.name,
           channelDescription: _channel.description,
+
+          styleInformation: BigTextStyleInformation(body),
+
           importance: Importance.high,
           priority: Priority.high,
-          icon: '@mipmap/ic_launcher',
+          icon: 'ic_notification',
           groupKey: _groupKey,
         ),
       ),
@@ -172,8 +195,7 @@ class NotificationService {
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
       matchDateTimeComponents: DateTimeComponents.time,
-      androidScheduleMode:
-          AndroidScheduleMode.exactAllowWhileIdle,
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
     );
   }
 
