@@ -1,5 +1,4 @@
 // lib/screens/splash.dart
-import 'oem_permission.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -8,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../home.dart';
 import 'permission.dart';
 import 'notification_inbox.dart';
+import 'oem_permission.dart';
 
 import '../services/ads.dart';
 import '../services/internet.dart';
@@ -41,10 +41,12 @@ class _SplashScreenState extends State<SplashScreen> {
     } catch (_) {}
 
     final prefs = await SharedPreferences.getInstance();
-    final openInbox = prefs.getBool('open_inbox') ?? false;
 
+    final openInbox = prefs.getBool('open_inbox') ?? false;
     final permissionAsked =
         prefs.getInt('notification_permission_count') ?? 0;
+    final oemDone = prefs.getBool('oem_permission_done') ?? false;
+
     final permissionGranted =
         await Permission.notification.isGranted;
 
@@ -58,19 +60,20 @@ class _SplashScreenState extends State<SplashScreen> {
       return;
     }
 
-    // 🔔 Permission screen (ONLY navigation)
+    // 🔔 Notification permission screen
     if (!permissionGranted && permissionAsked < 2) {
-  _go(const PermissionScreen());
-  return;
-}
+      _go(const PermissionScreen());
+      return;
+    }
 
-// 🔥 OEM SAFETY CHECK (Android 13+)
-if (permissionGranted) {
-  _go(const OemPermissionScreen());
-  return;
-}
+    // 🏭 OEM guidance — ONLY ONCE
+    if (permissionGranted && !oemDone) {
+      await prefs.setBool('oem_permission_done', true);
+      _go(const OemPermissionScreen());
+      return;
+    }
 
-    // ✅ Home
+    // ✅ Normal flow
     _go(const Home());
   }
 
