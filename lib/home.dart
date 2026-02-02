@@ -53,15 +53,18 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
   /* ================= CORE INIT ================= */
 
   Future<void> _initCoreOnce() async {
-    if (_coreInitialized) return;
-    _coreInitialized = true;
+  if (_coreInitialized) return;
+  _coreInitialized = true;
 
-    // 🔔 Notification engine + channel
-    await NotificationService.init();
+  await NotificationService.init();
 
-    // 📆 Restore exam + reschedule alarms
-    await ExamState.init();
-  }
+  // 🔥 THIS LINE WAS MISSING AS GUARANTEED CALL
+  await NotificationService.ensureExactAlarmPermission();
+
+  await ExamState.init();
+}
+
+    
 
   @override
   void dispose() {
