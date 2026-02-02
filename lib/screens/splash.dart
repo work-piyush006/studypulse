@@ -9,7 +9,7 @@ import '../tools/exam.dart';
 import 'permission.dart';
 import 'notification_inbox.dart';
 import 'oem_warning.dart';
-import '../state/exam_state.dart';
+
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -65,10 +65,7 @@ class _SplashScreenState extends State<SplashScreen> {
       /* ===== Re-check after permission ===== */
       final granted = await Permission.notification.isGranted;
 
-      if (granted) {
-        // ❗ NotificationService.init() is ALREADY done in main.dart
-        await ExamState.init();
-      }
+      
 
       /* ===== OEM Warning (only once) ===== */
       final oemDone =
