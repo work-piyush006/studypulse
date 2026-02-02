@@ -1,4 +1,3 @@
-// lib/services/notification.dart
 import 'dart:convert';
 import 'dart:math';
 
@@ -20,7 +19,6 @@ class NotificationService {
 
   static bool _initialized = false;
 
-  // 🔒 NEVER CHANGE AFTER RELEASE
   static const String _channelId = 'exam_channel_v3';
 
   static const AndroidNotificationChannel _channel =
@@ -33,6 +31,8 @@ class NotificationService {
 
   static const int _id4pm = 4001;
   static const int _id11pm = 4002;
+  static const int _examMorningId = 8001;
+  static const int _examCompletedId = 8002;
 
   /* ================= INIT ================= */
 
@@ -56,13 +56,12 @@ class NotificationService {
 
     if (android != null) {
       await android.createNotificationChannel(_channel);
-      await android.requestPermission(); // Android 13+
     }
 
     _initialized = true;
   }
 
-  /* ================= TAP HANDLER ================= */
+  /* ================= TAP ================= */
 
   static Future<void> _onTap(NotificationResponse response) async {
     if (response.payload == null) return;
@@ -151,7 +150,6 @@ class NotificationService {
 
     final canNotify = await _ensureNotifyPermission();
     final canExact = await _ensureExactAlarmPermission();
-
     if (!canNotify || !canExact) return;
 
     await cancelDaily();
@@ -166,7 +164,6 @@ class NotificationService {
     int daysLeft,
   ) async {
     final now = tz.TZDateTime.now(tz.local);
-
     var time =
         tz.TZDateTime(tz.local, now.year, now.month, now.day, hour);
 
@@ -190,8 +187,68 @@ class NotificationService {
       ),
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
-      androidScheduleMode:
-          AndroidScheduleMode.exactAllowWhileIdle,
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+    );
+  }
+
+  /* ================= EXAM DAY 6 AM ================= */
+
+  static Future<void> scheduleExamMorning(DateTime examDate) async {
+    await init();
+
+    final canNotify = await _ensureNotifyPermission();
+    final canExact = await _ensureExactAlarmPermission();
+    if (!canNotify || !canExact) return;
+
+    final time = tz.TZDateTime(
+      tz.local,
+      examDate.year,
+      examDate.month,
+      examDate.day,
+      6,
+    );
+
+    if (time.isBefore(tz.TZDateTime.now(tz.local))) return;
+
+    await _plugin.zonedSchedule(
+      _examMorningId,
+      '🤞 Best of Luck!',
+      'Today is your exam.\nYou’ve got this 💪📘',
+      time,
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          _channelId,
+          _channel.name,
+          importance: Importance.high,
+          priority: Priority.high,
+          icon: 'ic_notification',
+        ),
+      ),
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+    );
+  }
+
+  /* ================= EXAM COMPLETED ================= */
+
+  static Future<void> examCompleted() async {
+    await init();
+    if (!await _ensureNotifyPermission()) return;
+
+    await _plugin.show(
+      _examCompletedId,
+      '🎉 Exam Completed',
+      'Any next exam left?\nStart preparing today 📘',
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          _channelId,
+          _channel.name,
+          importance: Importance.high,
+          priority: Priority.high,
+          icon: 'ic_notification',
+        ),
+      ),
     );
   }
 
@@ -201,9 +258,8 @@ class NotificationService {
     await init();
     await _plugin.cancel(_id4pm);
     await _plugin.cancel(_id11pm);
+    await _plugin.cancel(_examMorningId);
   }
-
-  /* ================= UTIL ================= */
 
   static String _quote() {
     const quotes = [
