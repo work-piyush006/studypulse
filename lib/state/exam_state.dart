@@ -6,33 +6,51 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../services/notification.dart';
 
 class ExamState {
+  /* ================= NOTIFIERS ================= */
+
   static final ValueNotifier<DateTime?> examDate =
       ValueNotifier<DateTime?>(null);
+
   static final ValueNotifier<int> daysLeft =
       ValueNotifier<int>(0);
+
   static final ValueNotifier<bool> isExamDay =
       ValueNotifier<bool>(false);
+
   static final ValueNotifier<bool> isExamCompleted =
       ValueNotifier<bool>(false);
+
+  /* ================= INTERNAL ================= */
 
   static Timer? _midnightTimer;
 
   static const String _dateKey = 'exam_date';
   static const String _totalKey = 'exam_total_days';
-  static const String _examDayNotifiedKey = 'exam_day_notified';
 
-  static int? _cachedTotalDays;
+  static int? _totalDays; // cached baseline
+
+  static bool _initialized = false; // 🔒 HARD GUARD
 
   /* ================= INIT ================= */
 
+  /// Safe to call multiple times.
+  /// Will only execute once per app lifecycle.
   static Future<void> init() async {
+    if (_initialized) return;
+    _initialized = true;
+
     final prefs = await SharedPreferences.getInstance();
     final saved = prefs.getString(_dateKey);
 
     if (saved != null) {
-      await update(DateTime.parse(saved), fromInit: true);
+      final parsed = DateTime.tryParse(saved);
+      if (parsed != null) {
+        await _recalculate(parsed, fromInit: true);
+      } else {
+        await clear();
+      }
     } else {
-      _reset();
+      _resetRuntime();
     }
 
     _scheduleMidnightRefresh();
@@ -40,21 +58,24 @@ class ExamState {
 
   /* ================= UPDATE ================= */
 
-  static Future<void> update(
-    DateTime? date, {
-    bool fromInit = false,
-  }) async {
+  /// Called ONLY when user selects a date
+  static Future<void> update(DateTime date) async {
+    final normalized =
+        DateTime(date.year, date.month, date.day);
+
     final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_dateKey, normalized.toIso8601String());
 
-    if (date == null) {
-      await clear();
-      return;
-    }
+    await _recalculate(normalized, fromInit: false);
+  }
 
-    await prefs.setString(_dateKey, date.toIso8601String());
+  /* ================= CORE LOGIC ================= */
 
+  static Future<void> _recalculate(
+    DateTime date, {
+    required bool fromInit,
+  }) async {
     examDate.value = date;
-    isExamCompleted.value = false;
 
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
@@ -62,13 +83,14 @@ class ExamState {
 
     final diff = target.difference(today).inDays;
 
-    /* ===== Past exam ===== */
+    // 🔴 Exam passed
     if (diff < 0) {
-      // ❌ DO NOT CLEAR ON INIT
+      daysLeft.value = 0;
+      isExamDay.value = false;
+      isExamCompleted.value = true;
+
       if (!fromInit) {
         await clear();
-        isExamCompleted.value = true;
-
         await NotificationService.instant(
           title: '🎉 Exam Completed',
           body: 'Any next exam left?\nStart preparing today 📘',
@@ -79,42 +101,41 @@ class ExamState {
       return;
     }
 
-    /* ===== Exam day ===== */
+    // 🟠 Exam day
     if (diff == 0) {
       daysLeft.value = 0;
       isExamDay.value = true;
+      isExamCompleted.value = false;
 
       await NotificationService.cancelDaily();
 
-      final notified =
-          prefs.getBool(_examDayNotifiedKey) ?? false;
-
-      if (!notified && !fromInit) {
+      if (!fromInit) {
         await NotificationService.instant(
           title: '🤞 Best of Luck!',
-          body: 'Your exam is today.\nYou’ve got this 💪📘',
+          body: 'Your exam is today.\nYou’ve got this 💪',
           save: true,
           route: '/exam',
         );
-
-        await NotificationService.examDayMorning();
-        await prefs.setBool(_examDayNotifiedKey, true);
       }
       return;
     }
 
-    /* ===== Future exam ===== */
+    // 🟢 Future exam
     isExamDay.value = false;
+    isExamCompleted.value = false;
     daysLeft.value = diff;
 
-    await prefs.remove(_examDayNotifiedKey);
+    final prefs = await SharedPreferences.getInstance();
 
-    if (!prefs.containsKey(_totalKey)) {
+    if (_totalDays == null) {
+      _totalDays = diff;
       await prefs.setInt(_totalKey, diff);
-      _cachedTotalDays = diff;
     }
 
-    await NotificationService.scheduleDaily(daysLeft: diff);
+    // 🔥 Schedule ONLY on user action
+    if (!fromInit) {
+      await NotificationService.scheduleDaily(daysLeft: diff);
+    }
   }
 
   /* ================= MIDNIGHT REFRESH ================= */
@@ -129,48 +150,49 @@ class ExamState {
     _midnightTimer = Timer(
       nextMidnight.difference(now),
       () async {
-        final prefs = await SharedPreferences.getInstance();
-        _cachedTotalDays = prefs.getInt(_totalKey);
-
         if (examDate.value != null) {
-          await update(examDate.value);
+          await _recalculate(
+            examDate.value!,
+            fromInit: true, // 🔒 NEVER reschedule here
+          );
         }
-
         _scheduleMidnightRefresh();
       },
     );
+  }
+
+  /* ================= HELPERS ================= */
+
+  static bool get hasExam => examDate.value != null;
+
+  static double progress() {
+    if (_totalDays == null || _totalDays! <= 0) return 0;
+    return 1 - (daysLeft.value / _totalDays!);
+  }
+
+  static Color colorForDays(int days) {
+    if (days >= 45) return Colors.green;
+    if (days >= 30) return Colors.orange;
+    return Colors.red;
   }
 
   /* ================= CLEAR ================= */
 
   static Future<void> clear() async {
     final prefs = await SharedPreferences.getInstance();
+
     await prefs.remove(_dateKey);
     await prefs.remove(_totalKey);
-    await prefs.remove(_examDayNotifiedKey);
-    _reset();
+
+    await NotificationService.cancelDaily();
+    _resetRuntime();
   }
 
-  static void _reset() {
+  static void _resetRuntime() {
     examDate.value = null;
     daysLeft.value = 0;
     isExamDay.value = false;
     isExamCompleted.value = false;
-    _cachedTotalDays = null;
+    _totalDays = null;
   }
-/* ================= UI HELPERS ================= */
-
-static bool get hasExam => examDate.value != null;
-
-static double progress() {
-  if (daysLeft.value <= 0) return 0;
-  if (_cachedTotalDays == null || _cachedTotalDays! <= 0) return 0;
-  return 1 - (daysLeft.value / _cachedTotalDays!);
-}
-
-static Color colorForDays(int days) {
-  if (days >= 45) return Colors.green;
-  if (days >= 30) return Colors.orange;
-  return Colors.red;
-}
 }
