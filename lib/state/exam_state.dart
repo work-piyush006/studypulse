@@ -36,25 +36,28 @@ class ExamState {
   /// Safe to call multiple times.
   /// Will only execute once per app lifecycle.
   static Future<void> init() async {
-    if (_initialized) return;
-    _initialized = true;
+  if (_initialized) return;
+  _initialized = true;
 
-    final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getString(_dateKey);
+  final prefs = await SharedPreferences.getInstance();
 
-    if (saved != null) {
-      final parsed = DateTime.tryParse(saved);
-      if (parsed != null) {
-        await _recalculate(parsed, fromInit: true);
-      } else {
-        await clear();
-      }
+  _totalDays = prefs.getInt(_totalKey); // ✅ RESTORE
+
+  final saved = prefs.getString(_dateKey);
+
+  if (saved != null) {
+    final parsed = DateTime.tryParse(saved);
+    if (parsed != null) {
+      await _recalculate(parsed, fromInit: true);
     } else {
-      _resetRuntime();
+      await clear();
     }
-
-    _scheduleMidnightRefresh();
+  } else {
+    _resetRuntime();
   }
+
+  _scheduleMidnightRefresh();
+}
 
   /* ================= UPDATE ================= */
 
@@ -85,21 +88,21 @@ class ExamState {
 
     // 🔴 Exam passed
     if (diff < 0) {
-      daysLeft.value = 0;
-      isExamDay.value = false;
-      isExamCompleted.value = true;
+  daysLeft.value = 0;
+  isExamDay.value = false;
+  isExamCompleted.value = true;
 
-      if (!fromInit) {
-        await clear();
-        await NotificationService.instant(
-          title: '🎉 Exam Completed',
-          body: 'Any next exam left?\nStart preparing today 📘',
-          save: true,
-          route: '/exam',
-        );
-      }
-      return;
-    }
+  // ❌ NEVER clear automatically
+  if (!fromInit) {
+    await NotificationService.instant(
+      title: '🎉 Exam Completed',
+      body: 'Any next exam left?\nStart preparing today 📘',
+      save: true,
+      route: '/exam',
+    );
+  }
+  return;
+}
 
     // 🟠 Exam day
     if (diff == 0) {
