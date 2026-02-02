@@ -108,8 +108,6 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
     final normalized =
         DateTime(picked.year, picked.month, picked.day);
 
-    await prefs.setString(
-        'exam_date', normalized.toIso8601String());
     await ExamState.update(normalized);
 
     final days = ExamState.daysLeft.value;
@@ -182,7 +180,7 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
   if (confirm != true || !mounted) return;
 
   await ExamState.clear();
-  await NotificationService.cancelDaily();
+  await NotificationService.cancelAll();
 
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
