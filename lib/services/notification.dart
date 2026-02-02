@@ -84,9 +84,14 @@ class NotificationService {
   /* ================= PERMISSION ================= */
 
   static Future<bool> _canNotify() async {
-    final status = await Permission.notification.status;
-    return status.isGranted;
-  }
+  final status = await Permission.notification.status;
+
+  if (status.isGranted) return true;
+
+  // Android 13+ explicit request
+  final req = await Permission.notification.request();
+  return req.isGranted;
+}
 
   /* ================= INSTANT ================= */
 
@@ -140,6 +145,12 @@ class NotificationService {
   }
 
   /* ================= DAILY ================= */
+  
+  static Future<void> ensureExactAlarmPermission() async {
+  if (await Permission.scheduleExactAlarm.isGranted) return;
+
+  await Permission.scheduleExactAlarm.request();
+}
 
   static Future<void> scheduleDaily({required int daysLeft}) async {
     await init();
