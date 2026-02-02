@@ -50,33 +50,41 @@ class _SplashScreenState extends State<SplashScreen> {
         return;
       }
 
-      /* ===== Init notifications (safe) ===== */
-      await NotificationService.init();
+      /* ===== Init notifications ===== */
+await NotificationService.init();
 
-      /* ===== Permission Logic ===== */
-      final asked =
-          prefs.getInt('notification_permission_count') ?? 0;
-      final granted = await Permission.notification.isGranted;
+/* ===== Permission Logic ===== */
+final asked =
+    prefs.getInt('notification_permission_count') ?? 0;
 
-      // 🔥 FIRST TIME or ONE RETRY
-      if (!granted && asked < 2) {
-        _go(() => const PermissionScreen());
-        return;
-      }
+// 1️⃣ First install
+if (asked == 0) {
+  _go(() => const PermissionScreen());
+  return;
+}
 
-      /* ===== OEM Warning (ONLY if granted) ===== */
-      final oemDone =
-          prefs.getBool('oem_permission_done') ?? false;
+// 2️⃣ One retry if denied / skipped
+if (asked == 1) {
+  final status = await Permission.notification.status;
+  if (!status.isGranted) {
+    _go(() => const PermissionScreen());
+    return;
+  }
+}
 
-      if (granted && !oemDone) {
-        await Navigator.push(
-          context,
-          MaterialPageRoute(
-            fullscreenDialog: true,
-            builder: (_) => const OemWarningScreen(),
-          ),
-        );
-      }
+/* ===== OEM Warning (ONLY after permission granted) ===== */
+final granted = await Permission.notification.isGranted;
+final oemDone = prefs.getBool('oem_permission_done') ?? false;
+
+if (granted && !oemDone) {
+  await Navigator.push(
+    context,
+    MaterialPageRoute(
+      fullscreenDialog: true,
+      builder: (_) => const OemWarningScreen(),
+    ),
+  );
+}
 
       _go(() => const Home());
     } catch (_) {

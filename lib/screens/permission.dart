@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../services/notification.dart'; // 🔥 ADD THIS
+
 class PermissionScreen extends StatefulWidget {
   const PermissionScreen({super.key});
 
@@ -22,17 +24,24 @@ class _PermissionScreenState extends State<PermissionScreen> {
     final count = prefs.getInt(_countKey) ?? 0;
     await prefs.setInt(_countKey, count + 1);
 
-    await Permission.notification.request();
+    // 🔥 ACTUAL SYSTEM PERMISSION
+    final result = await Permission.notification.request();
+
+    // 🔥 VERY IMPORTANT (without this notifications NEVER work)
+    if (result.isGranted) {
+      await NotificationService.init();
+    }
 
     if (!mounted) return;
     setState(() => loading = false);
 
-    // ✅ VERY IMPORTANT
-    // PermissionScreen never decides navigation
     Navigator.pop(context);
   }
 
-  void _skip() {
+  void _skip() async {
+    final prefs = await SharedPreferences.getInstance();
+    final count = prefs.getInt(_countKey) ?? 0;
+    await prefs.setInt(_countKey, count + 1);
     Navigator.pop(context);
   }
 
