@@ -1,3 +1,4 @@
+// lib/state/exam_state.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -47,7 +48,7 @@ class ExamState {
       return;
     }
 
-    // ✅ SAVE EXAM DATE (THIS WAS THE BUG)
+    // 🔥 CRITICAL: persist exam date
     await prefs.setString(_dateKey, date.toIso8601String());
 
     examDate.value = date;
@@ -84,6 +85,7 @@ class ExamState {
           prefs.getBool(_examDayNotifiedKey) ?? false;
 
       if (!notified) {
+        // Immediate feedback
         await NotificationService.instant(
           title: '🤞🏼 Best of Luck!',
           body: 'Your exam is today.\nYou’ve got this 💪📘',
@@ -91,6 +93,7 @@ class ExamState {
           route: '/exam',
         );
 
+        // Morning / fallback alarm
         await NotificationService.examDayMorning();
         await prefs.setBool(_examDayNotifiedKey, true);
       }
@@ -111,7 +114,15 @@ class ExamState {
     await NotificationService.scheduleDaily(daysLeft: diff);
   }
 
-  /* ================= COLOR (USED EVERYWHERE) ================= */
+  /* ================= HELPERS USED BY UI ================= */
+
+  static bool get hasExam => examDate.value != null;
+
+  static double progress() {
+    if (daysLeft.value <= 0) return 0;
+    if (_cachedTotalDays == null || _cachedTotalDays! <= 0) return 0;
+    return 1 - (daysLeft.value / _cachedTotalDays!);
+  }
 
   static Color colorForDays(int days) {
     if (days > 45) return Colors.green;
