@@ -1,3 +1,4 @@
+// lib/services/notification.dart
 import 'dart:convert';
 import 'dart:math';
 
@@ -76,9 +77,10 @@ class NotificationService {
     if (android != null) {
       await android.createNotificationChannel(_channel);
 
-      // 🔥 ANDROID 13+ EXACT ALARM FIX
-      final canExact =
-          await android.canScheduleExactNotifications();
+      // ✅ Android 12+ exact alarm safety (NULL-SAFE)
+      final bool canExact =
+          await android.canScheduleExactNotifications() ?? false;
+
       if (!canExact) {
         await android.requestExactAlarmsPermission();
       }
@@ -122,7 +124,6 @@ class NotificationService {
           priority: Priority.high,
           groupKey: _groupKey,
           icon: 'ic_notification',
-          styleInformation: BigTextStyleInformation(body),
         ),
       ),
       payload: jsonEncode({
@@ -170,21 +171,17 @@ class NotificationService {
       time = time.add(const Duration(days: 1));
     }
 
-    final body = '$daysLeft days left\n${_quote()}';
-
     await _plugin.zonedSchedule(
       id,
       '📚 Study Reminder',
-      body,
+      '$daysLeft days left\n${_quote()}',
       time,
       NotificationDetails(
         android: AndroidNotificationDetails(
           _channelId,
           _channel.name,
-          channelDescription: _channel.description,
           importance: Importance.high,
           priority: Priority.high,
-          groupKey: _groupKey,
           icon: 'ic_notification',
         ),
       ),
