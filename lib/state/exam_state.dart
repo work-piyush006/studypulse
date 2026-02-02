@@ -25,6 +25,10 @@ class ExamState {
 
   static Future<void> init() async {
     if (_initialized) return;
+
+    // 🔥 DO NOT INIT WITHOUT PERMISSION
+    if (!await NotificationService.isGranted()) return;
+
     _initialized = true;
 
     final prefs = await SharedPreferences.getInstance();
@@ -58,9 +62,9 @@ class ExamState {
     examDate.value = d;
 
     final prefs = await SharedPreferences.getInstance();
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final diff = d.difference(today).inDays;
+    final today = DateTime.now();
+    final now = DateTime(today.year, today.month, today.day);
+    final diff = d.difference(now).inDays;
 
     if (diff < 0) {
       isExamCompleted.value = true;
@@ -110,16 +114,6 @@ class ExamState {
     });
   }
 
-  /* ================= UI ================= */
-
-  static double progress() =>
-      _totalDays == null || _totalDays == 0
-          ? 0
-          : 1 - (daysLeft.value / _totalDays!);
-
-  static Color colorForDays(int d) =>
-      d >= 45 ? Colors.green : d >= 30 ? Colors.orange : Colors.red;
-
   /* ================= CLEAR ================= */
 
   static Future<void> clear() async {
@@ -137,4 +131,12 @@ class ExamState {
     isExamCompleted.value = false;
     _totalDays = null;
   }
+
+  static double progress() =>
+      _totalDays == null || _totalDays == 0
+          ? 0
+          : 1 - (daysLeft.value / _totalDays!);
+
+  static Color colorForDays(int d) =>
+      d >= 45 ? Colors.green : d >= 30 ? Colors.orange : Colors.red;
 }
