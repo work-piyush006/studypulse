@@ -9,10 +9,10 @@ import 'package:timezone/timezone.dart' as tz;
 
 import 'notification_store.dart';
 
-enum NotificationResult { success, permissionDenied }
-
 class NotificationService {
   NotificationService._();
+
+  /* ================= CORE ================= */
 
   static final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
@@ -20,14 +20,6 @@ class NotificationService {
   static bool _initialized = false;
 
   static const String _channelId = 'exam_channel_v3';
-
-  static const AndroidNotificationChannel _channel =
-      AndroidNotificationChannel(
-    _channelId,
-    'Exam Notifications',
-    description: 'Exam reminders & study alerts',
-    importance: Importance.high,
-  );
 
   static const int _id4pm = 4001;
   static const int _id11pm = 4002;
@@ -55,18 +47,25 @@ class NotificationService {
             AndroidFlutterLocalNotificationsPlugin>();
 
     if (android != null) {
-      await android.createNotificationChannel(_channel);
+      await android.createNotificationChannel(
+        const AndroidNotificationChannel(
+          _channelId,
+          'Exam Notifications',
+          description: 'Exam reminders & alerts',
+          importance: Importance.high,
+        ),
+      );
     }
 
     _initialized = true;
   }
 
-  /* ================= TAP ================= */
+  /* ================= TAP HANDLER ================= */
 
-  static Future<void> _onTap(NotificationResponse response) async {
-    if (response.payload == null) return;
+  static Future<void> _onTap(NotificationResponse r) async {
+    if (r.payload == null) return;
 
-    final data = jsonDecode(response.payload!);
+    final data = jsonDecode(r.payload!);
     final prefs = await SharedPreferences.getInstance();
 
     if (data['save'] == true) {
@@ -83,103 +82,80 @@ class NotificationService {
     }
   }
 
-  /* ================= PERMISSIONS ================= */
+  /* ================= PERMISSION GUARDS ================= */
 
-  static Future<bool> _ensureNotifyPermission() async {
-    final status = await Permission.notification.status;
-    if (status.isGranted) return true;
+  static Future<bool> _notifyGranted() async =>
+      (await Permission.notification.status).isGranted;
 
-    final result = await Permission.notification.request();
-    return result.isGranted;
-  }
+  static Future<bool> _exactGranted() async =>
+      (await Permission.scheduleExactAlarm.status).isGranted;
 
-  static Future<bool> _ensureExactAlarmPermission() async {
-    final status = await Permission.scheduleExactAlarm.status;
-    if (status.isGranted) return true;
+  /* ================= INSTANT NOTIFICATION ================= */
 
-    final result = await Permission.scheduleExactAlarm.request();
-    return result.isGranted;
-  }
-
-  /* ================= INSTANT ================= */
-
-  static Future<NotificationResult> instant({
+  static Future<void> instant({
     required String title,
     required String body,
-    required bool save,
-    String route = '/exam',
+    bool save = false,
+    String? route,
   }) async {
     await init();
+    if (!await _notifyGranted()) return;
 
-    if (!await _ensureNotifyPermission()) {
-      return NotificationResult.permissionDenied;
-    }
-
-    final id = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final payload = jsonEncode({
+      'title': title,
+      'body': body,
+      'route': route,
+      'save': save,
+      'time': DateTime.now().toIso8601String(),
+    });
 
     await _plugin.show(
-      id,
+      DateTime.now().millisecondsSinceEpoch ~/ 1000,
       title,
       body,
-      NotificationDetails(
+      const NotificationDetails(
         android: AndroidNotificationDetails(
           _channelId,
-          _channel.name,
-          channelDescription: _channel.description,
+          'Exam Notifications',
           importance: Importance.high,
           priority: Priority.high,
           icon: 'ic_notification',
         ),
       ),
-      payload: jsonEncode({
-        'save': save,
-        'title': title,
-        'body': body,
-        'route': route,
-        'time': DateTime.now().toIso8601String(),
-      }),
+      payload: payload,
     );
-
-    return NotificationResult.success;
   }
 
-  /* ================= DAILY ================= */
+  /* ================= DAILY REMINDERS ================= */
 
-  static Future<void> scheduleDaily({required int daysLeft}) async {
+  static Future<void> scheduleDaily(int daysLeft) async {
     await init();
+    if (!await _notifyGranted()) return;
+    if (!await _exactGranted()) return;
 
-    final canNotify = await _ensureNotifyPermission();
-    final canExact = await _ensureExactAlarmPermission();
-    if (!canNotify || !canExact) return;
-
-    await cancelDaily();
-
+    await cancelDailyOnly();
     await _schedule(_id4pm, 16, daysLeft);
     await _schedule(_id11pm, 23, daysLeft);
   }
 
-  static Future<void> _schedule(
-    int id,
-    int hour,
-    int daysLeft,
-  ) async {
+  static Future<void> _schedule(int id, int hour, int days) async {
     final now = tz.TZDateTime.now(tz.local);
-    var time =
+    var t =
         tz.TZDateTime(tz.local, now.year, now.month, now.day, hour);
 
-    if (time.isBefore(now)) {
-      time = time.add(const Duration(days: 1));
+    if (t.isBefore(now)) {
+      t = t.add(const Duration(days: 1));
     }
 
     await _plugin.zonedSchedule(
       id,
       '📚 Study Reminder',
-      '$daysLeft days left\n${_quote()}',
-      time,
-      NotificationDetails(
+      '$days days left\n${_quote()}',
+      t,
+      const NotificationDetails(
         android: AndroidNotificationDetails(
           _channelId,
-          _channel.name,
+          'Exam Notifications',
           importance: Importance.high,
           priority: Priority.high,
           icon: 'ic_notification',
@@ -191,34 +167,30 @@ class NotificationService {
     );
   }
 
-  /* ================= EXAM DAY 6 AM ================= */
+  /* ================= EXAM DAY ================= */
 
-  static Future<void> scheduleExamMorning(DateTime examDate) async {
+  static Future<void> scheduleExamMorningOnce(DateTime d) async {
     await init();
+    if (!await _notifyGranted()) return;
+    if (!await _exactGranted()) return;
 
-    final canNotify = await _ensureNotifyPermission();
-    final canExact = await _ensureExactAlarmPermission();
-    if (!canNotify || !canExact) return;
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool('exam_morning_done') == true) return;
 
-    final time = tz.TZDateTime(
-      tz.local,
-      examDate.year,
-      examDate.month,
-      examDate.day,
-      6,
-    );
+    final t =
+        tz.TZDateTime(tz.local, d.year, d.month, d.day, 6);
 
-    if (time.isBefore(tz.TZDateTime.now(tz.local))) return;
+    if (t.isBefore(tz.TZDateTime.now(tz.local))) return;
 
     await _plugin.zonedSchedule(
       _examMorningId,
       '🤞 Best of Luck!',
-      'Today is your exam.\nYou’ve got this 💪📘',
-      time,
-      NotificationDetails(
+      'Today is your exam 💪📘',
+      t,
+      const NotificationDetails(
         android: AndroidNotificationDetails(
           _channelId,
-          _channel.name,
+          'Exam Notifications',
           importance: Importance.high,
           priority: Priority.high,
           icon: 'ic_notification',
@@ -228,22 +200,22 @@ class NotificationService {
           UILocalNotificationDateInterpretation.absoluteTime,
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
     );
-  }
 
-  /* ================= EXAM COMPLETED ================= */
+    await prefs.setBool('exam_morning_done', true);
+  }
 
   static Future<void> examCompleted() async {
     await init();
-    if (!await _ensureNotifyPermission()) return;
+    if (!await _notifyGranted()) return;
 
     await _plugin.show(
       _examCompletedId,
       '🎉 Exam Completed',
       'Any next exam left?\nStart preparing today 📘',
-      NotificationDetails(
+      const NotificationDetails(
         android: AndroidNotificationDetails(
           _channelId,
-          _channel.name,
+          'Exam Notifications',
           importance: Importance.high,
           priority: Priority.high,
           icon: 'ic_notification',
@@ -254,19 +226,29 @@ class NotificationService {
 
   /* ================= CANCEL ================= */
 
-  static Future<void> cancelDaily() async {
+  static Future<void> cancelDailyOnly() async {
     await init();
     await _plugin.cancel(_id4pm);
     await _plugin.cancel(_id11pm);
+  }
+
+  static Future<void> cancelAll() async {
+    await init();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('exam_morning_done');
+
+    await cancelDailyOnly();
     await _plugin.cancel(_examMorningId);
   }
 
+  /* ================= UTIL ================= */
+
   static String _quote() {
-    const quotes = [
+    const q = [
       'Stay consistent 🚀',
       'Small steps daily 📘',
       'You are closer than you think 💪',
     ];
-    return quotes[Random().nextInt(quotes.length)];
+    return q[Random().nextInt(q.length)];
   }
 }
