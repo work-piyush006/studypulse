@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
@@ -20,7 +21,6 @@ class NotificationService {
   static bool _initialized = false;
 
   static const String _channelId = 'exam_channel_stable_v1';
-  static const String _groupKey = 'exam_group';
 
   static const AndroidNotificationChannel _channel =
       AndroidNotificationChannel(
@@ -32,7 +32,6 @@ class NotificationService {
 
   static const int _id4pm = 4001;
   static const int _id11pm = 4002;
-  static const int _examDayId = 9001;
 
   /* ================= INIT ================= */
 
@@ -62,10 +61,7 @@ class NotificationService {
         }
 
         if (data['route'] != null) {
-          await prefs.setString(
-            'notification_route',
-            data['route'],
-          );
+          await prefs.setString('notification_route', data['route']);
         }
       },
     );
@@ -75,38 +71,17 @@ class NotificationService {
             AndroidFlutterLocalNotificationsPlugin>();
 
     if (android != null) {
-      // Channel
       await android.createNotificationChannel(_channel);
-
-      // 🔥 REAL Android 13+ notification permission
-      final bool? granted = await android.requestPermission();
-      if (granted != true) {
-        _initialized = true;
-        return; // 🚫 user denied notifications
-      }
-
-      // Exact alarm permission (Android 12+)
-      final bool canExact =
-          await android.canScheduleExactNotifications() ?? false;
-      if (!canExact) {
-        await android.requestExactAlarmsPermission();
-      }
     }
 
     _initialized = true;
   }
 
-  /* ================= PERMISSION CHECK ================= */
+  /* ================= PERMISSION ================= */
 
   static Future<bool> _canNotify() async {
-    final android =
-        _plugin.resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>();
-
-    if (android == null) return true;
-
-    final bool? enabled = await android.areNotificationsEnabled();
-    return enabled ?? false;
+    final status = await Permission.notification.status;
+    return status.isGranted;
   }
 
   /* ================= INSTANT ================= */
@@ -135,7 +110,6 @@ class NotificationService {
           channelDescription: _channel.description,
           importance: Importance.high,
           priority: Priority.high,
-          groupKey: _groupKey,
           icon: 'ic_notification',
         ),
       ),
@@ -211,7 +185,7 @@ class NotificationService {
     await init();
     if (!await _canNotify()) return;
 
-    await _plugin.cancel(_examDayId);
+    await _plugin.cancel(9001);
 
     final now = tz.TZDateTime.now(tz.local);
     var time =
@@ -222,7 +196,7 @@ class NotificationService {
     }
 
     await _plugin.zonedSchedule(
-      _examDayId,
+      9001,
       '🤞🏼 Best of Luck!',
       'Your exam is today.\nYou’ve got this 💪📘',
       time,
