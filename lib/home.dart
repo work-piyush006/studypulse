@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import 'tools/percentage.dart';
 import 'tools/cgpa.dart';
@@ -11,11 +12,13 @@ import 'screens/about.dart';
 import 'screens/settings.dart';
 import 'screens/notification_inbox.dart';
 
+import 'services/notification.dart';
 import 'services/ads.dart';
 import 'services/ad_click_tracker.dart';
 import 'services/notification_store.dart';
 
 import 'widgets/ad_placeholder.dart';
+import 'widgets/notification_warning_card.dart';
 import 'state/exam_state.dart';
 
 class Home extends StatefulWidget {
@@ -31,15 +34,33 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
   int _index = 0;
   final ValueNotifier<String> _quote = ValueNotifier('');
 
+  static bool _coreInitialized = false; // 🔒 init once only
+
   @override
   void initState() {
     super.initState();
 
-    // 🔥 INIT ADMOB SDK (ONLY ONCE)
-    AdsService.initialize();
+    // ✅ SAFE INIT (after first frame)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initCoreOnce();
+    });
 
+    AdsService.initialize();
     WidgetsBinding.instance.addObserver(this);
     _loadQuote();
+  }
+
+  /* ================= CORE INIT ================= */
+
+  Future<void> _initCoreOnce() async {
+    if (_coreInitialized) return;
+    _coreInitialized = true;
+
+    // 🔔 Notification engine + channel
+    await NotificationService.init();
+
+    // 📆 Restore exam + reschedule alarms
+    await ExamState.init();
   }
 
   @override
@@ -56,6 +77,8 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
     }
   }
 
+  /* ================= QUOTE ================= */
+
   Future<void> _loadQuote() async {
     try {
       final raw = await rootBundle.loadString('assets/quotes.txt');
@@ -70,6 +93,8 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
       _quote.value = quotes.first;
     } catch (_) {}
   }
+
+  /* ================= UI ================= */
 
   @override
   Widget build(BuildContext context) {
@@ -223,7 +248,21 @@ class _HomeMainState extends State<HomeMain>
 
         const SizedBox(height: 20),
 
-        /// 🔥 QUOTE
+        /// 🔔 NOTIFICATION WARNING (AUTO)
+        FutureBuilder<bool>(
+          future: Permission.notification.isGranted,
+          builder: (_, snapshot) {
+            if (snapshot.data == false) {
+              return const Padding(
+                padding: EdgeInsets.only(bottom: 20),
+                child: NotificationWarningCard(),
+              );
+            }
+            return const SizedBox.shrink();
+          },
+        ),
+
+        /// 💬 QUOTE
         ValueListenableBuilder<String>(
           valueListenable: widget.quote,
           builder: (_, q, __) {
@@ -240,7 +279,7 @@ class _HomeMainState extends State<HomeMain>
 
         const SizedBox(height: 20),
 
-        /// 🔥 EXAM STATUS
+        /// 📆 EXAM STATUS
         ValueListenableBuilder<DateTime?>(
           valueListenable: ExamState.examDate,
           builder: (_, date, __) {
