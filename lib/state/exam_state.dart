@@ -1,4 +1,3 @@
-// lib/state/exam_state.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -48,7 +47,7 @@ class ExamState {
       return;
     }
 
-    // 🔥 CRITICAL FIX — SAVE EXAM DATE
+    // ✅ SAVE EXAM DATE (THIS WAS THE BUG)
     await prefs.setString(_dateKey, date.toIso8601String());
 
     examDate.value = date;
@@ -79,14 +78,12 @@ class ExamState {
       daysLeft.value = 0;
       isExamDay.value = true;
 
-      // Stop daily reminders
       await NotificationService.cancelDaily();
 
-      final alreadyNotified =
+      final notified =
           prefs.getBool(_examDayNotifiedKey) ?? false;
 
-      if (!alreadyNotified) {
-        // 🔔 Immediate feedback
+      if (!notified) {
         await NotificationService.instant(
           title: '🤞🏼 Best of Luck!',
           body: 'Your exam is today.\nYou’ve got this 💪📘',
@@ -94,9 +91,7 @@ class ExamState {
           route: '/exam',
         );
 
-        // 🔔 Morning / fallback scheduled
         await NotificationService.examDayMorning();
-
         await prefs.setBool(_examDayNotifiedKey, true);
       }
       return;
@@ -116,18 +111,7 @@ class ExamState {
     await NotificationService.scheduleDaily(daysLeft: diff);
   }
 
-  /* ================= PROGRESS ================= */
-
-  static double progress() {
-    if (daysLeft.value <= 0) return 0;
-    return _totalDays <= 0
-        ? 0
-        : 1 - (daysLeft.value / _totalDays);
-  }
-
-  static int get _totalDays => _cachedTotalDays ?? 0;
-
-  /* ================= COLOR LOGIC (SINGLE SOURCE OF TRUTH) ================= */
+  /* ================= COLOR (USED EVERYWHERE) ================= */
 
   static Color colorForDays(int days) {
     if (days > 45) return Colors.green;
@@ -166,13 +150,8 @@ class ExamState {
     await prefs.remove(_dateKey);
     await prefs.remove(_totalKey);
     await prefs.remove(_examDayNotifiedKey);
-
     _reset();
   }
-
-  /* ================= HELPERS ================= */
-
-  static bool get hasExam => examDate.value != null;
 
   static void _reset() {
     examDate.value = null;
