@@ -6,14 +6,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../services/notification.dart';
 
 class ExamState {
-  static final ValueNotifier<DateTime?> examDate =
-      ValueNotifier<DateTime?>(null);
-  static final ValueNotifier<int> daysLeft =
-      ValueNotifier<int>(0);
-  static final ValueNotifier<bool> isExamDay =
-      ValueNotifier<bool>(false);
-  static final ValueNotifier<bool> isExamCompleted =
-      ValueNotifier<bool>(false);
+  static final examDate = ValueNotifier<DateTime?>(null);
+  static final daysLeft = ValueNotifier<int>(0);
+  static final isExamDay = ValueNotifier<bool>(false);
+  static final isExamCompleted = ValueNotifier<bool>(false);
 
   static Timer? _timer;
   static int? _totalDays;
@@ -23,7 +19,6 @@ class ExamState {
   static const _totalKey = 'exam_total_days';
   static const _doneKey = 'exam_completed_notified';
 
-  /// ✅ REQUIRED BY UI
   static bool get hasExam => examDate.value != null;
 
   /* ================= INIT ================= */
@@ -38,7 +33,7 @@ class ExamState {
     final raw = prefs.getString(_dateKey);
     if (raw != null) {
       final d = DateTime.tryParse(raw);
-      if (d != null) await _recalculate(d);
+      if (d != null) await _recalc(d);
     }
 
     _scheduleMidnight();
@@ -48,26 +43,24 @@ class ExamState {
 
   static Future<void> update(DateTime d) async {
     final prefs = await SharedPreferences.getInstance();
-    final normalized =
-        DateTime(d.year, d.month, d.day);
+    final n = DateTime(d.year, d.month, d.day);
 
-    await prefs.setString(
-        _dateKey, normalized.toIso8601String());
+    await prefs.setString(_dateKey, n.toIso8601String());
     await prefs.remove(_doneKey);
     await prefs.remove('exam_morning_done');
 
-    await _recalculate(normalized);
+    await _recalc(n);
   }
 
-  /* ================= CORE LOGIC ================= */
+  /* ================= CORE ================= */
 
-  static Future<void> _recalculate(DateTime d) async {
+  static Future<void> _recalc(DateTime d) async {
     examDate.value = d;
 
     final prefs = await SharedPreferences.getInstance();
-    final today = DateTime.now();
-    final now = DateTime(today.year, today.month, today.day);
-    final diff = d.difference(now).inDays;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final diff = d.difference(today).inDays;
 
     if (diff < 0) {
       isExamCompleted.value = true;
@@ -102,34 +95,30 @@ class ExamState {
     await NotificationService.scheduleExamMorningOnce(d);
   }
 
-  /* ================= MIDNIGHT TICK ================= */
+  /* ================= MIDNIGHT ================= */
 
   static void _scheduleMidnight() {
     _timer?.cancel();
     final now = DateTime.now();
-    final next =
-        DateTime(now.year, now.month, now.day + 1);
+    final next = DateTime(now.year, now.month, now.day + 1);
 
     _timer = Timer(next.difference(now), () async {
       if (examDate.value != null) {
-        await _recalculate(examDate.value!);
+        await _recalc(examDate.value!);
       }
       _scheduleMidnight();
     });
   }
 
-  /* ================= UI HELPERS ================= */
+  /* ================= UI ================= */
 
-  static double progress() {
-    if (_totalDays == null || _totalDays! <= 0) return 0;
-    return 1 - (daysLeft.value / _totalDays!);
-  }
+  static double progress() =>
+      _totalDays == null || _totalDays == 0
+          ? 0
+          : 1 - (daysLeft.value / _totalDays!);
 
-  static Color colorForDays(int d) {
-    if (d >= 45) return Colors.green;
-    if (d >= 30) return Colors.orange;
-    return Colors.red;
-  }
+  static Color colorForDays(int d) =>
+      d >= 45 ? Colors.green : d >= 30 ? Colors.orange : Colors.red;
 
   /* ================= CLEAR ================= */
 
