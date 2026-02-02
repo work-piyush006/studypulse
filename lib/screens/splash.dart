@@ -19,7 +19,7 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
-  bool _navigated = false;
+  bool _done = false;
 
   static const _permKey = 'notification_permission_count';
   static const _oemKey = 'oem_permission_done';
@@ -33,15 +33,15 @@ class _SplashScreenState extends State<SplashScreen> {
   Future<void> _start() async {
     try {
       await Future.delayed(const Duration(milliseconds: 900));
-      if (!mounted || _navigated) return;
+      if (!mounted || _done) return;
 
       final prefs = await SharedPreferences.getInstance();
 
-      // ✅ INIT FIRST (important for notification cold start)
+      // 🔥 INIT FIRST (critical for Android 13+)
       await NotificationService.init();
       await ExamState.init();
 
-      /* ===== Notification deep link ===== */
+      // 🔔 Notification deep link
       final route = prefs.getString('notification_route');
       if (route != null) {
         await prefs.remove('notification_route');
@@ -55,7 +55,7 @@ class _SplashScreenState extends State<SplashScreen> {
         return;
       }
 
-      /* ===== Notification permission (Android 13+) ===== */
+      // 🔐 Notification permission (max 2 attempts)
       final asked = prefs.getInt(_permKey) ?? 0;
       final granted = await Permission.notification.isGranted;
 
@@ -70,8 +70,8 @@ class _SplashScreenState extends State<SplashScreen> {
         await prefs.setInt(_permKey, asked + 1);
       }
 
-      /* ===== OEM / Exact alarm ===== */
-      if ((await Permission.notification.isGranted) &&
+      // 🔋 OEM / Exact alarm advisory (not blocking)
+      if (await Permission.notification.isGranted &&
           !(prefs.getBool(_oemKey) ?? false)) {
         if (!(await Permission.scheduleExactAlarm.isGranted)) {
           await Navigator.push(
@@ -92,8 +92,8 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   void _go(Widget page) {
-    if (_navigated || !mounted) return;
-    _navigated = true;
+    if (_done || !mounted) return;
+    _done = true;
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(builder: (_) => page),
