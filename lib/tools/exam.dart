@@ -121,7 +121,6 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
       route: '/exam',
     );
 
-    await NotificationService.scheduleDaily(daysLeft: days);
 
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
