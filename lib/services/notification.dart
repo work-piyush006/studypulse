@@ -18,14 +18,19 @@ class NotificationService {
 
   static bool _initialized = false;
 
-  static const _channelId = 'exam_channel_v3';
+  static const String _channelId = 'exam_channel_v4';
 
   static const int _id4pm = 4001;
   static const int _id11pm = 4002;
   static const int _examMorningId = 8001;
   static const int _examCompletedId = 8002;
 
-  /* ================= INIT ================= */
+  /* ================= PERMISSION ================= */
+
+  static Future<bool> isGranted() async =>
+      (await Permission.notification.isGranted);
+
+  /* ================= INIT (ALWAYS INIT) ================= */
 
   static Future<void> init() async {
     if (_initialized) return;
@@ -59,7 +64,7 @@ class NotificationService {
     _initialized = true;
   }
 
-  /* ================= TAP ================= */
+  /* ================= TAP HANDLER ================= */
 
   static Future<void> _onTap(NotificationResponse r) async {
     if (r.payload == null) return;
@@ -81,11 +86,6 @@ class NotificationService {
     }
   }
 
-  /* ================= GUARDS ================= */
-
-  static Future<bool> _canNotify() async =>
-      (await Permission.notification.status).isGranted;
-
   /* ================= INSTANT ================= */
 
   static Future<void> instant({
@@ -95,7 +95,7 @@ class NotificationService {
     String? route,
   }) async {
     await init();
-    if (!await _canNotify()) return;
+    if (!await isGranted()) return;
 
     final payload = jsonEncode({
       'title': title,
@@ -122,11 +122,11 @@ class NotificationService {
     );
   }
 
-  /* ================= DAILY ================= */
+  /* ================= DAILY REMINDERS ================= */
 
   static Future<void> scheduleDaily(int daysLeft) async {
     await init();
-    if (!await _canNotify()) return;
+    if (!await isGranted()) return;
 
     await cancelDailyOnly();
     await _schedule(_id4pm, 16, daysLeft);
@@ -139,13 +139,8 @@ class NotificationService {
     int days,
   ) async {
     final now = tz.TZDateTime.now(tz.local);
-    var t = tz.TZDateTime(
-      tz.local,
-      now.year,
-      now.month,
-      now.day,
-      hour,
-    );
+    var t =
+        tz.TZDateTime(tz.local, now.year, now.month, now.day, hour);
 
     if (t.isBefore(now)) {
       t = t.add(const Duration(days: 1));
@@ -167,7 +162,7 @@ class NotificationService {
       ),
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
-      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
     );
   }
 
@@ -175,7 +170,7 @@ class NotificationService {
 
   static Future<void> scheduleExamMorningOnce(DateTime d) async {
     await init();
-    if (!await _canNotify()) return;
+    if (!await isGranted()) return;
 
     final prefs = await SharedPreferences.getInstance();
     if (prefs.getBool('exam_morning_done') == true) return;
@@ -201,7 +196,7 @@ class NotificationService {
       ),
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
-      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
     );
 
     await prefs.setBool('exam_morning_done', true);
@@ -209,7 +204,7 @@ class NotificationService {
 
   static Future<void> examCompleted() async {
     await init();
-    if (!await _canNotify()) return;
+    if (!await isGranted()) return;
 
     await _plugin.show(
       _examCompletedId,
@@ -230,19 +225,22 @@ class NotificationService {
   /* ================= CANCEL ================= */
 
   static Future<void> cancelDailyOnly() async {
-    await init();
+    if (!_initialized) return;
     await _plugin.cancel(_id4pm);
     await _plugin.cancel(_id11pm);
   }
 
   static Future<void> cancelAll() async {
-    await init();
+    if (!_initialized) return;
+
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('exam_morning_done');
 
     await cancelDailyOnly();
     await _plugin.cancel(_examMorningId);
   }
+
+  /* ================= UTIL ================= */
 
   static String _quote() {
     const q = [
