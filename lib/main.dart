@@ -12,35 +12,11 @@ final GlobalKey<NavigatorState> navigatorKey =
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 🔥 START INTERNET MONITORING ONCE
+  // 🌐 start once
   InternetService.startMonitoring();
 
-  runApp(const StudyPulseRoot());
+  runApp(const StudyPulseApp());
 }
-
-/* ================= ROOT ================= */
-
-class StudyPulseRoot extends StatelessWidget {
-  const StudyPulseRoot({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return ValueListenableBuilder<bool>(
-      valueListenable: InternetService.isConnected,
-      builder: (_, connected, __) {
-        if (!connected) {
-          // ❌ NO MATERIALAPP, NO NAVIGATOR
-          return const NoInternetScreen();
-        }
-
-        // ✅ INTERNET OK → FULL APP BOOT
-        return const StudyPulseApp();
-      },
-    );
-  }
-}
-
-/* ================= APP ================= */
 
 class StudyPulseApp extends StatefulWidget {
   const StudyPulseApp({super.key});
@@ -61,7 +37,6 @@ class _StudyPulseAppState extends State<StudyPulseApp> {
   Future<void> _loadTheme() async {
     final prefs = await SharedPreferences.getInstance();
     final isDark = prefs.getBool('dark_mode') ?? false;
-
     if (!mounted) return;
     setState(() {
       _themeMode = isDark ? ThemeMode.dark : ThemeMode.light;
@@ -71,7 +46,6 @@ class _StudyPulseAppState extends State<StudyPulseApp> {
   Future<void> toggleTheme(bool dark) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('dark_mode', dark);
-
     if (!mounted) return;
     setState(() {
       _themeMode = dark ? ThemeMode.dark : ThemeMode.light;
@@ -92,13 +66,23 @@ class _StudyPulseAppState extends State<StudyPulseApp> {
           useMaterial3: true,
           brightness: Brightness.dark,
         ),
+
+        // 🔥 INTERNET GUARD INSIDE APP
+        builder: (_, child) {
+          return ValueListenableBuilder<bool>(
+            valueListenable: InternetService.isConnected,
+            builder: (_, connected, __) {
+              if (!connected) return const NoInternetScreen();
+              return child ?? const SizedBox();
+            },
+          );
+        },
+
         home: const SplashScreen(),
       ),
     );
   }
 }
-
-/* ================= THEME CONTROLLER ================= */
 
 class ThemeController extends InheritedWidget {
   final Future<void> Function(bool) toggleTheme;
@@ -112,7 +96,6 @@ class ThemeController extends InheritedWidget {
   static ThemeController of(BuildContext context) {
     final controller =
         context.dependOnInheritedWidgetOfExactType<ThemeController>();
-    assert(controller != null, 'ThemeController not found');
     return controller!;
   }
 

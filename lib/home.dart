@@ -34,16 +34,13 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
   int _index = 0;
   final ValueNotifier<String> _quote = ValueNotifier('');
 
-  static bool _coreInitialized = false; // 🔒 init once only
+  
 
   @override
   void initState() {
     super.initState();
 
-    // ✅ SAFE INIT (after first frame)
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _initCoreOnce();
-    });
+   
 
     AdsService.initialize();
     WidgetsBinding.instance.addObserver(this);
@@ -51,20 +48,6 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
   }
 
   /* ================= CORE INIT ================= */
-
-  Future<void> _initCoreOnce() async {
-  if (_coreInitialized) return;
-  _coreInitialized = true;
-
-  await NotificationService.init();
-
-  // 🔥 THIS LINE WAS MISSING AS GUARANTEED CALL
-  await NotificationService.ensureExactAlarmPermission();
-
-  await ExamState.init();
-}
-
-    
 
   @override
   void dispose() {
