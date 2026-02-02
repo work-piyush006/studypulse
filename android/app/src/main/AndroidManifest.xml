@@ -5,11 +5,14 @@
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
 
-    <!-- NOTIFICATIONS (Android 13+) -->
+    <!-- NOTIFICATIONS -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
-    <!-- EXACT ALARM (Daily reminders) -->
+    <!-- EXACT ALARM -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
+
+    <!-- 🔥 REQUIRED FOR REBOOT -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
 
     <application
         android:name="${applicationName}"
@@ -40,7 +43,7 @@
             </intent-filter>
         </activity>
 
-        <!-- FLUTTER LOCAL NOTIFICATIONS -->
+        <!-- 🔥 FLUTTER LOCAL NOTIFICATION RECEIVERS -->
         <receiver
             android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver"
             android:exported="false"/>
@@ -48,6 +51,17 @@
         <receiver
             android:name="com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver"
             android:exported="false"/>
+
+        <!-- 🔥 REBOOT + TIME CHANGE -->
+        <receiver
+            android:name="com.dexterous.flutterlocalnotifications.BootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.TIME_SET"/>
+                <action android:name="android.intent.action.TIMEZONE_CHANGED"/>
+            </intent-filter>
+        </receiver>
 
         <meta-data
             android:name="flutterEmbedding"
