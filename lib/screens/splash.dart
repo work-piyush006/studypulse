@@ -29,68 +29,68 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _start() async {
-    try {
-      await Future.delayed(const Duration(milliseconds: 600));
-      if (!mounted || _navigated) return;
+  try {
+    // ⏱️ Splash visible for ~1.2 sec
+    await Future.delayed(const Duration(milliseconds: 1200));
+    if (!mounted || _navigated) return;
 
-      final prefs = await SharedPreferences.getInstance();
+    final prefs = await SharedPreferences.getInstance();
 
-      /* ===== Notification Deep Link ===== */
-      final route = prefs.getString('notification_route');
-      if (route != null) {
-        await prefs.remove('notification_route');
-        _replace(() {
-          if (route == '/notifications') {
-            return const NotificationInboxScreen();
-          }
-          if (route == '/exam') {
-            return const ExamCountdownPage();
-          }
-          return const Home();
-        });
-        return;
-      }
-
-      /* ===== Permission Flow (FIXED) ===== */
-      final asked =
-          prefs.getInt('notification_permission_count') ?? 0;
-      final status = await Permission.notification.status;
-
-      // 🔥 FIRST INSTALL
-      if (asked == 0) {
-        await _openPermission();
-      }
-      // 🔁 ONE RETRY IF DENIED / SKIPPED
-      else if (asked == 1 && !status.isGranted) {
-        await _openPermission();
-      }
-
-      /* ===== NOW safe to init notifications ===== */
-      final granted = await Permission.notification.isGranted;
-      if (granted) {
-        await ExamState.init();        // 🔥 LOAD SAVED EXAM
-await NotificationService.init();
-      }
-
-      /* ===== OEM Warning (ONLY if permission granted) ===== */
-      final oemDone =
-          prefs.getBool('oem_permission_done') ?? false;
-
-      if (granted && !oemDone) {
-        await Navigator.push(
-          context,
-          MaterialPageRoute(
-            fullscreenDialog: true,
-            builder: (_) => const OemWarningScreen(),
-          ),
-        );
-      }
-
-      _replace(() => const Home());
-    } catch (_) {
-      _replace(() => const Home());
+    /* ===== Notification Deep Link ===== */
+    final route = prefs.getString('notification_route');
+    if (route != null) {
+      await prefs.remove('notification_route');
+      _replace(() {
+        if (route == '/notifications') {
+          return const NotificationInboxScreen();
+        }
+        if (route == '/exam') {
+          return const ExamCountdownPage();
+        }
+        return const Home();
+      });
+      return;
     }
+
+    /* ===== Permission Flow ===== */
+    final asked =
+        prefs.getInt('notification_permission_count') ?? 0;
+    final status = await Permission.notification.status;
+
+    if (asked == 0) {
+      await _openPermission();
+    } else if (asked == 1 && !status.isGranted) {
+      await _openPermission();
+    }
+
+    /* 🔥 RE-CHECK AFTER PERMISSION SCREEN */
+    final granted = await Permission.notification.isGranted;
+
+    if (granted) {
+      // 🚨 MOST IMPORTANT FIX (ORDER MATTERS)
+      await NotificationService.init(); // ✅ FIRST
+      await ExamState.init();           // ✅ THEN
+    }
+
+    /* ===== OEM Warning ===== */
+    final oemDone =
+        prefs.getBool('oem_permission_done') ?? false;
+
+    if (granted && !oemDone) {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          fullscreenDialog: true,
+          builder: (_) => const OemWarningScreen(),
+        ),
+      );
+    }
+
+    _replace(() => const Home());
+  } catch (_) {
+    _replace(() => const Home());
   }
+}
 
   Future<void> _openPermission() async {
     await Navigator.push(
