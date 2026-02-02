@@ -48,6 +48,9 @@ class ExamState {
       return;
     }
 
+    // 🔥 CRITICAL FIX — SAVE EXAM DATE
+    await prefs.setString(_dateKey, date.toIso8601String());
+
     examDate.value = date;
     isExamCompleted.value = false;
 
@@ -83,7 +86,7 @@ class ExamState {
           prefs.getBool(_examDayNotifiedKey) ?? false;
 
       if (!alreadyNotified) {
-        // 🔥 IMMEDIATE notification (user feedback)
+        // 🔔 Immediate feedback
         await NotificationService.instant(
           title: '🤞🏼 Best of Luck!',
           body: 'Your exam is today.\nYou’ve got this 💪📘',
@@ -91,12 +94,11 @@ class ExamState {
           route: '/exam',
         );
 
-        // 🔔 Morning / fallback scheduled notification
+        // 🔔 Morning / fallback scheduled
         await NotificationService.examDayMorning();
 
         await prefs.setBool(_examDayNotifiedKey, true);
       }
-
       return;
     }
 
@@ -104,7 +106,6 @@ class ExamState {
     isExamDay.value = false;
     daysLeft.value = diff;
 
-    // Reset exam-day flag if date changes
     await prefs.remove(_examDayNotifiedKey);
 
     if (!prefs.containsKey(_totalKey)) {
@@ -125,6 +126,14 @@ class ExamState {
   }
 
   static int get _totalDays => _cachedTotalDays ?? 0;
+
+  /* ================= COLOR LOGIC (SINGLE SOURCE OF TRUTH) ================= */
+
+  static Color colorForDays(int days) {
+    if (days > 45) return Colors.green;
+    if (days >= 30) return Colors.orange;
+    return Colors.red;
+  }
 
   /* ================= MIDNIGHT REFRESH ================= */
 
@@ -164,12 +173,6 @@ class ExamState {
   /* ================= HELPERS ================= */
 
   static bool get hasExam => examDate.value != null;
-
-  static Color colorForDays(int days) {
-    if (days >= 90) return Colors.green;
-    if (days >= 30) return Colors.orange;
-    return Colors.red;
-  }
 
   static void _reset() {
     examDate.value = null;
