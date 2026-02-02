@@ -158,4 +158,19 @@ class ExamState {
     isExamCompleted.value = false;
     _cachedTotalDays = null;
   }
+/* ================= UI HELPERS ================= */
+
+static bool get hasExam => examDate.value != null;
+
+static double progress() {
+  if (daysLeft.value <= 0) return 0;
+  if (_cachedTotalDays == null || _cachedTotalDays! <= 0) return 0;
+  return 1 - (daysLeft.value / _cachedTotalDays!);
+}
+
+static Color colorForDays(int days) {
+  if (days >= 45) return Colors.green;
+  if (days >= 30) return Colors.orange;
+  return Colors.red;
+}
 }
