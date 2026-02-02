@@ -30,12 +30,13 @@ class _SplashScreenState extends State<SplashScreen> {
 
   Future<void> _start() async {
     try {
-      // ⏱ splash delay
+      // ⏱ Splash delay (UX only)
       await Future.delayed(const Duration(milliseconds: 1200));
       if (!mounted || _navigated) return;
 
-      // 🔥 CORE INIT (SAFE + IDEMPOTENT)
+      // 🔥 CORE INIT (SAFE, IDEMPOTENT)
       await NotificationService.init();
+      
       await ExamState.init();
 
       final prefs = await SharedPreferences.getInstance();
@@ -80,16 +81,20 @@ class _SplashScreenState extends State<SplashScreen> {
             builder: (_) => const OemWarningScreen(),
           ),
         );
+        await prefs.setBool('oem_permission_done', true);
       }
 
       _replace(() => const Home());
-    } catch (e) {
-      // 🔥 NEVER STUCK ON SPLASH
+    } catch (_) {
+      // 🔥 NEVER GET STUCK
       _replace(() => const Home());
     }
   }
 
+  /* ========= PERMISSION SCREEN ========= */
   Future<void> _openPermission() async {
+    final prefs = await SharedPreferences.getInstance();
+
     await Navigator.push(
       context,
       MaterialPageRoute(
@@ -97,8 +102,17 @@ class _SplashScreenState extends State<SplashScreen> {
         builder: (_) => const PermissionScreen(),
       ),
     );
+
+    // 🔒 CRITICAL: increment count
+    final asked =
+        prefs.getInt('notification_permission_count') ?? 0;
+    await prefs.setInt(
+      'notification_permission_count',
+      asked + 1,
+    );
   }
 
+  /* ========= SAFE NAV ========= */
   void _replace(Widget Function() builder) {
     if (!mounted || _navigated) return;
     _navigated = true;
