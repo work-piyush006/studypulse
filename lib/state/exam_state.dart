@@ -30,7 +30,7 @@ class ExamState {
     final saved = prefs.getString(_dateKey);
 
     if (saved != null) {
-      await update(DateTime.parse(saved));
+      await update(DateTime.parse(saved), fromInit: true);
     } else {
       _reset();
     }
@@ -40,7 +40,10 @@ class ExamState {
 
   /* ================= UPDATE ================= */
 
-  static Future<void> update(DateTime? date) async {
+  static Future<void> update(
+    DateTime? date, {
+    bool fromInit = false,
+  }) async {
     final prefs = await SharedPreferences.getInstance();
 
     if (date == null) {
@@ -48,7 +51,6 @@ class ExamState {
       return;
     }
 
-    // 🔥 CRITICAL: persist exam date
     await prefs.setString(_dateKey, date.toIso8601String());
 
     examDate.value = date;
@@ -62,15 +64,18 @@ class ExamState {
 
     /* ===== Past exam ===== */
     if (diff < 0) {
-      await clear();
-      isExamCompleted.value = true;
+      // ❌ DO NOT CLEAR ON INIT
+      if (!fromInit) {
+        await clear();
+        isExamCompleted.value = true;
 
-      await NotificationService.instant(
-        title: '🎉 Exam Completed',
-        body: 'Any next exam left?\nStart preparing today 📘',
-        save: true,
-        route: '/exam',
-      );
+        await NotificationService.instant(
+          title: '🎉 Exam Completed',
+          body: 'Any next exam left?\nStart preparing today 📘',
+          save: true,
+          route: '/exam',
+        );
+      }
       return;
     }
 
@@ -84,16 +89,14 @@ class ExamState {
       final notified =
           prefs.getBool(_examDayNotifiedKey) ?? false;
 
-      if (!notified) {
-        // Immediate feedback
+      if (!notified && !fromInit) {
         await NotificationService.instant(
-          title: '🤞🏼 Best of Luck!',
+          title: '🤞 Best of Luck!',
           body: 'Your exam is today.\nYou’ve got this 💪📘',
           save: true,
           route: '/exam',
         );
 
-        // Morning / fallback alarm
         await NotificationService.examDayMorning();
         await prefs.setBool(_examDayNotifiedKey, true);
       }
@@ -112,22 +115,6 @@ class ExamState {
     }
 
     await NotificationService.scheduleDaily(daysLeft: diff);
-  }
-
-  /* ================= HELPERS USED BY UI ================= */
-
-  static bool get hasExam => examDate.value != null;
-
-  static double progress() {
-    if (daysLeft.value <= 0) return 0;
-    if (_cachedTotalDays == null || _cachedTotalDays! <= 0) return 0;
-    return 1 - (daysLeft.value / _cachedTotalDays!);
-  }
-
-  static Color colorForDays(int days) {
-    if (days > 45) return Colors.green;
-    if (days >= 30) return Colors.orange;
-    return Colors.red;
   }
 
   /* ================= MIDNIGHT REFRESH ================= */
