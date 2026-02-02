@@ -3,8 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../services/notification.dart'; // 🔥 ADD THIS
-
 class PermissionScreen extends StatefulWidget {
   const PermissionScreen({super.key});
 
@@ -24,24 +22,24 @@ class _PermissionScreenState extends State<PermissionScreen> {
     final count = prefs.getInt(_countKey) ?? 0;
     await prefs.setInt(_countKey, count + 1);
 
-    // 🔥 ACTUAL SYSTEM PERMISSION
-    final result = await Permission.notification.request();
-
-    // 🔥 VERY IMPORTANT (without this notifications NEVER work)
-    if (result.isGranted) {
-      await NotificationService.init();
-    }
+    // ✅ ONLY request permission here
+    await Permission.notification.request();
 
     if (!mounted) return;
+
+    // 🔥 DO NOT init notifications here
     setState(() => loading = false);
 
+    // Just go back to Splash
     Navigator.pop(context);
   }
 
-  void _skip() async {
+  Future<void> _skip() async {
     final prefs = await SharedPreferences.getInstance();
     final count = prefs.getInt(_countKey) ?? 0;
     await prefs.setInt(_countKey, count + 1);
+
+    if (!mounted) return;
     Navigator.pop(context);
   }
 
