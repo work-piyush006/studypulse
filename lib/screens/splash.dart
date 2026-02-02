@@ -4,10 +4,9 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../home.dart';
-import '../tools/exam.dart';
-import '../services/notification.dart';
 import '../state/exam_state.dart';
-
+import '../services/notification.dart';
+import '../tools/exam.dart';
 import 'permission.dart';
 import 'notification_inbox.dart';
 import 'oem_warning.dart';
@@ -22,6 +21,9 @@ class SplashScreen extends StatefulWidget {
 class _SplashScreenState extends State<SplashScreen> {
   bool _navigated = false;
 
+  static const _permKey = 'notification_permission_count';
+  static const _oemKey = 'oem_permission_done';
+
   @override
   void initState() {
     super.initState();
@@ -30,96 +32,71 @@ class _SplashScreenState extends State<SplashScreen> {
 
   Future<void> _start() async {
     try {
-      // ⏱ Splash delay (UX only)
-      await Future.delayed(const Duration(milliseconds: 1200));
+      await Future.delayed(const Duration(milliseconds: 900));
       if (!mounted || _navigated) return;
-
-      // 🔥 CORE INIT (SAFE, IDEMPOTENT)
-      await NotificationService.init();
-      
-      await ExamState.init();
 
       final prefs = await SharedPreferences.getInstance();
 
-      /* ========= NOTIFICATION DEEP LINK ========= */
+      // ✅ INIT FIRST (important for notification cold start)
+      await NotificationService.init();
+      await ExamState.init();
+
+      /* ===== Notification deep link ===== */
       final route = prefs.getString('notification_route');
       if (route != null) {
         await prefs.remove('notification_route');
-
-        _replace(() {
-          if (route == '/notifications') {
-            return const NotificationInboxScreen();
-          }
-          if (route == '/exam') {
-            return const ExamCountdownPage();
-          }
-          return const Home();
-        });
+        _go(
+          route == '/exam'
+              ? const ExamCountdownPage()
+              : route == '/notifications'
+                  ? const NotificationInboxScreen()
+                  : const Home(),
+        );
         return;
       }
 
-      /* ========= PERMISSION FLOW ========= */
-      final asked =
-          prefs.getInt('notification_permission_count') ?? 0;
-      final status = await Permission.notification.status;
-
-      if (asked == 0 || (asked == 1 && !status.isGranted)) {
-        await _openPermission();
-      }
-
+      /* ===== Notification permission (Android 13+) ===== */
+      final asked = prefs.getInt(_permKey) ?? 0;
       final granted = await Permission.notification.isGranted;
 
-      /* ========= OEM WARNING (ONCE) ========= */
-      final oemDone =
-          prefs.getBool('oem_permission_done') ?? false;
-
-      if (granted && !oemDone) {
+      if (!granted && asked < 2) {
         await Navigator.push(
           context,
           MaterialPageRoute(
             fullscreenDialog: true,
-            builder: (_) => const OemWarningScreen(),
+            builder: (_) => const PermissionScreen(),
           ),
         );
-        await prefs.setBool('oem_permission_done', true);
+        await prefs.setInt(_permKey, asked + 1);
       }
 
-      _replace(() => const Home());
+      /* ===== OEM / Exact alarm ===== */
+      if ((await Permission.notification.isGranted) &&
+          !(prefs.getBool(_oemKey) ?? false)) {
+        if (!(await Permission.scheduleExactAlarm.isGranted)) {
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              fullscreenDialog: true,
+              builder: (_) => const OemWarningScreen(),
+            ),
+          );
+        }
+        await prefs.setBool(_oemKey, true);
+      }
+
+      _go(const Home());
     } catch (_) {
-      // 🔥 NEVER GET STUCK
-      _replace(() => const Home());
+      _go(const Home());
     }
   }
 
-  /* ========= PERMISSION SCREEN ========= */
-  Future<void> _openPermission() async {
-    final prefs = await SharedPreferences.getInstance();
-
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        fullscreenDialog: true,
-        builder: (_) => const PermissionScreen(),
-      ),
-    );
-
-    // 🔒 CRITICAL: increment count
-    final asked =
-        prefs.getInt('notification_permission_count') ?? 0;
-    await prefs.setInt(
-      'notification_permission_count',
-      asked + 1,
-    );
-  }
-
-  /* ========= SAFE NAV ========= */
-  void _replace(Widget Function() builder) {
-    if (!mounted || _navigated) return;
+  void _go(Widget page) {
+    if (_navigated || !mounted) return;
     _navigated = true;
-
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (_) => builder()),
+      MaterialPageRoute(builder: (_) => page),
     );
   }
 
@@ -159,7 +136,7 @@ class _SplashScreenState extends State<SplashScreen> {
                   color: isDark ? Colors.grey : Colors.black54,
                 ),
               ),
-              const SizedBox(height: 28),
+              const SizedBox(height: 32),
               const CircularProgressIndicator(strokeWidth: 2),
             ],
           ),
