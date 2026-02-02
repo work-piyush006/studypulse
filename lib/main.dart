@@ -4,12 +4,17 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'screens/splash.dart';
 import 'services/internet_guard.dart';
+import 'services/notification.dart'; // 👈 
 
 final GlobalKey<NavigatorState> navigatorKey =
     GlobalKey<NavigatorState>();
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // 🔥 REQUIRED: notification plugin must init BEFORE app UI
+  await NotificationService.init();
+
   runApp(const StudyPulseApp());
 }
 
