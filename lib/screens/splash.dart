@@ -6,7 +6,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../home.dart';
 import '../tools/exam.dart';
-import '../services/notification.dart';
 import 'permission.dart';
 import 'notification_inbox.dart';
 import 'oem_warning.dart';
@@ -29,68 +28,67 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _start() async {
-  try {
-    // ⏱️ Splash visible for ~1.2 sec
-    await Future.delayed(const Duration(milliseconds: 1200));
-    if (!mounted || _navigated) return;
+    try {
+      // ⏱️ splash visible ~1.2 sec
+      await Future.delayed(const Duration(milliseconds: 1200));
+      if (!mounted || _navigated) return;
 
-    final prefs = await SharedPreferences.getInstance();
+      final prefs = await SharedPreferences.getInstance();
 
-    /* ===== Notification Deep Link ===== */
-    final route = prefs.getString('notification_route');
-    if (route != null) {
-      await prefs.remove('notification_route');
-      _replace(() {
-        if (route == '/notifications') {
-          return const NotificationInboxScreen();
-        }
-        if (route == '/exam') {
-          return const ExamCountdownPage();
-        }
-        return const Home();
-      });
-      return;
+      /* ===== Notification Deep Link ===== */
+      final route = prefs.getString('notification_route');
+      if (route != null) {
+        await prefs.remove('notification_route');
+        _replace(() {
+          if (route == '/notifications') {
+            return const NotificationInboxScreen();
+          }
+          if (route == '/exam') {
+            return const ExamCountdownPage();
+          }
+          return const Home();
+        });
+        return;
+      }
+
+      /* ===== Permission Flow ===== */
+      final asked =
+          prefs.getInt('notification_permission_count') ?? 0;
+      final status = await Permission.notification.status;
+
+      if (asked == 0) {
+        await _openPermission();
+      } else if (asked == 1 && !status.isGranted) {
+        await _openPermission();
+      }
+
+      /* ===== Re-check after permission ===== */
+      final granted = await Permission.notification.isGranted;
+
+      if (granted) {
+        // ❗ NotificationService.init() is ALREADY done in main.dart
+        await ExamState.init();
+      }
+
+      /* ===== OEM Warning (only once) ===== */
+      final oemDone =
+          prefs.getBool('oem_permission_done') ?? false;
+
+      if (granted && !oemDone) {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            fullscreenDialog: true,
+            builder: (_) => const OemWarningScreen(),
+          ),
+        );
+      }
+
+      _replace(() => const Home());
+    } catch (_) {
+      _replace(() => const Home());
     }
-
-    /* ===== Permission Flow ===== */
-    final asked =
-        prefs.getInt('notification_permission_count') ?? 0;
-    final status = await Permission.notification.status;
-
-    if (asked == 0) {
-      await _openPermission();
-    } else if (asked == 1 && !status.isGranted) {
-      await _openPermission();
-    }
-
-    /* 🔥 RE-CHECK AFTER PERMISSION SCREEN */
-    final granted = await Permission.notification.isGranted;
-
-    if (granted) {
-      // 🚨 MOST IMPORTANT FIX (ORDER MATTERS)
-      await NotificationService.init(); // ✅ FIRST
-      await ExamState.init();           // ✅ THEN
-    }
-
-    /* ===== OEM Warning ===== */
-    final oemDone =
-        prefs.getBool('oem_permission_done') ?? false;
-
-    if (granted && !oemDone) {
-      await Navigator.push(
-        context,
-        MaterialPageRoute(
-          fullscreenDialog: true,
-          builder: (_) => const OemWarningScreen(),
-        ),
-      );
-    }
-
-    _replace(() => const Home());
-  } catch (_) {
-    _replace(() => const Home());
   }
-}
 
   Future<void> _openPermission() async {
     await Navigator.push(
