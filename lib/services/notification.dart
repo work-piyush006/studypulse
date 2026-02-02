@@ -20,7 +20,7 @@ class NotificationService {
 
   static bool _initialized = false;
 
-  // 🔥 NEW CHANNEL ID (MANDATORY)
+  // 🔥 NEW CHANNEL (DO NOT CHANGE AFTER RELEASE)
   static const String _channelId = 'exam_channel_v3';
 
   static const AndroidNotificationChannel _channel =
@@ -33,17 +33,17 @@ class NotificationService {
 
   static const int _id4pm = 4001;
   static const int _id11pm = 4002;
+  static const int _examDayId = 9001;
 
   /* ================= INIT ================= */
 
   static Future<void> init() async {
     if (_initialized) return;
 
-    // Timezone
+    // Timezone (MANDATORY for schedule)
     tz.initializeTimeZones();
     tz.setLocalLocation(tz.getLocation('Asia/Kolkata'));
 
-    // Plugin init
     await _plugin.initialize(
       const InitializationSettings(
         android: AndroidInitializationSettings('ic_notification'),
@@ -69,12 +69,12 @@ class NotificationService {
       },
     );
 
-    // Android-specific
     final android =
         _plugin.resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>();
 
     if (android != null) {
+      // 🔥 Channel creation (once per install)
       await android.createNotificationChannel(_channel);
     }
 
@@ -146,6 +146,7 @@ class NotificationService {
     if (!await _canNotify()) return;
 
     await cancelDaily();
+
     await _schedule(_id4pm, 16, daysLeft);
     await _schedule(_id11pm, 23, daysLeft);
   }
@@ -190,18 +191,18 @@ class NotificationService {
     await init();
     if (!await _canNotify()) return;
 
-    await _plugin.cancel(9001);
+    await _plugin.cancel(_examDayId);
 
     final now = tz.TZDateTime.now(tz.local);
     var time =
         tz.TZDateTime(tz.local, now.year, now.month, now.day, 6);
 
     if (time.isBefore(now)) {
-      time = now.add(const Duration(seconds: 2));
+      time = now.add(const Duration(seconds: 5));
     }
 
     await _plugin.zonedSchedule(
-      9001,
+      _examDayId,
       '🤞 Best of Luck!',
       'Your exam is today.\nYou’ve got this 💪📘',
       time,
@@ -228,6 +229,8 @@ class NotificationService {
     await _plugin.cancel(_id4pm);
     await _plugin.cancel(_id11pm);
   }
+
+  /* ================= UTIL ================= */
 
   static String _quote() {
     const quotes = [
