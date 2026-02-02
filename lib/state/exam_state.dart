@@ -1,4 +1,3 @@
-// lib/state/exam_state.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -6,73 +5,63 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../services/notification.dart';
 
 class ExamState {
-  /* ================= NOTIFIERS ================= */
-
   static final ValueNotifier<DateTime?> examDate =
       ValueNotifier<DateTime?>(null);
-
   static final ValueNotifier<int> daysLeft =
       ValueNotifier<int>(0);
-
   static final ValueNotifier<bool> isExamDay =
       ValueNotifier<bool>(false);
-
   static final ValueNotifier<bool> isExamCompleted =
       ValueNotifier<bool>(false);
-
-  /* ================= INTERNAL ================= */
 
   static Timer? _midnightTimer;
 
   static const String _dateKey = 'exam_date';
   static const String _totalKey = 'exam_total_days';
+  static const String _completedNotifiedKey =
+      'exam_completed_notified';
 
-  static int? _totalDays; // cached baseline
-
-  static bool _initialized = false; // 🔒 HARD GUARD
+  static int? _totalDays;
+  static bool _initialized = false;
 
   /* ================= INIT ================= */
 
-  /// Safe to call multiple times.
-  /// Will only execute once per app lifecycle.
   static Future<void> init() async {
-  if (_initialized) return;
-  _initialized = true;
+    if (_initialized) return;
+    _initialized = true;
 
-  final prefs = await SharedPreferences.getInstance();
+    final prefs = await SharedPreferences.getInstance();
+    _totalDays = prefs.getInt(_totalKey);
 
-  _totalDays = prefs.getInt(_totalKey); // ✅ RESTORE
-
-  final saved = prefs.getString(_dateKey);
-
-  if (saved != null) {
-    final parsed = DateTime.tryParse(saved);
-    if (parsed != null) {
-      await _recalculate(parsed, fromInit: true);
+    final saved = prefs.getString(_dateKey);
+    if (saved != null) {
+      final parsed = DateTime.tryParse(saved);
+      if (parsed != null) {
+        await _recalculate(parsed, fromInit: true);
+      } else {
+        await clear();
+      }
     } else {
-      await clear();
+      _resetRuntime();
     }
-  } else {
-    _resetRuntime();
-  }
 
-  _scheduleMidnightRefresh();
-}
+    _scheduleMidnightRefresh();
+  }
 
   /* ================= UPDATE ================= */
 
-  /// Called ONLY when user selects a date
   static Future<void> update(DateTime date) async {
     final normalized =
         DateTime(date.year, date.month, date.day);
 
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_dateKey, normalized.toIso8601String());
+    await prefs.setString(
+        _dateKey, normalized.toIso8601String());
 
     await _recalculate(normalized, fromInit: false);
   }
 
-  /* ================= CORE LOGIC ================= */
+  /* ================= CORE ================= */
 
   static Future<void> _recalculate(
     DateTime date, {
@@ -85,24 +74,23 @@ class ExamState {
     final target = DateTime(date.year, date.month, date.day);
 
     final diff = target.difference(today).inDays;
+    final prefs = await SharedPreferences.getInstance();
 
-    // 🔴 Exam passed
+    // 🔴 Exam completed
     if (diff < 0) {
-  daysLeft.value = 0;
-  isExamDay.value = false;
-  isExamCompleted.value = true;
+      daysLeft.value = 0;
+      isExamDay.value = false;
+      isExamCompleted.value = true;
 
-  // ❌ NEVER clear automatically
-  if (!fromInit) {
-    await NotificationService.instant(
-      title: '🎉 Exam Completed',
-      body: 'Any next exam left?\nStart preparing today 📘',
-      save: true,
-      route: '/exam',
-    );
-  }
-  return;
-}
+      final notified =
+          prefs.getBool(_completedNotifiedKey) ?? false;
+
+      if (!notified && !fromInit) {
+        await NotificationService.examCompleted();
+        await prefs.setBool(_completedNotifiedKey, true);
+      }
+      return;
+    }
 
     // 🟠 Exam day
     if (diff == 0) {
@@ -110,16 +98,9 @@ class ExamState {
       isExamDay.value = true;
       isExamCompleted.value = false;
 
+      // SAFETY: ensure 6 AM notification exists
+      await NotificationService.scheduleExamMorning(date);
       await NotificationService.cancelDaily();
-
-      if (!fromInit) {
-        await NotificationService.instant(
-          title: '🤞 Best of Luck!',
-          body: 'Your exam is today.\nYou’ve got this 💪',
-          save: true,
-          route: '/exam',
-        );
-      }
       return;
     }
 
@@ -128,20 +109,19 @@ class ExamState {
     isExamCompleted.value = false;
     daysLeft.value = diff;
 
-    final prefs = await SharedPreferences.getInstance();
-
     if (_totalDays == null) {
       _totalDays = diff;
       await prefs.setInt(_totalKey, diff);
     }
 
-    // 🔥 Schedule ONLY on user action
     if (!fromInit) {
       await NotificationService.scheduleDaily(daysLeft: diff);
+      await NotificationService.scheduleExamMorning(date);
+      await prefs.remove(_completedNotifiedKey);
     }
   }
 
-  /* ================= MIDNIGHT REFRESH ================= */
+  /* ================= MIDNIGHT ================= */
 
   static void _scheduleMidnightRefresh() {
     _midnightTimer?.cancel();
@@ -156,7 +136,7 @@ class ExamState {
         if (examDate.value != null) {
           await _recalculate(
             examDate.value!,
-            fromInit: true, // 🔒 NEVER reschedule here
+            fromInit: true,
           );
         }
         _scheduleMidnightRefresh();
@@ -183,9 +163,9 @@ class ExamState {
 
   static Future<void> clear() async {
     final prefs = await SharedPreferences.getInstance();
-
     await prefs.remove(_dateKey);
     await prefs.remove(_totalKey);
+    await prefs.remove(_completedNotifiedKey);
 
     await NotificationService.cancelDaily();
     _resetRuntime();
