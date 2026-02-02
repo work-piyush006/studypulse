@@ -1,15 +1,16 @@
 // lib/screens/splash.dart
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../home.dart';
 import '../tools/exam.dart';
+import '../services/notification.dart';
+import '../state/exam_state.dart';
+
 import 'permission.dart';
 import 'notification_inbox.dart';
 import 'oem_warning.dart';
-
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -29,16 +30,21 @@ class _SplashScreenState extends State<SplashScreen> {
 
   Future<void> _start() async {
     try {
-      // ⏱️ splash visible ~1.2 sec
+      // ⏱ splash delay
       await Future.delayed(const Duration(milliseconds: 1200));
       if (!mounted || _navigated) return;
 
+      // 🔥 CORE INIT (SAFE + IDEMPOTENT)
+      await NotificationService.init();
+      await ExamState.init();
+
       final prefs = await SharedPreferences.getInstance();
 
-      /* ===== Notification Deep Link ===== */
+      /* ========= NOTIFICATION DEEP LINK ========= */
       final route = prefs.getString('notification_route');
       if (route != null) {
         await prefs.remove('notification_route');
+
         _replace(() {
           if (route == '/notifications') {
             return const NotificationInboxScreen();
@@ -51,23 +57,18 @@ class _SplashScreenState extends State<SplashScreen> {
         return;
       }
 
-      /* ===== Permission Flow ===== */
+      /* ========= PERMISSION FLOW ========= */
       final asked =
           prefs.getInt('notification_permission_count') ?? 0;
       final status = await Permission.notification.status;
 
-      if (asked == 0) {
-        await _openPermission();
-      } else if (asked == 1 && !status.isGranted) {
+      if (asked == 0 || (asked == 1 && !status.isGranted)) {
         await _openPermission();
       }
 
-      /* ===== Re-check after permission ===== */
       final granted = await Permission.notification.isGranted;
 
-      
-
-      /* ===== OEM Warning (only once) ===== */
+      /* ========= OEM WARNING (ONCE) ========= */
       final oemDone =
           prefs.getBool('oem_permission_done') ?? false;
 
@@ -82,7 +83,8 @@ class _SplashScreenState extends State<SplashScreen> {
       }
 
       _replace(() => const Home());
-    } catch (_) {
+    } catch (e) {
+      // 🔥 NEVER STUCK ON SPLASH
       _replace(() => const Home());
     }
   }
@@ -100,6 +102,7 @@ class _SplashScreenState extends State<SplashScreen> {
   void _replace(Widget Function() builder) {
     if (!mounted || _navigated) return;
     _navigated = true;
+
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(builder: (_) => builder()),
@@ -130,7 +133,9 @@ class _SplashScreenState extends State<SplashScreen> {
               const Text(
                 'StudyPulse',
                 style: TextStyle(
-                    fontSize: 26, fontWeight: FontWeight.bold),
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               const SizedBox(height: 6),
               Text(
