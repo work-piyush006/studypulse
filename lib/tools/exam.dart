@@ -129,69 +129,71 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
   }
 
   Future<void> _cancelCountdown() async {
-    final confirm = await showModalBottomSheet<bool>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => SafeArea(
-        child: Material(
-          borderRadius:
-              const BorderRadius.vertical(top: Radius.circular(20)),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  'Cancel Exam Countdown?',
-                  style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold),
+  final confirm = await showModalBottomSheet<bool>(
+    context: context,
+    isDismissible: false, // 🔒 NO background dismiss
+    enableDrag: false,   // 🔒 NO swipe dismiss
+    backgroundColor: Colors.transparent,
+    builder: (ctx) => SafeArea(
+      child: Material(
+        borderRadius:
+            const BorderRadius.vertical(top: Radius.circular(20)),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Cancel Exam Countdown?',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
                 ),
-                const SizedBox(height: 12),
-                const Text('All reminders will be removed.'),
-                const SizedBox(height: 24),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () =>
-                            Navigator.pop(ctx, false),
-                        child: const Text('No'),
-                      ),
+              ),
+              const SizedBox(height: 12),
+              const Text('All reminders will be removed.'),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () =>
+                          Navigator.pop(ctx, false),
+                      child: const Text('No'),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: () =>
-                            Navigator.pop(ctx, true),
-                        child: const Text('Yes'),
-                      ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () =>
+                          Navigator.pop(ctx, true),
+                      child: const Text('Yes'),
                     ),
-                  ],
-                ),
-              ],
-            ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
       ),
-    );
+    ),
+  );
 
-    if (confirm != true || !mounted) return;
+  if (confirm != true || !mounted) return;
 
-    await ExamState.clear();
-    await NotificationService.cancelDaily();
+  await ExamState.clear();
+  await NotificationService.cancelDaily();
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Exam countdown cancelled'),
-        action: SnackBarAction(
-          label: 'Set again',
-          onPressed: _pickDate,
-        ),
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: const Text('Exam countdown cancelled'),
+      action: SnackBarAction(
+        label: 'Set again',
+        onPressed: _pickDate,
       ),
-    );
-  }
-
+    ),
+  );
+}
   @override
   Widget build(BuildContext context) {
     final isKeyboardOpen =
