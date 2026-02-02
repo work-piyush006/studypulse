@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
@@ -33,6 +32,7 @@ class NotificationService {
 
   static const int _id4pm = 4001;
   static const int _id11pm = 4002;
+  static const int _examDayId = 9001;
 
   /* ================= INIT ================= */
 
@@ -75,12 +75,19 @@ class NotificationService {
             AndroidFlutterLocalNotificationsPlugin>();
 
     if (android != null) {
+      // Channel
       await android.createNotificationChannel(_channel);
 
-      // ✅ Android 12+ exact alarm safety (NULL-SAFE)
+      // 🔥 REAL Android 13+ notification permission
+      final bool? granted = await android.requestPermission();
+      if (granted != true) {
+        _initialized = true;
+        return; // 🚫 user denied notifications
+      }
+
+      // Exact alarm permission (Android 12+)
       final bool canExact =
           await android.canScheduleExactNotifications() ?? false;
-
       if (!canExact) {
         await android.requestExactAlarmsPermission();
       }
@@ -89,11 +96,17 @@ class NotificationService {
     _initialized = true;
   }
 
-  /* ================= PERMISSION ================= */
+  /* ================= PERMISSION CHECK ================= */
 
   static Future<bool> _canNotify() async {
-    final status = await Permission.notification.status;
-    return status.isGranted;
+    final android =
+        _plugin.resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
+
+    if (android == null) return true;
+
+    final bool? enabled = await android.areNotificationsEnabled();
+    return enabled ?? false;
   }
 
   /* ================= INSTANT ================= */
@@ -198,7 +211,7 @@ class NotificationService {
     await init();
     if (!await _canNotify()) return;
 
-    await _plugin.cancel(9001);
+    await _plugin.cancel(_examDayId);
 
     final now = tz.TZDateTime.now(tz.local);
     var time =
@@ -209,7 +222,7 @@ class NotificationService {
     }
 
     await _plugin.zonedSchedule(
-      9001,
+      _examDayId,
       '🤞🏼 Best of Luck!',
       'Your exam is today.\nYou’ve got this 💪📘',
       time,
