@@ -20,7 +20,8 @@ class NotificationService {
 
   static bool _initialized = false;
 
-  static const String _channelId = 'exam_channel_stable_v1';
+  // 🔥 NEW CHANNEL ID (MANDATORY)
+  static const String _channelId = 'exam_channel_v3';
 
   static const AndroidNotificationChannel _channel =
       AndroidNotificationChannel(
@@ -38,9 +39,11 @@ class NotificationService {
   static Future<void> init() async {
     if (_initialized) return;
 
+    // Timezone
     tz.initializeTimeZones();
     tz.setLocalLocation(tz.getLocation('Asia/Kolkata'));
 
+    // Plugin init
     await _plugin.initialize(
       const InitializationSettings(
         android: AndroidInitializationSettings('ic_notification'),
@@ -66,6 +69,7 @@ class NotificationService {
       },
     );
 
+    // Android-specific
     final android =
         _plugin.resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>();
@@ -93,6 +97,7 @@ class NotificationService {
     String route = '/exam',
   }) async {
     await init();
+
     if (!await _canNotify()) {
       return NotificationResult.disabled;
     }
@@ -197,7 +202,7 @@ class NotificationService {
 
     await _plugin.zonedSchedule(
       9001,
-      '🤞🏼 Best of Luck!',
+      '🤞 Best of Luck!',
       'Your exam is today.\nYou’ve got this 💪📘',
       time,
       NotificationDetails(
