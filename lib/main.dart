@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'screens/splash.dart';
-import 'services/internet_guard.dart';
+import 'screens/no_internet.dart';
+import 'services/internet.dart';
 
 final GlobalKey<NavigatorState> navigatorKey =
     GlobalKey<NavigatorState>();
@@ -11,9 +12,32 @@ final GlobalKey<NavigatorState> navigatorKey =
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  
+  // 🔥 START INTERNET MONITORING ONCE
+  InternetService.startMonitoring();
 
-  runApp(const StudyPulseApp());
+  runApp(const StudyPulseRoot());
+}
+
+/* ================= ROOT ================= */
+
+class StudyPulseRoot extends StatelessWidget {
+  const StudyPulseRoot({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<bool>(
+      valueListenable: InternetService.isConnected,
+      builder: (_, connected, __) {
+        if (!connected) {
+          // ❌ NO MATERIALAPP, NO NAVIGATOR
+          return const NoInternetScreen();
+        }
+
+        // ✅ INTERNET OK → FULL APP BOOT
+        return const StudyPulseApp();
+      },
+    );
+  }
 }
 
 /* ================= APP ================= */
@@ -68,10 +92,6 @@ class _StudyPulseAppState extends State<StudyPulseApp> {
           useMaterial3: true,
           brightness: Brightness.dark,
         ),
-        builder: (_, child) =>
-            child == null
-                ? const SizedBox()
-                : InternetGuard(child: child),
         home: const SplashScreen(),
       ),
     );
