@@ -182,19 +182,19 @@ if (v) {
                       final days =
                           ExamState.daysLeft.value;
 
-                      final r =
-                          await NotificationService.instant(
-                        title: '📘 Exam Countdown',
-                        body:
-                            '$days days left\nYou’re on track 🚀',
-                        save: false, // ❌ test = not saved
-                      );
+                      await NotificationService.instant(
+  title: '📘 Exam Countdown',
+  body: '$days days left\nYou’re on track 🚀',
+  save: false, // test = not saved
+);
 
-                      if (r != NotificationResult.success) {
-                        _snackWithSettings();
-                      } else {
-                        _snack('Test notification sent');
-                      }
+final allowed = await Permission.notification.isGranted;
+
+if (!allowed) {
+  _snackWithSettings();
+} else {
+  _snack('Test notification sent');
+}
                     },
             ),
           ),
