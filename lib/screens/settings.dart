@@ -4,7 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../main.dart';
 import '../services/notification.dart';
-import '../services/notification_manager.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../state/exam_state.dart';
 import 'about.dart';
 
@@ -41,7 +41,7 @@ class _SettingsPageState extends State<SettingsPage>
 
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
-    final canNotify = await NotificationManager.canNotify();
+    final canNotify = await Permission.notification.isGranted;
 
     if (!mounted) return;
     setState(() {
@@ -72,7 +72,7 @@ class _SettingsPageState extends State<SettingsPage>
           content: const Text('Notifications are blocked'),
           action: SnackBarAction(
             label: 'ALLOW',
-            onPressed: NotificationManager.openSystemSettings,
+            onPressed: openAppSettings,
           ),
           behavior: SnackBarBehavior.floating,
         ),
@@ -137,8 +137,14 @@ class _SettingsPageState extends State<SettingsPage>
                   const Icon(Icons.notifications_active_outlined),
               value: _notifications,
               onChanged: (v) async {
-                final ok =
-                    await NotificationManager.setFromSettings(v);
+                bool ok = false;
+
+if (v) {
+  final status = await Permission.notification.request();
+  ok = status.isGranted;
+} else {
+  ok = false;
+}
 
                 setState(() => _notifications = ok);
 
