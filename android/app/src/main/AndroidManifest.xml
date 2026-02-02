@@ -10,14 +10,25 @@
 
     <!-- EXACT ALARM -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
+    <uses-permission
+        android:name="android.permission.USE_EXACT_ALARM"
+        android:required="false"/>
 
-    <!-- 🔥 REQUIRED FOR REBOOT -->
+    <!-- REBOOT -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+
+    <!-- FUTURE SAFE -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
 
     <application
         android:name="${applicationName}"
         android:label="StudyPulse"
         android:icon="@mipmap/ic_launcher">
+
+        <!-- EXACT ALARM JUSTIFICATION -->
+        <meta-data
+            android:name="android.app.exact_alarm"
+            android:value="true"/>
 
         <!-- ADMOB -->
         <meta-data
@@ -43,7 +54,7 @@
             </intent-filter>
         </activity>
 
-        <!-- 🔥 FLUTTER LOCAL NOTIFICATION RECEIVERS -->
+        <!-- NOTIFICATION RECEIVERS -->
         <receiver
             android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver"
             android:exported="false"/>
@@ -52,10 +63,10 @@
             android:name="com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver"
             android:exported="false"/>
 
-        <!-- 🔥 REBOOT + TIME CHANGE -->
         <receiver
             android:name="com.dexterous.flutterlocalnotifications.BootReceiver"
-            android:exported="false">
+            android:exported="true"
+            android:permission="android.permission.RECEIVE_BOOT_COMPLETED">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED"/>
                 <action android:name="android.intent.action.TIME_SET"/>
