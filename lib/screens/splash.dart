@@ -38,7 +38,7 @@ class _SplashScreenState extends State<SplashScreen> {
       final route = prefs.getString('notification_route');
       if (route != null) {
         await prefs.remove('notification_route');
-        _go(() {
+        _replace(() {
           if (route == '/notifications') {
             return const NotificationInboxScreen();
           }
@@ -50,49 +50,57 @@ class _SplashScreenState extends State<SplashScreen> {
         return;
       }
 
-      /* ===== Init notifications ===== */
-await NotificationService.init();
+      /* ===== Permission Flow (FIXED) ===== */
+      final asked =
+          prefs.getInt('notification_permission_count') ?? 0;
+      final status = await Permission.notification.status;
 
-/* ===== Permission Logic ===== */
-final asked =
-    prefs.getInt('notification_permission_count') ?? 0;
+      // 🔥 FIRST INSTALL
+      if (asked == 0) {
+        await _openPermission();
+      }
+      // 🔁 ONE RETRY IF DENIED / SKIPPED
+      else if (asked == 1 && !status.isGranted) {
+        await _openPermission();
+      }
 
-// 1️⃣ First install
-if (asked == 0) {
-  _go(() => const PermissionScreen());
-  return;
-}
+      /* ===== NOW safe to init notifications ===== */
+      final granted = await Permission.notification.isGranted;
+      if (granted) {
+        await NotificationService.init();
+      }
 
-// 2️⃣ One retry if denied / skipped
-if (asked == 1) {
-  final status = await Permission.notification.status;
-  if (!status.isGranted) {
-    _go(() => const PermissionScreen());
-    return;
-  }
-}
+      /* ===== OEM Warning (ONLY if permission granted) ===== */
+      final oemDone =
+          prefs.getBool('oem_permission_done') ?? false;
 
-/* ===== OEM Warning (ONLY after permission granted) ===== */
-final granted = await Permission.notification.isGranted;
-final oemDone = prefs.getBool('oem_permission_done') ?? false;
+      if (granted && !oemDone) {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            fullscreenDialog: true,
+            builder: (_) => const OemWarningScreen(),
+          ),
+        );
+      }
 
-if (granted && !oemDone) {
-  await Navigator.push(
-    context,
-    MaterialPageRoute(
-      fullscreenDialog: true,
-      builder: (_) => const OemWarningScreen(),
-    ),
-  );
-}
-
-      _go(() => const Home());
+      _replace(() => const Home());
     } catch (_) {
-      _go(() => const Home());
+      _replace(() => const Home());
     }
   }
 
-  void _go(Widget Function() builder) {
+  Future<void> _openPermission() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => const PermissionScreen(),
+      ),
+    );
+  }
+
+  void _replace(Widget Function() builder) {
     if (!mounted || _navigated) return;
     _navigated = true;
     Navigator.pushReplacement(
