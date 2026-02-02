@@ -1,4 +1,3 @@
-// lib/services/notification.dart
 import 'dart:convert';
 import 'dart:math';
 
@@ -76,6 +75,13 @@ class NotificationService {
 
     if (android != null) {
       await android.createNotificationChannel(_channel);
+
+      // 🔥 ANDROID 13+ EXACT ALARM FIX
+      final canExact =
+          await android.canScheduleExactNotifications();
+      if (!canExact) {
+        await android.requestExactAlarmsPermission();
+      }
     }
 
     _initialized = true;
@@ -147,7 +153,6 @@ class NotificationService {
     if (!await _canNotify()) return;
 
     await cancelDaily();
-
     await _schedule(_id4pm, 16, daysLeft);
     await _schedule(_id11pm, 23, daysLeft);
   }
@@ -181,77 +186,51 @@ class NotificationService {
           priority: Priority.high,
           groupKey: _groupKey,
           icon: 'ic_notification',
-          styleInformation: BigTextStyleInformation(body),
         ),
       ),
-      payload: jsonEncode({
-        'save': true,
-        'title': '📚 Study Reminder',
-        'body': body,
-        'route': '/exam',
-        'time': DateTime.now().toIso8601String(),
-      }),
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
-      matchDateTimeComponents: DateTimeComponents.time,
       androidScheduleMode:
           AndroidScheduleMode.exactAllowWhileIdle,
     );
   }
-  
-  // ADD inside NotificationService
 
-static Future<void> examDayMorning() async {
-  await init();
-  if (!await _canNotify()) return;
+  /* ================= EXAM DAY ================= */
 
-  // 🔥 ADD THIS (critical)
-  await _plugin.cancel(9001);
+  static Future<void> examDayMorning() async {
+    await init();
+    if (!await _canNotify()) return;
 
-  final now = tz.TZDateTime.now(tz.local);
+    await _plugin.cancel(9001);
 
-  var time = tz.TZDateTime(
-    tz.local,
-    now.year,
-    now.month,
-    now.day,
-    6,
-  );
+    final now = tz.TZDateTime.now(tz.local);
+    var time =
+        tz.TZDateTime(tz.local, now.year, now.month, now.day, 6);
 
-  if (time.isBefore(now)) {
-    time = now.add(const Duration(seconds: 2));
-  }
+    if (time.isBefore(now)) {
+      time = now.add(const Duration(seconds: 2));
+    }
 
-  const title = '🤞🏼 Best of Luck!';
-  const body = 'Your exam is today.\nYou’ve got this 💪📘';
-
-  await _plugin.zonedSchedule(
-    9001,
-    title,
-    body,
-    time,
-    NotificationDetails(
-      android: AndroidNotificationDetails(
-        _channelId,
-        _channel.name,
-        channelDescription: _channel.description,
-        importance: Importance.high,
-        priority: Priority.high,
-        icon: 'ic_notification',
+    await _plugin.zonedSchedule(
+      9001,
+      '🤞🏼 Best of Luck!',
+      'Your exam is today.\nYou’ve got this 💪📘',
+      time,
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          _channelId,
+          _channel.name,
+          importance: Importance.high,
+          priority: Priority.high,
+          icon: 'ic_notification',
+        ),
       ),
-    ),
-    payload: jsonEncode({
-      'save': true,
-      'title': title,
-      'body': body,
-      'route': '/exam',
-      'time': DateTime.now().toIso8601String(),
-    }),
-    uiLocalNotificationDateInterpretation:
-        UILocalNotificationDateInterpretation.absoluteTime,
-    androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-  );
-}
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
+      androidScheduleMode:
+          AndroidScheduleMode.exactAllowWhileIdle,
+    );
+  }
 
   /* ================= CANCEL ================= */
 
