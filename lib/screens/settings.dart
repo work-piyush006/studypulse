@@ -1,3 +1,4 @@
+// lib/screens/settings.dart
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -52,6 +53,18 @@ class _SettingsPageState extends State<SettingsPage>
     });
   }
 
+  Future<void> _toggleTheme(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('dark_mode', value);
+
+    if (!mounted) return;
+    setState(() => _darkMode = value);
+
+    _snack(
+      'Theme will apply on next app launch',
+    );
+  }
+
   void _snack(String msg, {bool error = false}) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
@@ -80,26 +93,6 @@ class _SettingsPageState extends State<SettingsPage>
       );
   }
 
-  Widget _section(String title) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        child: Text(
-          title,
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Colors.grey.shade600,
-          ),
-        ),
-      );
-
-  Widget _card(Widget child) => Card(
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-          side: BorderSide(color: Colors.grey.shade300),
-        ),
-        child: child,
-      );
-
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -113,123 +106,96 @@ class _SettingsPageState extends State<SettingsPage>
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          _section('Appearance'),
-          _card(
-            SwitchListTile(
-              title: const Text('Dark Mode'),
-              secondary: const Icon(Icons.dark_mode_outlined),
-              subtitle:
-                  const Text('Applies on next app launch'),
-              value: _darkMode,
-              onChanged: (v) async {
-                final prefs =
-                    await SharedPreferences.getInstance();
-                await prefs.setBool('dark_mode', v);
-                setState(() => _darkMode = v);
-
-                _snack(
-                  'Theme will apply on next app launch',
-                );
-              },
-            ),
+          const Text(
+            'Appearance',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          SwitchListTile(
+            title: const Text('Dark Mode'),
+            value: _darkMode,
+            onChanged: _toggleTheme,
           ),
 
-          _section('Notifications'),
-          _card(
-            SwitchListTile(
-              title: const Text('Study Notifications'),
-              secondary: const Icon(
-                  Icons.notifications_active_outlined),
-              value: _notifications,
-              onChanged: (v) async {
-                bool ok = false;
+          const SizedBox(height: 16),
+          const Text(
+            'Notifications',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
 
-                if (v) {
-                  final status =
-                      await Permission.notification.request();
-                  ok = status.isGranted;
-                } else {
-                  ok = false;
-                }
-
-                setState(() => _notifications = ok);
-
-                if (!ok && v) {
+          SwitchListTile(
+            title: const Text('Study Notifications'),
+            value: _notifications,
+            onChanged: (v) async {
+              if (v) {
+                final status =
+                    await Permission.notification.request();
+                if (!status.isGranted) {
                   _snackWithSettings();
-                } else {
-                  _snack(ok
-                      ? 'Notifications enabled'
-                      : 'Notifications disabled');
+                  return;
                 }
-              },
-            ),
+              } else {
+                await NotificationService.cancelDaily();
+              }
+
+              if (!mounted) return;
+              setState(() => _notifications = v);
+
+              _snack(
+                v
+                    ? 'Notifications enabled'
+                    : 'Notifications disabled',
+              );
+            },
           ),
 
-          _card(
-            ListTile(
-              enabled: _notifications,
-              leading: const Icon(Icons.notification_add),
-              title: const Text('Test Notification'),
-              subtitle:
-                  const Text('Preview only (not saved)'),
-              onTap: !_notifications
-                  ? null
-                  : () async {
-                      final examDate =
-                          ExamState.examDate.value;
-                      if (examDate == null) {
-                        _snack(
-                          'Please set exam date first',
-                          error: true,
-                        );
-                        return;
-                      }
-
-                      final days =
-                          ExamState.daysLeft.value;
-
-                      await NotificationService.instant(
-                        title: '📘 Exam Countdown',
-                        body:
-                            '$days days left\nYou’re on track 🚀',
-                        save: false,
+          ListTile(
+            enabled: _notifications,
+            title: const Text('Test Notification'),
+            subtitle: const Text('Preview only'),
+            onTap: !_notifications
+                ? null
+                : () async {
+                    final examDate =
+                        ExamState.examDate.value;
+                    if (examDate == null) {
+                      _snack(
+                        'Set exam date first',
+                        error: true,
                       );
+                      return;
+                    }
 
-                      final allowed =
-                          await Permission.notification.isGranted;
+                    final days =
+                        ExamState.daysLeft.value;
 
-                      if (!allowed) {
-                        _snackWithSettings();
-                      } else {
-                        _snack('Test notification sent');
-                      }
-                    },
-            ),
+                    await NotificationService.instant(
+                      title: '📘 Exam Countdown',
+                      body:
+                          '$days days left\nYou’re on track 🚀',
+                      save: false,
+                    );
+
+                    _snack('Test notification sent');
+                  },
           ),
 
-          _section('About'),
-          _card(
-            ListTile(
-              leading:
-                  const Icon(Icons.privacy_tip_outlined),
-              title: const Text('Privacy Policy'),
-              onTap: () => launchUrl(
-                Uri.parse(
-                  'http://studypulse-privacypolicy.blogspot.com',
-                ),
-                mode: LaunchMode.externalApplication,
+          const Divider(),
+
+          ListTile(
+            title: const Text('Privacy Policy'),
+            onTap: () => launchUrl(
+              Uri.parse(
+                'http://studypulse-privacypolicy.blogspot.com',
               ),
+              mode: LaunchMode.externalApplication,
             ),
           ),
-          _card(
-            ListTile(
-              leading: const Icon(Icons.info_outline),
-              title: const Text('About StudyPulse'),
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const AboutPage(),
-                ),
+          ListTile(
+            title: const Text('About StudyPulse'),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const AboutPage(),
               ),
             ),
           ),

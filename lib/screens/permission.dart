@@ -13,17 +13,21 @@ class _PermissionScreenState extends State<PermissionScreen> {
   bool loading = false;
 
   Future<void> _requestPermission() async {
-    if (loading) return;
-    setState(() => loading = true);
+  if (loading) return;
+  setState(() => loading = true);
 
-    // ONLY ask permission — NO counters here
+  final status = await Permission.notification.status;
+
+  if (status.isPermanentlyDenied) {
+    await openAppSettings();
+  } else {
     await Permission.notification.request();
-
-    if (!mounted) return;
-    setState(() => loading = false);
-
-    Navigator.pop(context);
   }
+
+  if (!mounted) return;
+  setState(() => loading = false);
+  Navigator.pop(context);
+}
 
   Future<void> _skip() async {
     Navigator.pop(context);
