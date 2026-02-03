@@ -1,3 +1,4 @@
+// lib/state/exam_state.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -10,11 +11,32 @@ class ExamState {
   static final isExamCompleted = ValueNotifier(false);
 
   static Timer? _timer;
+  static int? _totalDays;
   static bool _initialized = false;
 
   static const _dateKey = 'exam_date';
-  static const _startKey = 'exam_start_date';
+  static const _totalKey = 'exam_total_days';
   static const _completedKey = 'exam_completed_notified';
+
+  /* ================= PUBLIC API (REQUIRED BY exam.dart) ================= */
+
+  /// 🔑 Used by exam.dart
+  static bool get hasExam => examDate.value != null;
+
+  /// 🎯 Used by progress bar
+  static double progress() {
+    if (_totalDays == null || _totalDays == 0) return 0;
+    return 1 - (daysLeft.value / _totalDays!);
+  }
+
+  /// 🎨 Used by UI color logic
+  static Color colorForDays(int d) {
+    if (d >= 45) return Colors.green;
+    if (d >= 30) return Colors.orange;
+    return Colors.red;
+  }
+
+  /* ================= INIT ================= */
 
   static Future<void> init() async {
     if (_initialized) return;
@@ -22,11 +44,13 @@ class ExamState {
 
     final prefs = await SharedPreferences.getInstance();
 
-    final rawDate = prefs.getString(_dateKey);
-    if (rawDate != null) {
-      final d = DateTime.tryParse(rawDate);
+    // ✅ restore total days (FIXES countdown reset on relaunch)
+    _totalDays = prefs.getInt(_totalKey);
+
+    final raw = prefs.getString(_dateKey);
+    if (raw != null) {
+      final d = DateTime.tryParse(raw);
       if (d != null) {
-        examDate.value = d;
         await _recalculate(d, fromUser: false);
       }
     }
@@ -34,31 +58,32 @@ class ExamState {
     _scheduleMidnight();
   }
 
+  /* ================= UPDATE ================= */
+
   static Future<void> update(DateTime d) async {
     final prefs = await SharedPreferences.getInstance();
-
     final normalized = DateTime(d.year, d.month, d.day);
+
     await prefs.setString(_dateKey, normalized.toIso8601String());
-    await prefs.setString(
-      _startKey,
-      DateTime.now().toIso8601String(),
-    );
     await prefs.remove(_completedKey);
 
-    examDate.value = normalized;
     await _recalculate(normalized, fromUser: true);
   }
+
+  /* ================= CORE ================= */
 
   static Future<void> _recalculate(
     DateTime d, {
     required bool fromUser,
   }) async {
+    examDate.value = d;
+
     final prefs = await SharedPreferences.getInstance();
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final diff = d.difference(today).inDays;
 
-    final today = DateTime.now();
-    final now = DateTime(today.year, today.month, today.day);
-    final diff = d.difference(now).inDays;
-
+    // 🔴 Exam completed
     if (diff < 0) {
       daysLeft.value = 0;
       isExamDay.value = false;
@@ -71,6 +96,7 @@ class ExamState {
       return;
     }
 
+    // 🟠 Exam day
     if (diff == 0) {
       daysLeft.value = 0;
       isExamDay.value = true;
@@ -79,7 +105,7 @@ class ExamState {
       if (fromUser) {
         await NotificationService.instant(
           title: '🤞 Best of Luck!',
-          body: 'Your exam is today 💪📘',
+          body: 'Your exam is today.\nYou’ve got this 💪📘',
           save: true,
           route: '/exam',
         );
@@ -90,9 +116,14 @@ class ExamState {
       return;
     }
 
+    // 🟢 Future exam
     isExamDay.value = false;
     isExamCompleted.value = false;
     daysLeft.value = diff;
+
+    // ✅ total days should be set ONCE
+    _totalDays ??= diff;
+    await prefs.setInt(_totalKey, _totalDays!);
 
     if (fromUser) {
       await NotificationService.scheduleDaily(diff);
@@ -100,8 +131,11 @@ class ExamState {
     }
   }
 
+  /* ================= MIDNIGHT AUTO UPDATE ================= */
+
   static void _scheduleMidnight() {
     _timer?.cancel();
+
     final now = DateTime.now();
     final next = DateTime(now.year, now.month, now.day + 1);
 
@@ -113,10 +147,12 @@ class ExamState {
     });
   }
 
+  /* ================= CLEAR ================= */
+
   static Future<void> clear() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_dateKey);
-    await prefs.remove(_startKey);
+    await prefs.remove(_totalKey);
     await prefs.remove(_completedKey);
 
     await NotificationService.cancelAll();
@@ -125,5 +161,6 @@ class ExamState {
     daysLeft.value = 0;
     isExamDay.value = false;
     isExamCompleted.value = false;
+    _totalDays = null;
   }
 }
