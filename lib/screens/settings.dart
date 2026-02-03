@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
-
-import '../main.dart';
-import '../services/notification.dart';
 import 'package:permission_handler/permission_handler.dart';
+
+import '../services/notification.dart';
 import '../state/exam_state.dart';
 import 'about.dart';
 
@@ -36,7 +35,9 @@ class _SettingsPageState extends State<SettingsPage>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _load();
+    if (state == AppLifecycleState.resumed) {
+      _load();
+    }
   }
 
   Future<void> _load() async {
@@ -117,14 +118,18 @@ class _SettingsPageState extends State<SettingsPage>
             SwitchListTile(
               title: const Text('Dark Mode'),
               secondary: const Icon(Icons.dark_mode_outlined),
+              subtitle:
+                  const Text('Applies on next app launch'),
               value: _darkMode,
               onChanged: (v) async {
                 final prefs =
                     await SharedPreferences.getInstance();
                 await prefs.setBool('dark_mode', v);
-                await ThemeController.of(context)
-                    .toggleTheme(v);
                 setState(() => _darkMode = v);
+
+                _snack(
+                  'Theme will apply on next app launch',
+                );
               },
             ),
           ),
@@ -133,18 +138,19 @@ class _SettingsPageState extends State<SettingsPage>
           _card(
             SwitchListTile(
               title: const Text('Study Notifications'),
-              secondary:
-                  const Icon(Icons.notifications_active_outlined),
+              secondary: const Icon(
+                  Icons.notifications_active_outlined),
               value: _notifications,
               onChanged: (v) async {
                 bool ok = false;
 
-if (v) {
-  final status = await Permission.notification.request();
-  ok = status.isGranted;
-} else {
-  ok = false;
-}
+                if (v) {
+                  final status =
+                      await Permission.notification.request();
+                  ok = status.isGranted;
+                } else {
+                  ok = false;
+                }
 
                 setState(() => _notifications = ok);
 
@@ -183,18 +189,20 @@ if (v) {
                           ExamState.daysLeft.value;
 
                       await NotificationService.instant(
-  title: '📘 Exam Countdown',
-  body: '$days days left\nYou’re on track 🚀',
-  save: false, // test = not saved
-);
+                        title: '📘 Exam Countdown',
+                        body:
+                            '$days days left\nYou’re on track 🚀',
+                        save: false,
+                      );
 
-final allowed = await Permission.notification.isGranted;
+                      final allowed =
+                          await Permission.notification.isGranted;
 
-if (!allowed) {
-  _snackWithSettings();
-} else {
-  _snack('Test notification sent');
-}
+                      if (!allowed) {
+                        _snackWithSettings();
+                      } else {
+                        _snack('Test notification sent');
+                      }
                     },
             ),
           ),
