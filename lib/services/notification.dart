@@ -17,27 +17,14 @@ class NotificationService {
 
   static bool _initialized = false;
 
-  // 🔔 CHANNEL
   static const String _channelId = 'exam_channel_v2';
 
-  // 🔢 IDS
   static const int _id4pm = 4001;
   static const int _id11pm = 4002;
   static const int _examMorningId = 8001;
   static const int _examCompletedId = 8002;
 
-  // 🧠 PREF KEYS
   static const String _examMorningKey = 'exam_morning_done';
-
-  /* ================= PERMISSION ================= */
-
-  static Future<bool> _ensurePermission() async {
-    final granted = await Permission.notification.isGranted;
-    if (granted) return true;
-
-    final res = await Permission.notification.request();
-    return res.isGranted;
-  }
 
   /* ================= INIT ================= */
 
@@ -71,7 +58,7 @@ class NotificationService {
     _initialized = true;
   }
 
-  /* ================= TAP HANDLER ================= */
+  /* ================= TAP ================= */
 
   static Future<void> _onTap(NotificationResponse r) async {
     if (r.payload == null) return;
@@ -93,6 +80,15 @@ class NotificationService {
     }
   }
 
+  /* ================= INTERNAL ================= */
+
+  static Future<bool> _canNotify() async {
+    return await Permission.notification.isGranted;
+  }
+
+  static int _id() =>
+      DateTime.now().microsecondsSinceEpoch.remainder(1000000);
+
   /* ================= INSTANT ================= */
 
   static Future<void> instant({
@@ -102,7 +98,7 @@ class NotificationService {
     String? route,
   }) async {
     await init();
-    if (!await _ensurePermission()) return;
+    if (!await _canNotify()) return;
 
     final payload = jsonEncode({
       'title': title,
@@ -113,7 +109,7 @@ class NotificationService {
     });
 
     await _plugin.show(
-      DateTime.now().microsecondsSinceEpoch.remainder(1000000),
+      _id(),
       title,
       body,
       const NotificationDetails(
@@ -129,11 +125,11 @@ class NotificationService {
     );
   }
 
-  /* ================= DAILY REMINDERS ================= */
+  /* ================= DAILY ================= */
 
   static Future<void> scheduleDaily(int daysLeft) async {
     await init();
-    if (!await _ensurePermission()) return;
+    if (!await _canNotify()) return;
 
     await cancelDaily();
     await _schedule(_id4pm, 16, daysLeft);
@@ -173,11 +169,11 @@ class NotificationService {
     );
   }
 
-  /* ================= EXAM DAY (6:00 AM) ================= */
+  /* ================= EXAM DAY ================= */
 
   static Future<void> scheduleExamMorning(DateTime d) async {
     await init();
-    if (!await _ensurePermission()) return;
+    if (!await _canNotify()) return;
 
     final prefs = await SharedPreferences.getInstance();
     if (prefs.getBool(_examMorningKey) == true) return;
@@ -209,11 +205,11 @@ class NotificationService {
     await prefs.setBool(_examMorningKey, true);
   }
 
-  /* ================= EXAM COMPLETED ================= */
+  /* ================= COMPLETED ================= */
 
   static Future<void> examCompleted() async {
     await init();
-    if (!await _ensurePermission()) return;
+    if (!await _canNotify()) return;
 
     await _plugin.show(
       _examCompletedId,
@@ -248,8 +244,6 @@ class NotificationService {
     await cancelDaily();
     await _plugin.cancel(_examMorningId);
   }
-
-  /* ================= UTIL ================= */
 
   static String _quote() {
     const q = [
