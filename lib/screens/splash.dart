@@ -1,6 +1,7 @@
+// lib/screens/splash.dart
 import 'package:flutter/material.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../home.dart';
 import '../services/internet.dart';
@@ -21,7 +22,7 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
-  bool _navigated = false;
+  bool _done = false;
 
   static const _permKey = 'notification_permission_count';
   static const _oemKey = 'oem_permission_done';
@@ -29,13 +30,14 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _start());
+    _boot();
   }
 
-  Future<void> _start() async {
-    await Future.delayed(const Duration(milliseconds: 800));
-    if (!mounted || _navigated) return;
+  Future<void> _boot() async {
+    await Future.delayed(const Duration(milliseconds: 700));
+    if (!mounted || _done) return;
 
+    // 🌐 Internet (single check only)
     if (!InternetService.isConnected.value) {
       _go(const NoInternetScreen());
       return;
@@ -43,9 +45,11 @@ class _SplashScreenState extends State<SplashScreen> {
 
     final prefs = await SharedPreferences.getInstance();
 
+    // 🔔 Core init (SAFE)
     await NotificationService.init();
     await ExamState.init();
 
+    // 🔗 Notification deep link
     final route = prefs.getString('notification_route');
     if (route != null) {
       await prefs.remove('notification_route');
@@ -59,10 +63,11 @@ class _SplashScreenState extends State<SplashScreen> {
       return;
     }
 
+    // 🔐 Permission gate (HARD GUARANTEE)
     final asked = prefs.getInt(_permKey) ?? 0;
-    final status = await Permission.notification.status;
+    final notifGranted = await Permission.notification.isGranted;
 
-    if (!status.isGranted && asked < 2) {
+    if (!notifGranted && asked < 2) {
       await Navigator.push(
         context,
         MaterialPageRoute(
@@ -73,7 +78,10 @@ class _SplashScreenState extends State<SplashScreen> {
       await prefs.setInt(_permKey, asked + 1);
     }
 
-    final ok = await Permission.notification.isGranted &&
+    // 🧠 Health gate (battery + exact alarm)
+    final ok =
+        await Permission.notification.isGranted &&
+        await Permission.scheduleExactAlarm.isGranted &&
         !(await Permission.ignoreBatteryOptimizations.isDenied);
 
     if (!ok) {
@@ -86,6 +94,7 @@ class _SplashScreenState extends State<SplashScreen> {
       );
     }
 
+    // ⚠️ OEM (only once)
     if (ok && !(prefs.getBool(_oemKey) ?? false)) {
       await Navigator.push(
         context,
@@ -101,8 +110,8 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   void _go(Widget page) {
-    if (_navigated || !mounted) return;
-    _navigated = true;
+    if (!mounted || _done) return;
+    _done = true;
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(builder: (_) => page),
