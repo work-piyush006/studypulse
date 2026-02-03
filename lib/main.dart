@@ -11,7 +11,7 @@ final GlobalKey<NavigatorState> navigatorKey =
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 🌐 start internet monitoring ONCE
+  // 🌐 Start internet monitoring ONCE (no UI logic here)
   InternetService.startMonitoring();
 
   runApp(const StudyPulseApp());
@@ -36,6 +36,7 @@ class _StudyPulseAppState extends State<StudyPulseApp> {
   Future<void> _loadTheme() async {
     final prefs = await SharedPreferences.getInstance();
     final isDark = prefs.getBool('dark_mode') ?? false;
+
     if (!mounted) return;
     setState(() {
       _themeMode = isDark ? ThemeMode.dark : ThemeMode.light;
@@ -48,6 +49,7 @@ class _StudyPulseAppState extends State<StudyPulseApp> {
       navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
       title: 'StudyPulse',
+
       themeMode: _themeMode,
       theme: ThemeData(useMaterial3: true),
       darkTheme: ThemeData(
@@ -55,9 +57,11 @@ class _StudyPulseAppState extends State<StudyPulseApp> {
         brightness: Brightness.dark,
       ),
 
-      // ❌ NO INTERNET GUARD HERE
-      // ❌ NO ASYNC LOGIC HERE
-      home: const SplashScreen(), // ✅ ALWAYS splash first
+      // ❌ NO permission logic
+      // ❌ NO internet guard
+      // ❌ NO async work
+      // ✅ Splash handles everything
+      home: const SplashScreen(),
     );
   }
 }
