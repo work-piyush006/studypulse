@@ -23,22 +23,26 @@ class ExamState {
   /* ================= INIT ================= */
 
   static Future<void> init() async {
-    if (_initialized) return;
-    _initialized = true;
+  if (_initialized) return;
 
-    final prefs = await SharedPreferences.getInstance();
-    _totalDays = prefs.getInt(_totalKey);
+  final prefs = await SharedPreferences.getInstance();
+  final raw = prefs.getString(_dateKey);
 
-    final raw = prefs.getString(_dateKey);
-    if (raw != null) {
-      final d = DateTime.tryParse(raw);
-      if (d != null) {
-        await _recalculate(d, fromUser: false);
-      }
-    }
+  if (raw == null) {
+  _initialized = true;
+  _scheduleMidnight();
+  return;
+}t
 
-    _scheduleMidnight();
+  _initialized = true;
+
+  final d = DateTime.tryParse(raw);
+  if (d != null) {
+    await _recalculate(d, fromUser: false);
   }
+
+  _scheduleMidnight();
+}
 
   /* ================= UPDATE ================= */
 
