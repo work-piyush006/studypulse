@@ -1,18 +1,10 @@
-// lib/screens/splash.dart
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../home.dart';
-import '../services/internet.dart';
-import '../services/notification.dart';
-import '../state/exam_state.dart';
-import '../tools/exam.dart';
-import 'no_internet.dart';
+import '../services/fcm_service.dart';
 import 'permission.dart';
-import 'notification_health.dart';
-import 'notification_inbox.dart';
-import 'oem_warning.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -22,52 +14,42 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
-  bool _done = false;
+  bool _navigated = false;
 
-  static const _permKey = 'notification_permission_count';
-  static const _oemKey = 'oem_permission_done';
+  static const _permAskKey = 'notification_permission_ask_count';
 
   @override
   void initState() {
     super.initState();
-    _boot();
+    _start();
   }
 
-  Future<void> _boot() async {
-    await Future.delayed(const Duration(milliseconds: 700));
-    if (!mounted || _done) return;
+  Future<void> _start() async {
+    // 🔥 INIT FCM FIRST
+    FCMService.init();
 
-    // 🌐 Internet (single check only)
-    if (!InternetService.isConnected.value) {
-      _go(const NoInternetScreen());
-      return;
-    }
+    await Future.delayed(const Duration(milliseconds: 900));
+    if (!mounted || _navigated) return;
 
     final prefs = await SharedPreferences.getInstance();
+    final asked = prefs.getInt(_permAskKey) ?? 0;
 
-    // 🔔 Core init (SAFE)
-    await NotificationService.init();
-    await ExamState.init();
+    final status = await Permission.notification.status;
 
-    // 🔗 Notification deep link
-    final route = prefs.getString('notification_route');
-    if (route != null) {
-      await prefs.remove('notification_route');
-      _go(
-        route == '/exam'
-            ? const ExamCountdownPage()
-            : route == '/notifications'
-                ? const NotificationInboxScreen()
-                : const Home(),
-      );
+    // ✅ Already granted → Home
+    if (status.isGranted) {
+      _goHome();
       return;
     }
 
-    // 🔐 Permission gate (HARD GUARANTEE)
-    final asked = prefs.getInt(_permKey) ?? 0;
-    final notifGranted = await Permission.notification.isGranted;
+    // ❌ Permanently denied → Home (never force)
+    if (status.isPermanentlyDenied) {
+      _goHome();
+      return;
+    }
 
-    if (!notifGranted && asked < 2) {
+    // 🔁 Ask max 2 times
+    if (asked < 2) {
       await Navigator.push(
         context,
         MaterialPageRoute(
@@ -75,46 +57,20 @@ class _SplashScreenState extends State<SplashScreen> {
           builder: (_) => const PermissionScreen(),
         ),
       );
-      await prefs.setInt(_permKey, asked + 1);
+
+      await prefs.setInt(_permAskKey, asked + 1);
     }
 
-    // 🧠 Health gate (battery + exact alarm)
-    final ok =
-        await Permission.notification.isGranted &&
-        await Permission.scheduleExactAlarm.isGranted &&
-        !(await Permission.ignoreBatteryOptimizations.isDenied);
-
-    if (!ok) {
-      await Navigator.push(
-        context,
-        MaterialPageRoute(
-          fullscreenDialog: true,
-          builder: (_) => const NotificationHealthScreen(),
-        ),
-      );
-    }
-
-    // ⚠️ OEM (only once)
-    if (ok && !(prefs.getBool(_oemKey) ?? false)) {
-      await Navigator.push(
-        context,
-        MaterialPageRoute(
-          fullscreenDialog: true,
-          builder: (_) => const OemWarningScreen(),
-        ),
-      );
-      await prefs.setBool(_oemKey, true);
-    }
-
-    _go(const Home());
+    _goHome();
   }
 
-  void _go(Widget page) {
-    if (!mounted || _done) return;
-    _done = true;
+  void _goHome() {
+    if (_navigated || !mounted) return;
+    _navigated = true;
+
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (_) => page),
+      MaterialPageRoute(builder: (_) => const Home()),
     );
   }
 
