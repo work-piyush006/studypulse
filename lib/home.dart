@@ -12,7 +12,6 @@ import 'screens/about.dart';
 import 'screens/settings.dart';
 import 'screens/notification_inbox.dart';
 
-import 'services/notification.dart';
 import 'services/ads.dart';
 import 'services/ad_click_tracker.dart';
 import 'services/notification_store.dart';
@@ -34,20 +33,17 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
   int _index = 0;
   final ValueNotifier<String> _quote = ValueNotifier('');
 
-  
-
   @override
   void initState() {
     super.initState();
 
-   
+    // 🔥 CRITICAL: restores exam countdown on relaunch
+    ExamState.init();
 
     AdsService.initialize();
     WidgetsBinding.instance.addObserver(this);
     _loadQuote();
   }
-
-  /* ================= CORE INIT ================= */
 
   @override
   void dispose() {
@@ -180,6 +176,8 @@ class _HomeMainState extends State<HomeMain>
   BannerAd? _bannerAd;
   bool _bannerLoaded = false;
 
+  final ValueNotifier<bool> _canNotify = ValueNotifier(true);
+
   @override
   bool get wantKeepAlive => true;
 
@@ -187,6 +185,10 @@ class _HomeMainState extends State<HomeMain>
   void initState() {
     super.initState();
     _loadBanner();
+
+    Permission.notification.isGranted.then((v) {
+      if (mounted) _canNotify.value = v;
+    });
   }
 
   void _loadBanner() {
@@ -205,6 +207,7 @@ class _HomeMainState extends State<HomeMain>
   @override
   void dispose() {
     _bannerAd?.dispose();
+    _canNotify.dispose();
     super.dispose();
   }
 
@@ -234,11 +237,11 @@ class _HomeMainState extends State<HomeMain>
 
         const SizedBox(height: 20),
 
-        /// 🔔 NOTIFICATION WARNING (AUTO)
-        FutureBuilder<bool>(
-          future: Permission.notification.isGranted,
-          builder: (_, snapshot) {
-            if (snapshot.data == false) {
+        /// 🔔 NOTIFICATION WARNING (STABLE)
+        ValueListenableBuilder<bool>(
+          valueListenable: _canNotify,
+          builder: (_, ok, __) {
+            if (!ok) {
               return const Padding(
                 padding: EdgeInsets.only(bottom: 20),
                 child: NotificationWarningCard(),
