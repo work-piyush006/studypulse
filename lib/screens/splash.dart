@@ -1,8 +1,10 @@
 // lib/screens/splash.dart
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
+
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'notification_health.dart';
 import '../home.dart';
 import '../state/exam_state.dart';
 import '../services/notification.dart';
@@ -77,10 +79,24 @@ class _SplashScreenState extends State<SplashScreen> {
         );
         await prefs.setInt(_permKey, asked + 1);
       }
+      
+      /* ================= NOTIFICATION HEALTH ================= */
+final ok = await Permission.notification.isGranted &&
+    await Permission.scheduleExactAlarm.isGranted &&
+    !(await Permission.ignoreBatteryOptimizations.isDenied);
+
+if (!ok) {
+  await Navigator.push(
+    context,
+    MaterialPageRoute(
+      fullscreenDialog: true,
+      builder: (_) => const NotificationHealthScreen(),
+    ),
+  );
+}
 
       /* ================= OEM / EXACT ALARM ================= */
-      final canNotify = await Permission.notification.isGranted;
-      if (canNotify && !(prefs.getBool(_oemKey) ?? false)) {
+      if (ok && !(prefs.getBool(_oemKey) ?? false)) {
         if (!(await Permission.scheduleExactAlarm.isGranted)) {
           await Navigator.push(
             context,
