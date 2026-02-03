@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'screens/splash.dart';
-import 'screens/no_internet.dart';
 import 'services/internet.dart';
 
 final GlobalKey<NavigatorState> navigatorKey =
@@ -12,7 +11,7 @@ final GlobalKey<NavigatorState> navigatorKey =
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 🌐 start once
+  // 🌐 start internet monitoring ONCE
   InternetService.startMonitoring();
 
   runApp(const StudyPulseApp());
@@ -43,63 +42,22 @@ class _StudyPulseAppState extends State<StudyPulseApp> {
     });
   }
 
-  Future<void> toggleTheme(bool dark) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('dark_mode', dark);
-    if (!mounted) return;
-    setState(() {
-      _themeMode = dark ? ThemeMode.dark : ThemeMode.light;
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
-    return ThemeController(
-      toggleTheme: toggleTheme,
-      child: MaterialApp(
-        navigatorKey: navigatorKey,
-        debugShowCheckedModeBanner: false,
-        title: 'StudyPulse',
-        themeMode: _themeMode,
-        theme: ThemeData(useMaterial3: true),
-        darkTheme: ThemeData(
-          useMaterial3: true,
-          brightness: Brightness.dark,
-        ),
-
-        // 🔥 INTERNET GUARD INSIDE APP
-        builder: (_, child) {
-          return ValueListenableBuilder<bool>(
-            valueListenable: InternetService.isConnected,
-            builder: (_, connected, __) {
-              if (!connected) return const NoInternetScreen();
-              return child ?? const SizedBox();
-            },
-          );
-        },
-
-        home: const SplashScreen(),
+    return MaterialApp(
+      navigatorKey: navigatorKey,
+      debugShowCheckedModeBanner: false,
+      title: 'StudyPulse',
+      themeMode: _themeMode,
+      theme: ThemeData(useMaterial3: true),
+      darkTheme: ThemeData(
+        useMaterial3: true,
+        brightness: Brightness.dark,
       ),
+
+      // ❌ NO INTERNET GUARD HERE
+      // ❌ NO ASYNC LOGIC HERE
+      home: const SplashScreen(), // ✅ ALWAYS splash first
     );
   }
-}
-
-class ThemeController extends InheritedWidget {
-  final Future<void> Function(bool) toggleTheme;
-
-  const ThemeController({
-    super.key,
-    required this.toggleTheme,
-    required Widget child,
-  }) : super(child: child);
-
-  static ThemeController of(BuildContext context) {
-    final controller =
-        context.dependOnInheritedWidgetOfExactType<ThemeController>();
-    return controller!;
-  }
-
-  @override
-  bool updateShouldNotify(covariant ThemeController oldWidget) =>
-      toggleTheme != oldWidget.toggleTheme;
 }
