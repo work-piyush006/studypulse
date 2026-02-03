@@ -37,11 +37,7 @@ class _SplashScreenState extends State<SplashScreen> {
       await Future.delayed(const Duration(milliseconds: 800));
       if (!mounted || _navigated) return;
 
-      // 🔴 INTERNET BLOCK ONLY HERE
-      if (!InternetService.isConnected.value) {
-        _go(const NoInternetScreen());
-        return;
-      }
+      
 
       final prefs = await SharedPreferences.getInstance();
 

@@ -6,6 +6,9 @@ import 'package:permission_handler/permission_handler.dart';
 import '../services/notification.dart';
 import '../state/exam_state.dart';
 import 'about.dart';
+import '../state/theme_state.dart';
+
+
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -53,24 +56,17 @@ class _SettingsPageState extends State<SettingsPage>
   }
 
   Future<void> _toggleTheme(bool value) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('dark_mode', value);
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.setBool('dark_mode', value);
 
-    if (!mounted) return;
-    setState(() => _darkMode = value);
+  // 🔥 INSTANT THEME UPDATE (THIS IS THE KEY LINE)
+  ThemeState.mode.value =
+      value ? ThemeMode.dark : ThemeMode.light;
 
-    // 🔒 Proper way: restart app state instead of illegal reassemble
-    _showRestartSnack();
-  }
-
-  void _showRestartSnack() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Restart app to apply theme changes'),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-  }
+  if (!mounted) return;
+  setState(() => _darkMode = value);
+}
+  
 
   void _snack(String msg, {bool error = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
