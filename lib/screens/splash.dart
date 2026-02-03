@@ -37,11 +37,15 @@ class _SplashScreenState extends State<SplashScreen> {
       await Future.delayed(const Duration(milliseconds: 800));
       if (!mounted || _navigated) return;
 
-      
+      // 🔴 INTERNET CHECK (ONLY HERE)
+      if (!InternetService.isConnected.value) {
+        _go(const NoInternetScreen());
+        return;
+      }
 
       final prefs = await SharedPreferences.getInstance();
 
-      // ✅ INIT CORE (THIS WAS NEVER RUNNING BEFORE)
+      // ✅ INIT CORE
       await NotificationService.init();
       await ExamState.init();
 
