@@ -28,9 +28,9 @@ class NotificationService {
   /* ================= PERMISSION ================= */
 
   static Future<bool> isGranted() async =>
-      (await Permission.notification.isGranted);
+      await Permission.notification.isGranted;
 
-  /* ================= INIT (ALWAYS INIT) ================= */
+  /* ================= INIT ================= */
 
   static Future<void> init() async {
     if (_initialized) return;
@@ -128,7 +128,7 @@ class NotificationService {
     await init();
     if (!await isGranted()) return;
 
-    await cancelDailyOnly();
+    await cancelDaily();
     await _schedule(_id4pm, 16, daysLeft);
     await _schedule(_id11pm, 23, daysLeft);
   }
@@ -168,7 +168,7 @@ class NotificationService {
 
   /* ================= EXAM DAY ================= */
 
-  static Future<void> scheduleExamMorningOnce(DateTime d) async {
+  static Future<void> scheduleExamMorning(DateTime d) async {
     await init();
     if (!await isGranted()) return;
 
@@ -224,7 +224,7 @@ class NotificationService {
 
   /* ================= CANCEL ================= */
 
-  static Future<void> cancelDailyOnly() async {
+  static Future<void> cancelDaily() async {
     if (!_initialized) return;
     await _plugin.cancel(_id4pm);
     await _plugin.cancel(_id11pm);
@@ -236,7 +236,7 @@ class NotificationService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('exam_morning_done');
 
-    await cancelDailyOnly();
+    await cancelDaily();
     await _plugin.cancel(_examMorningId);
   }
 
