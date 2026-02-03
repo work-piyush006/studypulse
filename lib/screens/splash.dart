@@ -32,13 +32,16 @@ class _SplashScreenState extends State<SplashScreen> {
 
   Future<void> _start() async {
     try {
-      // Small delay for logo visibility
       await Future.delayed(const Duration(milliseconds: 900));
       if (!mounted || _navigated) return;
 
       final prefs = await SharedPreferences.getInstance();
 
-      /* ================= DEEP LINK (from notification tap) ================= */
+      // ✅ ALWAYS init core services
+      await NotificationService.init();
+      await ExamState.init();
+
+      /* ================= DEEP LINK ================= */
       final route = prefs.getString('notification_route');
       if (route != null) {
         await prefs.remove('notification_route');
@@ -52,7 +55,7 @@ class _SplashScreenState extends State<SplashScreen> {
         return;
       }
 
-      /* ================= NOTIFICATION PERMISSION (Android 13+) ================= */
+      /* ================= NOTIFICATION PERMISSION ================= */
       final asked = prefs.getInt(_permKey) ?? 0;
       final granted = await Permission.notification.isGranted;
 
@@ -67,21 +70,10 @@ class _SplashScreenState extends State<SplashScreen> {
         await prefs.setInt(_permKey, asked + 1);
       }
 
-      // Re-check after permission screen
+      /* ================= OEM WARNING ================= */
       final canNotify = await Permission.notification.isGranted;
-
-      /* ================= INIT SERVICES (ONLY IF PERMISSION GRANTED) ================= */
-      if (canNotify) {
-        await NotificationService.init();
-        await ExamState.init();
-      }
-
-      /* ================= OEM / EXACT ALARM ADVISORY ================= */
       if (canNotify && !(prefs.getBool(_oemKey) ?? false)) {
-        final exactGranted =
-            await Permission.scheduleExactAlarm.isGranted;
-
-        if (!exactGranted) {
+        if (!(await Permission.scheduleExactAlarm.isGranted)) {
           await Navigator.push(
             context,
             MaterialPageRoute(
@@ -119,7 +111,6 @@ class _SplashScreenState extends State<SplashScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // 🔥 LOGO
               Image.asset(
                 'assets/logo.png',
                 height: 110,
@@ -129,10 +120,7 @@ class _SplashScreenState extends State<SplashScreen> {
                   color: Theme.of(context).colorScheme.primary,
                 ),
               ),
-
               const SizedBox(height: 20),
-
-              // 🔥 APP NAME
               const Text(
                 'StudyPulse',
                 style: TextStyle(
@@ -140,10 +128,7 @@ class _SplashScreenState extends State<SplashScreen> {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-
               const SizedBox(height: 6),
-
-              // 🔥 TAGLINE
               Text(
                 'Focus • Track • Succeed',
                 style: TextStyle(
@@ -151,10 +136,7 @@ class _SplashScreenState extends State<SplashScreen> {
                   color: isDark ? Colors.grey : Colors.black54,
                 ),
               ),
-
               const SizedBox(height: 32),
-
-              // 🔄 LOADER
               const CircularProgressIndicator(strokeWidth: 2),
             ],
           ),
