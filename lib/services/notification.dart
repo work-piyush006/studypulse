@@ -18,7 +18,7 @@ class NotificationService {
 
   static bool _initialized = false;
 
-  static const String _channelId = 'exam_channel_v4';
+  static const String _channelId = 'exam_channel_v2';
 
   static const int _id4pm = 4001;
   static const int _id11pm = 4002;
