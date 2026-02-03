@@ -33,37 +33,36 @@ class NotificationService {
   /* ================= INIT ================= */
 
   static Future<void> init() async {
-    if (_initialized) return;
+  if (_initialized) return;
 
-    tz.initializeTimeZones();
-    tz.setLocalLocation(tz.getLocation('Asia/Kolkata'));
+  tz.initializeTimeZones();
+  tz.setLocalLocation(tz.getLocation('Asia/Kolkata'));
 
-    const androidInit =
-        AndroidInitializationSettings('ic_notification');
+  const androidInit =
+      AndroidInitializationSettings('ic_notification');
 
-    await _plugin.initialize(
-      const InitializationSettings(android: androidInit),
-      onDidReceiveNotificationResponse: _onTap,
-    );
+  await _plugin.initialize(
+    const InitializationSettings(android: androidInit),
+    onDidReceiveNotificationResponse: _onTap,
+  );
 
-    final android =
-        _plugin.resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>();
+  final android =
+      _plugin.resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>();
 
-    if (android != null) {
-      await android.createNotificationChannel(
-        const AndroidNotificationChannel(
-          _channelId,
-          'Exam Notifications',
-          description: 'Exam reminders & alerts',
-          importance: Importance.high,
-        ),
-      );
-    }
+  await android?.requestPermission(); // 🔥 MUST
 
-    _initialized = true;
-  }
+  await android?.createNotificationChannel(
+    const AndroidNotificationChannel(
+      _channelId,
+      'Exam Notifications',
+      description: 'Exam reminders & alerts',
+      importance: Importance.high,
+    ),
+  );
 
+  _initialized = true;
+}
   /* ================= TAP HANDLER ================= */
 
   static Future<void> _onTap(NotificationResponse r) async {
