@@ -6,7 +6,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../home.dart';
 import '../state/exam_state.dart';
 import '../services/notification.dart';
+import '../services/internet.dart';
 import '../tools/exam.dart';
+import 'no_internet.dart';
 import 'permission.dart';
 import 'notification_inbox.dart';
 import 'oem_warning.dart';
@@ -32,12 +34,18 @@ class _SplashScreenState extends State<SplashScreen> {
 
   Future<void> _start() async {
     try {
-      await Future.delayed(const Duration(milliseconds: 900));
+      await Future.delayed(const Duration(milliseconds: 800));
       if (!mounted || _navigated) return;
+
+      // 🔴 INTERNET BLOCK ONLY HERE
+      if (!InternetService.isConnected.value) {
+        _go(const NoInternetScreen());
+        return;
+      }
 
       final prefs = await SharedPreferences.getInstance();
 
-      // ✅ ALWAYS init core services
+      // ✅ INIT CORE (THIS WAS NEVER RUNNING BEFORE)
       await NotificationService.init();
       await ExamState.init();
 
@@ -70,7 +78,7 @@ class _SplashScreenState extends State<SplashScreen> {
         await prefs.setInt(_permKey, asked + 1);
       }
 
-      /* ================= OEM WARNING ================= */
+      /* ================= OEM / EXACT ALARM ================= */
       final canNotify = await Permission.notification.isGranted;
       if (canNotify && !(prefs.getBool(_oemKey) ?? false)) {
         if (!(await Permission.scheduleExactAlarm.isGranted)) {
