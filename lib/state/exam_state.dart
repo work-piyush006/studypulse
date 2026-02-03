@@ -107,7 +107,7 @@ class ExamState {
     await prefs.setInt(_totalKey, _totalDays!);
 
     if (fromUser) {
-      await NotificationService.scheduleDaily(daysLeft: diff);
+      await NotificationService.scheduleDaily(diff);
       await NotificationService.scheduleExamMorning(d);
     }
   }
@@ -144,8 +144,16 @@ class ExamState {
     _totalDays = null;
   }
 
+  /* ================= UI HELPERS ================= */
+
   static double progress() =>
       _totalDays == null || _totalDays == 0
           ? 0
           : 1 - (daysLeft.value / _totalDays!);
+
+  static Color colorForDays(int d) {
+    if (d >= 45) return Colors.green;
+    if (d >= 30) return Colors.orange;
+    return Colors.red;
+  }
 }
