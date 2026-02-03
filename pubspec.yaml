@@ -24,6 +24,10 @@ dependencies:
   # App badge (notifications count)
   app_badge_plus: ^1.1.3
 
+  
+  firebase_core: ^2.27.0
+  firebase_messaging: ^14.7.10
+
   # Local notifications (Android 13+ compatible)
   flutter_local_notifications: ^17.2.4
 
