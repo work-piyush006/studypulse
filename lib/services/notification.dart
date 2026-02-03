@@ -1,4 +1,3 @@
-// lib/services/notification.dart
 import 'dart:convert';
 import 'dart:math';
 
@@ -18,15 +17,29 @@ class NotificationService {
 
   static bool _initialized = false;
 
+  // 🔔 CHANNEL
   static const String _channelId = 'exam_channel_v2';
 
+  // 🔢 IDS
   static const int _id4pm = 4001;
   static const int _id11pm = 4002;
   static const int _examMorningId = 8001;
   static const int _examCompletedId = 8002;
 
-  static Future<bool> isGranted() async =>
-      Permission.notification.isGranted;
+  // 🧠 PREF KEYS
+  static const String _examMorningKey = 'exam_morning_done';
+
+  /* ================= PERMISSION ================= */
+
+  static Future<bool> _ensurePermission() async {
+    final granted = await Permission.notification.isGranted;
+    if (granted) return true;
+
+    final res = await Permission.notification.request();
+    return res.isGranted;
+  }
+
+  /* ================= INIT ================= */
 
   static Future<void> init() async {
     if (_initialized) return;
@@ -58,6 +71,8 @@ class NotificationService {
     _initialized = true;
   }
 
+  /* ================= TAP HANDLER ================= */
+
   static Future<void> _onTap(NotificationResponse r) async {
     if (r.payload == null) return;
 
@@ -78,6 +93,8 @@ class NotificationService {
     }
   }
 
+  /* ================= INSTANT ================= */
+
   static Future<void> instant({
     required String title,
     required String body,
@@ -85,10 +102,18 @@ class NotificationService {
     String? route,
   }) async {
     await init();
-    if (!await isGranted()) return;
+    if (!await _ensurePermission()) return;
+
+    final payload = jsonEncode({
+      'title': title,
+      'body': body,
+      'route': route,
+      'save': save,
+      'time': DateTime.now().toIso8601String(),
+    });
 
     await _plugin.show(
-      DateTime.now().millisecondsSinceEpoch ~/ 1000,
+      DateTime.now().microsecondsSinceEpoch.remainder(1000000),
       title,
       body,
       const NotificationDetails(
@@ -100,19 +125,26 @@ class NotificationService {
           icon: 'ic_notification',
         ),
       ),
+      payload: payload,
     );
   }
 
+  /* ================= DAILY REMINDERS ================= */
+
   static Future<void> scheduleDaily(int daysLeft) async {
     await init();
-    if (!await isGranted()) return;
+    if (!await _ensurePermission()) return;
 
     await cancelDaily();
     await _schedule(_id4pm, 16, daysLeft);
     await _schedule(_id11pm, 23, daysLeft);
   }
 
-  static Future<void> _schedule(int id, int hour, int days) async {
+  static Future<void> _schedule(
+    int id,
+    int hour,
+    int days,
+  ) async {
     final now = tz.TZDateTime.now(tz.local);
     var t =
         tz.TZDateTime(tz.local, now.year, now.month, now.day, hour);
@@ -141,9 +173,14 @@ class NotificationService {
     );
   }
 
+  /* ================= EXAM DAY (6:00 AM) ================= */
+
   static Future<void> scheduleExamMorning(DateTime d) async {
     await init();
-    if (!await isGranted()) return;
+    if (!await _ensurePermission()) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool(_examMorningKey) == true) return;
 
     final t =
         tz.TZDateTime(tz.local, d.year, d.month, d.day, 6);
@@ -168,11 +205,15 @@ class NotificationService {
           UILocalNotificationDateInterpretation.absoluteTime,
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
     );
+
+    await prefs.setBool(_examMorningKey, true);
   }
+
+  /* ================= EXAM COMPLETED ================= */
 
   static Future<void> examCompleted() async {
     await init();
-    if (!await isGranted()) return;
+    if (!await _ensurePermission()) return;
 
     await _plugin.show(
       _examCompletedId,
@@ -190,6 +231,8 @@ class NotificationService {
     );
   }
 
+  /* ================= CANCEL ================= */
+
   static Future<void> cancelDaily() async {
     if (!_initialized) return;
     await _plugin.cancel(_id4pm);
@@ -198,9 +241,15 @@ class NotificationService {
 
   static Future<void> cancelAll() async {
     if (!_initialized) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_examMorningKey);
+
     await cancelDaily();
     await _plugin.cancel(_examMorningId);
   }
+
+  /* ================= UTIL ================= */
 
   static String _quote() {
     const q = [
