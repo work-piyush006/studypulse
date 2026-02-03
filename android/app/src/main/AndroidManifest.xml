@@ -1,39 +1,39 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.example.studypulse">
+    package="com.studypulse.myapp">
 
     <!-- INTERNET -->
-    <uses-permission android:name="android.permission.INTERNET"/>
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
-    <!-- NOTIFICATIONS -->
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- ANDROID 13+ NOTIFICATIONS -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
-    <!-- EXACT ALARM -->
-    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
+    <!-- EXACT ALARM (optional, user-driven only) -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission
         android:name="android.permission.USE_EXACT_ALARM"
-        android:required="false"/>
+        android:required="false" />
 
-    <!-- REBOOT -->
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
-
-    <!-- FUTURE SAFE -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application
         android:name="${applicationName}"
         android:label="StudyPulse"
         android:icon="@mipmap/ic_launcher">
 
-        <!-- EXACT ALARM JUSTIFICATION -->
-        <meta-data
-            android:name="android.app.exact_alarm"
-            android:value="true"/>
-
         <!-- ADMOB -->
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="ca-app-pub-2139593035914184~9894998746"/>
+            android:value="ca-app-pub-2139593035914184~9894998746" />
+
+        <!-- 🔥 FIREBASE MESSAGING SERVICE (CRITICAL) -->
+        <service
+            android:name="com.google.firebase.messaging.FirebaseMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
 
         <activity
             android:name=".MainActivity"
@@ -42,40 +42,51 @@
             android:theme="@style/LaunchTheme"
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustResize"
-            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode">
+            android:configChanges="
+                orientation|
+                keyboardHidden|
+                keyboard|
+                screenSize|
+                smallestScreenSize|
+                locale|
+                layoutDirection|
+                fontScale|
+                screenLayout|
+                density|
+                uiMode">
 
             <meta-data
                 android:name="io.flutter.embedding.android.NormalTheme"
-                android:resource="@style/NormalTheme"/>
+                android:resource="@style/NormalTheme" />
 
             <intent-filter>
-                <action android:name="android.intent.action.MAIN"/>
-                <category android:name="android.intent.category.LAUNCHER"/>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
 
-        <!-- NOTIFICATION RECEIVERS -->
+        <!-- FLUTTER LOCAL NOTIFICATIONS -->
         <receiver
             android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver"
-            android:exported="false"/>
+            android:exported="false" />
 
         <receiver
             android:name="com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver"
-            android:exported="false"/>
+            android:exported="false" />
 
         <receiver
             android:name="com.dexterous.flutterlocalnotifications.BootReceiver"
             android:exported="true"
             android:permission="android.permission.RECEIVE_BOOT_COMPLETED">
             <intent-filter>
-                <action android:name="android.intent.action.BOOT_COMPLETED"/>
-                <action android:name="android.intent.action.TIME_SET"/>
-                <action android:name="android.intent.action.TIMEZONE_CHANGED"/>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
             </intent-filter>
         </receiver>
 
         <meta-data
             android:name="flutterEmbedding"
-            android:value="2"/>
+            android:value="2" />
     </application>
 </manifest>
