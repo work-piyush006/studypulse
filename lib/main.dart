@@ -1,19 +1,23 @@
 // lib/main.dart
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import 'services/internet.dart';
 import 'screens/splash.dart';
 import 'state/theme_state.dart';
-import 'screens/no_internet.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // 🌙 Load saved theme
   final prefs = await SharedPreferences.getInstance();
   final isDark = prefs.getBool('dark_mode') ?? false;
   ThemeState.mode.value =
       isDark ? ThemeMode.dark : ThemeMode.light;
 
+  // 🌐 Start internet monitoring (logic handled in screens)
   InternetService.startMonitoring();
+
   runApp(const StudyPulseApp());
 }
 
@@ -35,19 +39,9 @@ class StudyPulseApp extends StatelessWidget {
             brightness: Brightness.dark,
           ),
 
-          // 🔥 GLOBAL INTERNET GUARD
-          builder: (context, child) {
-            return ValueListenableBuilder<bool>(
-              valueListenable: InternetService.isConnected,
-              builder: (_, connected, __) {
-                if (!connected) {
-                  return const NoInternetScreen();
-                }
-                return child!;
-              },
-            );
-          },
-
+          // ❌ NO global internet guard here
+          // ❌ NO permission logic here
+          // ✅ Splash handles everything
           home: const SplashScreen(),
         );
       },
