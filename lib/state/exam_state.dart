@@ -27,8 +27,11 @@ class ExamState {
     _initialized = true;
 
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_dateKey);
 
+    // ✅ RESTORE TOTAL DAYS (FIXES COUNTDOWN SAVE)
+    _totalDays = prefs.getInt(_totalKey);
+
+    final raw = prefs.getString(_dateKey);
     if (raw != null) {
       final d = DateTime.tryParse(raw);
       if (d != null) {
@@ -102,6 +105,7 @@ class ExamState {
     isExamCompleted.value = false;
     daysLeft.value = diff;
 
+    // ✅ SET TOTAL DAYS ONLY ONCE
     _totalDays ??= diff;
     await prefs.setInt(_totalKey, _totalDays!);
 
@@ -142,6 +146,8 @@ class ExamState {
     isExamCompleted.value = false;
     _totalDays = null;
   }
+
+  /* ================= UI HELPERS ================= */
 
   static double progress() =>
       _totalDays == null || _totalDays == 0
