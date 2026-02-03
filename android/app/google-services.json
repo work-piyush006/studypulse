@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1033284960702",
+    "project_id": "study-pulse-c81ca",
+    "storage_bucket": "study-pulse-c81ca.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1033284960702:android:0bfbee251b992ae10c39ef",
+        "android_client_info": {
+          "package_name": "com.studypulse.myapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBGeqKZHcp5g1El6cEl1Wi3X2_9QW3tsrA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
