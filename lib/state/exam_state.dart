@@ -23,26 +23,21 @@ class ExamState {
   /* ================= INIT ================= */
 
   static Future<void> init() async {
-  if (_initialized) return;
+    if (_initialized) return;
+    _initialized = true;
 
-  final prefs = await SharedPreferences.getInstance();
-  final raw = prefs.getString(_dateKey);
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_dateKey);
 
-  if (raw == null) {
-  _initialized = true;
-  _scheduleMidnight();
-  return;
-}t
+    if (raw != null) {
+      final d = DateTime.tryParse(raw);
+      if (d != null) {
+        await _recalculate(d, fromUser: false);
+      }
+    }
 
-  _initialized = true;
-
-  final d = DateTime.tryParse(raw);
-  if (d != null) {
-    await _recalculate(d, fromUser: false);
+    _scheduleMidnight();
   }
-
-  _scheduleMidnight();
-}
 
   /* ================= UPDATE ================= */
 
@@ -147,8 +142,6 @@ class ExamState {
     isExamCompleted.value = false;
     _totalDays = null;
   }
-
-  /* ================= UI HELPERS ================= */
 
   static double progress() =>
       _totalDays == null || _totalDays == 0
