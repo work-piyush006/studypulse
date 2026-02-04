@@ -21,6 +21,7 @@ Future<void> main() async {
   // 🔥 Firebase init
   await Firebase.initializeApp();
 await FCMService.init(); // 🔥 REQUIRED
+  await NotificationService.init();
 
   // 🔔 FCM background handler
   FirebaseMessaging.onBackgroundMessage(
