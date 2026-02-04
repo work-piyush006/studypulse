@@ -11,8 +11,11 @@ class NotificationService {
     required String title,
     required String body,
     bool save = false,
+    String? route,
   }) async {
-    // FCM-only: server decide karega
+    // FCM-only architecture:
+    // route future ke liye (notification tap handling)
+    // abhi intentionally empty
   }
 
   static Future<void> cancelAll() async {}
