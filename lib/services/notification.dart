@@ -7,24 +7,20 @@ class NotificationService {
     await _fcm.requestPermission();
   }
 
+  // FCM-only: server push karega
   static Future<void> instant({
     required String title,
     required String body,
     bool save = false,
     String? route,
   }) async {
-    // FCM-only architecture:
-    // route future ke liye (notification tap handling)
-    // abhi intentionally empty
+    // intentionally empty
   }
 
+  // ---- legacy compatibility (NO-OP) ----
   static Future<void> cancelAll() async {}
-
   static Future<void> cancelDaily() async {}
-
   static Future<void> scheduleDaily(dynamic diff) async {}
-
   static Future<void> scheduleExamMorning(dynamic d) async {}
-
   static Future<void> examCompleted() async {}
 }
