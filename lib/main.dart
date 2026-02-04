@@ -4,6 +4,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 
 import 'screens/splash.dart';
 import 'services/internet.dart';
+import 'services/notification.dart';
 import 'services/fcm_service.dart';
 
 /// 🔥 BACKGROUND HANDLER (TOP LEVEL ONLY)
