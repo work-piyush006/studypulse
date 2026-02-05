@@ -1,7 +1,6 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-
-import '../navigation/app_shell.dart';
 
 class PhoneAuthScreen extends StatefulWidget {
   const PhoneAuthScreen({super.key});
@@ -11,105 +10,120 @@ class PhoneAuthScreen extends StatefulWidget {
 }
 
 class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
-  final _phoneController = TextEditingController();
-  final _otpController = TextEditingController();
+  final _phoneCtrl = TextEditingController();
+  final _otpCtrl = TextEditingController();
 
-  bool _loading = false;
-  bool _codeSent = false;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+
   String? _verificationId;
-  String? _error;
+  bool _otpSent = false;
+  bool _loading = false;
 
-  final _auth = FirebaseAuth.instance;
-
-  @override
-  void dispose() {
-    _phoneController.dispose();
-    _otpController.dispose();
-    super.dispose();
-  }
+  int _triesLeft = 3;
+  int _cooldown = 0;
+  Timer? _timer;
 
   /* ================= SEND OTP ================= */
 
-  Future<void> _sendOtp() async {
-    final phone = _phoneController.text.trim();
-
-    if (!phone.startsWith('+') || phone.length < 10) {
-      setState(() => _error = 'Enter phone number with country code');
-      return;
-    }
+  Future<void> _sendOtp({bool resend = false}) async {
+    if (_triesLeft <= 0) return;
 
     setState(() {
       _loading = true;
-      _error = null;
     });
 
     await _auth.verifyPhoneNumber(
-      phoneNumber: phone,
+      phoneNumber: _phoneCtrl.text.trim(),
       timeout: const Duration(seconds: 60),
+
       verificationCompleted: (PhoneAuthCredential credential) async {
-        // 🔥 Auto verification (rare but possible)
         await _auth.signInWithCredential(credential);
-        _goHome();
       },
+
       verificationFailed: (FirebaseAuthException e) {
-        setState(() {
-          _loading = false;
-          _error = e.message ?? 'Verification failed';
-        });
+        _show(e.message ?? 'Verification failed');
       },
-      codeSent: (String verificationId, int? resendToken) {
-        setState(() {
-          _verificationId = verificationId;
-          _codeSent = true;
-          _loading = false;
-        });
-      },
-      codeAutoRetrievalTimeout: (String verificationId) {
+
+      codeSent: (verificationId, _) {
         _verificationId = verificationId;
+        _otpSent = true;
+
+        _triesLeft--;
+        if (_triesLeft == 0) {
+          _startCooldown();
+        }
+
+        _show(resend ? 'OTP resent' : 'OTP sent');
+      },
+
+      codeAutoRetrievalTimeout: (id) {
+        _verificationId = id;
       },
     );
+
+    setState(() => _loading = false);
   }
 
   /* ================= VERIFY OTP ================= */
 
   Future<void> _verifyOtp() async {
-    final otp = _otpController.text.trim();
+    if (_verificationId == null) return;
 
-    if (otp.length < 6 || _verificationId == null) {
-      setState(() => _error = 'Invalid OTP');
-      return;
-    }
-
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+    setState(() => _loading = true);
 
     try {
-      final credential = PhoneAuthProvider.credential(
+      final cred = PhoneAuthProvider.credential(
         verificationId: _verificationId!,
-        smsCode: otp,
+        smsCode: _otpCtrl.text.trim(),
       );
 
-      await _auth.signInWithCredential(credential);
-      _goHome();
-    } on FirebaseAuthException catch (e) {
-      setState(() {
-        _loading = false;
-        _error = e.message ?? 'OTP verification failed';
-      });
+      await _auth.signInWithCredential(cred);
+
+      _show('Login successful');
+
+    } catch (_) {
+      _show('Invalid OTP');
     }
+
+    setState(() => _loading = false);
   }
 
-  /* ================= NAVIGATION ================= */
+  /* ================= COOLDOWN ================= */
 
-  void _goHome() {
+  void _startCooldown() {
+    _cooldown = 299; // 4:59 minutes
+
+    _timer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (_cooldown == 0) {
+        t.cancel();
+        _triesLeft = 3;
+        setState(() {});
+      } else {
+        setState(() => _cooldown--);
+      }
+    });
+  }
+
+  /* ================= UI HELPERS ================= */
+
+  void _show(String msg) {
     if (!mounted) return;
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (_) => const AppShell()),
-      (_) => false,
-    );
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  String _cooldownText() {
+    final m = _cooldown ~/ 60;
+    final s = _cooldown % 60;
+    return '$m:${s.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _phoneCtrl.dispose();
+    _otpCtrl.dispose();
+    super.dispose();
   }
 
   /* ================= UI ================= */
@@ -117,63 +131,63 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Sign in')),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (_error != null)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: Text(
-                    _error!,
-                    style: const TextStyle(color: Colors.red),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
+      appBar: AppBar(title: const Text('Phone Login')),
+      body: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          children: [
+            TextField(
+              controller: _phoneCtrl,
+              keyboardType: TextInputType.phone,
+              decoration: const InputDecoration(
+                labelText: 'Phone (+91XXXXXXXXXX)',
+              ),
+            ),
 
-              if (!_codeSent) ...[
-                TextField(
-                  controller: _phoneController,
-                  keyboardType: TextInputType.phone,
-                  decoration: const InputDecoration(
-                    labelText: 'Phone Number',
-                    hintText: '+91XXXXXXXXXX',
-                  ),
+            if (_otpSent)
+              TextField(
+                controller: _otpCtrl,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Enter OTP',
                 ),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _loading ? null : _sendOtp,
-                    child: _loading
-                        ? const CircularProgressIndicator()
-                        : const Text('Send OTP'),
+              ),
+
+            const SizedBox(height: 24),
+
+            if (_triesLeft > 0)
+              ElevatedButton(
+                onPressed: _loading
+                    ? null
+                    : _otpSent
+                        ? _verifyOtp
+                        : _sendOtp,
+                child: _loading
+                    ? const CircularProgressIndicator()
+                    : Text(_otpSent ? 'Verify OTP' : 'Send OTP'),
+              ),
+
+            if (_otpSent && _triesLeft > 0)
+              TextButton(
+                onPressed: _loading ? null : () => _sendOtp(resend: true),
+                child: Text('Resend OTP ($_triesLeft tries left)'),
+              ),
+
+            if (_triesLeft == 0)
+              Column(
+                children: [
+                  const SizedBox(height: 20),
+                  const Text(
+                    'Too many attempts',
+                    style: TextStyle(color: Colors.red),
                   ),
-                ),
-              ] else ...[
-                TextField(
-                  controller: _otpController,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Enter OTP',
+                  Text(
+                    'OTP will be received after $_cooldownText()',
+                    style: const TextStyle(color: Colors.orange),
                   ),
-                ),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _loading ? null : _verifyOtp,
-                    child: _loading
-                        ? const CircularProgressIndicator()
-                        : const Text('Verify OTP'),
-                  ),
-                ),
-              ],
-            ],
-          ),
+                ],
+              ),
+          ],
         ),
       ),
     );
