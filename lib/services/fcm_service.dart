@@ -1,5 +1,4 @@
 import 'dart:developer';
-
 import 'package:firebase_messaging/firebase_messaging.dart';
 
 class FCMService {
@@ -26,18 +25,32 @@ class FCMService {
     final token = await _fcm.getToken();
     log('🔥 FCM TOKEN: $token');
 
-    // TODO: send token to backend with UID
+    // TODO: send token + UID to backend
+
+    // 🔁 Token refresh (CRITICAL)
+    FirebaseMessaging.instance.onTokenRefresh.listen((newToken) {
+      log('♻️ FCM TOKEN REFRESHED: $newToken');
+      // TODO: update backend with new token
+    });
 
     // 📥 Foreground message (NO local notification)
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       log('📩 Foreground FCM: ${message.data}');
-      // UI decide karegi kya karna hai
+      // UI / in-app logic only
     });
 
-    // 📲 Notification tap (background / terminated)
+    // 📲 Notification tap (background)
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-      log('👉 Opened from notification: ${message.data}');
+      log('👉 Opened from notification (bg): ${message.data}');
+      // TODO: navigate based on payload
     });
+
+    // 📲 Notification tap (terminated)
+    final initialMessage = await _fcm.getInitialMessage();
+    if (initialMessage != null) {
+      log('👉 Opened from notification (terminated): ${initialMessage.data}');
+      // TODO: navigate based on payload
+    }
 
     _initialized = true;
   }
