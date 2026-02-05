@@ -15,6 +15,9 @@ class PermissionGate extends StatefulWidget {
 class _PermissionGateState extends State<PermissionGate> {
   static const _key = 'notification_permission_ask_count';
 
+  bool _checked = false;
+  bool _showPermissionScreen = false;
+
   @override
   void initState() {
     super.initState();
@@ -28,36 +31,34 @@ class _PermissionGateState extends State<PermissionGate> {
     final status = await Permission.notification.status;
 
     if (status.isGranted || status.isPermanentlyDenied) {
-      _goApp();
+      setState(() => _checked = true);
       return;
     }
 
     if (asked < 2) {
-      await Navigator.push(
-        context,
-        MaterialPageRoute(
-          fullscreenDialog: true,
-          builder: (_) => const PermissionScreen(),
-        ),
-      );
+      setState(() => _showPermissionScreen = true);
       await prefs.setInt(_key, asked + 1);
+      return;
     }
 
-    _goApp();
-  }
-
-  void _goApp() {
-    if (!mounted) return;
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => const AppShell()),
-    );
+    setState(() => _checked = true);
   }
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(child: CircularProgressIndicator()),
-    );
+    // 🔐 Still deciding
+    if (!_checked && !_showPermissionScreen) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    // 🔔 Ask permission screen
+    if (_showPermissionScreen) {
+      return const PermissionScreen();
+    }
+
+    // ✅ Permission flow done → enter app
+    return const AppShell();
   }
 }
