@@ -3,43 +3,29 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 import 'permission_gate.dart';
 
-class AuthGate extends StatefulWidget {
+class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
 
   @override
-  State<AuthGate> createState() => _AuthGateState();
-}
-
-class _AuthGateState extends State<AuthGate> {
-  @override
-  void initState() {
-    super.initState();
-    _handleAuth();
-  }
-
-  Future<void> _handleAuth() async {
+  Widget build(BuildContext context) {
     final auth = FirebaseAuth.instance;
+    final user = auth.currentUser;
 
-    if (auth.currentUser == null) {
-      try {
-        await auth.signInAnonymously();
-      } catch (e) {
+    // 🔒 Not signed in → sign in anonymously
+    if (user == null) {
+      auth.signInAnonymously().catchError((e) {
         debugPrint('Auth error: $e');
-      }
+      });
+
+      // ⏳ While signing in
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
     }
 
-    if (!mounted) return;
-
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => const PermissionGate()),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(child: CircularProgressIndicator()),
-    );
+    // ✅ Signed in → go next
+    return const PermissionGate();
   }
 }
