@@ -21,6 +21,7 @@ dependencies:
   firebase_auth: ^4.17.8
   firebase_messaging: ^14.7.10
   google_sign_in: ^6.2.1
+  cloud_firestore: ^4.15.8
 
   google_mobile_ads: ^5.3.1
   shared_preferences: ^2.2.2
