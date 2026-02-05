@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 
 import 'core/internet_controller.dart';
 import 'screens/splash.dart';
-import 'widgets/no_internet.dart'; // ← existing widget
+import 'screens/no_internet.dart'; // ← existing widget
 
 class AppRoot extends StatelessWidget {
   const AppRoot({super.key});
