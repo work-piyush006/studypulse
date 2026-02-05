@@ -2,30 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import 'permission_gate.dart';
+import 'google_sign_in_screen.dart';
 
 class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final auth = FirebaseAuth.instance;
-    final user = auth.currentUser;
+    final user = FirebaseAuth.instance.currentUser;
 
-    // 🔒 Not signed in → sign in anonymously
+    // ❌ Not logged in → Google Sign-In screen
     if (user == null) {
-      auth.signInAnonymously().catchError((e) {
-        debugPrint('Auth error: $e');
-      });
-
-      // ⏳ While signing in
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
+      return const GoogleSignInScreen();
     }
 
-    // ✅ Signed in → go next
+    // ✅ Logged in → continue app flow
     return const PermissionGate();
   }
 }
