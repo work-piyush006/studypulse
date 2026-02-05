@@ -5,8 +5,9 @@ import 'package:provider/provider.dart';
 
 import 'app_root.dart';
 import 'core/internet_controller.dart';
+import 'state/theme_state.dart';
 
-/// 🔥 BACKGROUND HANDLER (TOP LEVEL ONLY)
+/// 🔥 BACKGROUND FCM HANDLER (TOP LEVEL ONLY)
 @pragma('vm:entry-point')
 Future<void> _firebaseBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
@@ -15,14 +16,14 @@ Future<void> _firebaseBackgroundHandler(RemoteMessage message) async {
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 🔥 Firebase init (SAFE)
+  // 🔥 Firebase init (safe)
   try {
     await Firebase.initializeApp();
   } catch (e) {
     debugPrint('Firebase init error: $e');
   }
 
-  // 🔔 Register FCM background handler
+  // 🔔 FCM background handler
   FirebaseMessaging.onBackgroundMessage(
     _firebaseBackgroundHandler,
   );
@@ -40,11 +41,29 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'StudyPulse',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(useMaterial3: true),
-      home: const AppRoot(),
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: ThemeState.mode,
+      builder: (_, mode, __) {
+        return MaterialApp(
+          title: 'StudyPulse',
+          debugShowCheckedModeBanner: false,
+
+          // 🌞 Light theme
+          theme: ThemeData(
+            brightness: Brightness.light,
+            useMaterial3: true,
+          ),
+
+          // 🌙 Dark theme
+          darkTheme: ThemeData(
+            brightness: Brightness.dark,
+            useMaterial3: true,
+          ),
+
+          themeMode: mode,
+          home: const AppRoot(),
+        );
+      },
     );
   }
 }
