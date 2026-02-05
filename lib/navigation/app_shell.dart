@@ -16,8 +16,8 @@ class _AppShellState extends State<AppShell> {
 
   final _pages = const [
     Home(),
-    AboutScreen(),
-    SettingsScreen(),
+    AboutPage(),
+    SettingsPage(),
   ];
 
   @override
