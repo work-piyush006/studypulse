@@ -6,7 +6,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 import '../state/theme_state.dart';
 import 'about.dart';
-import 'auth_gate.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -53,6 +52,8 @@ class _SettingsPageState extends State<SettingsPage>
     });
   }
 
+  /* ================= THEME ================= */
+
   Future<void> _toggleTheme(bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('dark_mode', value);
@@ -92,16 +93,8 @@ class _SettingsPageState extends State<SettingsPage>
 
     if (confirm != true) return;
 
-    // 🔥 Firebase sign out
+    // 🔥 Auth state change ONLY (AppRoot will react)
     await FirebaseAuth.instance.signOut();
-
-    if (!mounted) return;
-
-    // 🔁 Reset navigation → AuthGate
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const AuthGate()),
-      (_) => false,
-    );
   }
 
   /* ================= UI HELPERS ================= */
@@ -149,6 +142,8 @@ class _SettingsPageState extends State<SettingsPage>
         child: child,
       );
 
+  /* ================= UI ================= */
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -181,7 +176,8 @@ class _SettingsPageState extends State<SettingsPage>
                 'Required to receive exam alerts',
               ),
               secondary: const Icon(
-                  Icons.notifications_active_outlined),
+                Icons.notifications_active_outlined,
+              ),
               value: _notificationsAllowed,
               onChanged: (v) async {
                 if (!v) {
@@ -237,7 +233,7 @@ class _SettingsPageState extends State<SettingsPage>
 
           const SizedBox(height: 30),
 
-          // 🔴 LOGOUT BUTTON
+          // 🔴 LOGOUT
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.redAccent,
@@ -251,8 +247,10 @@ class _SettingsPageState extends State<SettingsPage>
             onPressed: _logout,
             child: const Text(
               'Logout',
-              style:
-                  TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
         ],
