@@ -1,10 +1,8 @@
 // lib/services/ads.dart
-
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
-import 'package:internet_connection_checker/internet_connection_checker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AdsService {
@@ -36,17 +34,21 @@ class AdsService {
   static const String _retryCountKey = 'banner_retry_count';
   static const String _cooldownUntilKey = 'banner_cooldown_until';
 
+  static Timer? _retryTimer;
+
   /* ================= INIT ================= */
 
   static Future<void> initialize() async {
     if (_initialized) return;
-
     await MobileAds.instance.initialize();
     _initialized = true;
 
     if (kDebugMode) {
       debugPrint('✅ MobileAds initialized');
     }
+
+    // 🔥 Preload interstitial early
+    preloadInterstitial();
   }
 
   /* ================= BANNER (RETRY SAFE) ================= */
@@ -59,17 +61,9 @@ class AdsService {
 
     final prefs = await SharedPreferences.getInstance();
 
-    /// ⛔ Cooldown active?
+    // ⛔ Cooldown active?
     final cooldownUntil = prefs.getInt(_cooldownUntilKey) ?? 0;
     if (DateTime.now().millisecondsSinceEpoch < cooldownUntil) {
-      if (kDebugMode) debugPrint('⏸ Banner cooldown active');
-      onState(false);
-      return null;
-    }
-
-    final hasInternet =
-        await InternetConnectionChecker().hasConnection;
-    if (!hasInternet) {
       onState(false);
       return null;
     }
@@ -96,18 +90,17 @@ class AdsService {
       request: const AdRequest(),
       listener: BannerAdListener(
         onAdLoaded: (_) async {
+          _retryTimer?.cancel();
           await prefs.setInt(_retryCountKey, 0);
           onState(true);
-          if (kDebugMode) debugPrint('✅ Banner loaded');
         },
-        onAdFailedToLoad: (ad, error) async {
+        onAdFailedToLoad: (ad, _) async {
           ad.dispose();
 
           int retry = prefs.getInt(_retryCountKey) ?? 0;
           retry++;
 
           if (retry >= _maxBannerRetry) {
-            // 🔥 STOP + COOLDOWN
             await prefs.setInt(_retryCountKey, 0);
             await prefs.setInt(
               _cooldownUntilKey,
@@ -115,26 +108,14 @@ class AdsService {
                   .add(_cooldown)
                   .millisecondsSinceEpoch,
             );
-
-            if (kDebugMode) {
-              debugPrint(
-                  '⛔ Banner stopped. Cooldown for ${_cooldown.inMinutes} min');
-            }
-
             onState(false);
             return;
           }
 
           await prefs.setInt(_retryCountKey, retry);
 
-          if (kDebugMode) {
-            debugPrint(
-              '🔁 Banner retry $retry/$_maxBannerRetry',
-            );
-          }
-
-          // 🔁 RETRY AFTER GAP
-          Future.delayed(_retryGap, () {
+          _retryTimer?.cancel();
+          _retryTimer = Timer(_retryGap, () {
             createAdaptiveBanner(
               context: context,
               onState: onState,
@@ -148,7 +129,7 @@ class AdsService {
     return banner;
   }
 
-  /* ================= INTERSTITIAL (UNCHANGED & SAFE) ================= */
+  /* ================= INTERSTITIAL ================= */
 
   static InterstitialAd? _interstitialAd;
   static bool _isLoadingInterstitial = false;
@@ -165,13 +146,7 @@ class AdsService {
   }
 
   static Future<void> preloadInterstitial() async {
-    await initialize();
-
     if (_interstitialAd != null || _isLoadingInterstitial) return;
-
-    final hasInternet =
-        await InternetConnectionChecker().hasConnection;
-    if (!hasInternet) return;
 
     _isLoadingInterstitial = true;
 
