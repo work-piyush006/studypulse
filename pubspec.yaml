@@ -13,49 +13,33 @@ dependencies:
 
   cupertino_icons: ^1.0.6
 
-  # ===============================
-  # STATE MANAGEMENT (REQUIRED)
-  # ===============================
+  # STATE MANAGEMENT
   provider: ^6.1.2
 
-  # ===============================
   # INTERNET / CONNECTIVITY
-  # ===============================
   connectivity_plus: ^6.0.5
   internet_connection_checker: ^1.0.0+1
 
-  # ===============================
-# FIREBASE (SAME GENERATION)
-# ===============================
-firebase_core: ^3.10.0
-firebase_auth: ^5.3.1
-firebase_messaging: ^15.2.10
+  # FIREBASE (SAME GENERATION)
+  firebase_core: ^3.10.0
+  firebase_auth: ^5.3.1
+  firebase_messaging: ^15.2.10
 
-  # ===============================
   # ADS
-  # ===============================
   google_mobile_ads: ^5.3.1
 
-  # ===============================
   # STORAGE / DEVICE
-  # ===============================
   shared_preferences: ^2.2.2
   device_info_plus: ^10.1.0
 
-  # ===============================
   # PERMISSIONS / LINKS
-  # ===============================
   permission_handler: ^11.3.0
   url_launcher: ^6.2.5
 
-  # ===============================
-  # APP BADGE (used in notification_store)
-  # ===============================
+  # APP BADGE
   app_badge_plus: ^1.2.0
 
-  # ===============================
   # UI FX
-  # ===============================
   confetti: ^0.7.0
 
 dev_dependencies:
@@ -79,4 +63,4 @@ flutter:
 flutter_launcher_icons:
   android: true
   ios: false
-  image_path: "assets/icon.png"
+  image_path: assets/icon.png
