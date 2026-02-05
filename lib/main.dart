@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:provider/provider.dart';
 
-import 'screens/splash.dart';
-import 'services/internet.dart';
-import 'services/notification.dart';
-import 'services/fcm_service.dart';
+import 'app_root.dart';
+import 'core/internet_controller.dart';
 
 /// 🔥 BACKGROUND HANDLER (TOP LEVEL ONLY)
 @pragma('vm:entry-point')
@@ -16,20 +15,24 @@ Future<void> _firebaseBackgroundHandler(RemoteMessage message) async {
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 🌐 Internet monitor
-  InternetService.startMonitoring();
+  // 🔥 Firebase init (SAFE)
+  try {
+    await Firebase.initializeApp();
+  } catch (e) {
+    debugPrint('Firebase init error: $e');
+  }
 
-  // 🔥 Firebase init
-  await Firebase.initializeApp();
-await FCMService.init(); // 🔥 REQUIRED
-  await NotificationService.init();
-
-  // 🔔 FCM background handler
+  // 🔔 Register FCM background handler
   FirebaseMessaging.onBackgroundMessage(
     _firebaseBackgroundHandler,
   );
 
-  runApp(const MyApp());
+  runApp(
+    ChangeNotifierProvider(
+      create: (_) => InternetController()..start(),
+      child: const MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -41,7 +44,7 @@ class MyApp extends StatelessWidget {
       title: 'StudyPulse',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(useMaterial3: true),
-      home: const SplashScreen(),
+      home: const AppRoot(),
     );
   }
 }
