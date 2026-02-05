@@ -10,20 +10,25 @@ import 'state/theme_state.dart';
 /// 🔥 BACKGROUND FCM HANDLER (TOP LEVEL ONLY)
 @pragma('vm:entry-point')
 Future<void> _firebaseBackgroundHandler(RemoteMessage message) async {
-  await Firebase.initializeApp();
+  // 🛡️ SAFETY: Avoid double init
+  if (Firebase.apps.isEmpty) {
+    await Firebase.initializeApp();
+  }
 }
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 🔥 Firebase init (safe)
+  // 🔥 Firebase init (HARDENED – 10/10)
   try {
-    await Firebase.initializeApp();
+    if (Firebase.apps.isEmpty) {
+      await Firebase.initializeApp();
+    }
   } catch (e) {
     debugPrint('Firebase init error: $e');
   }
 
-  // 🔔 FCM background handler
+  // 🔔 Register FCM background handler
   FirebaseMessaging.onBackgroundMessage(
     _firebaseBackgroundHandler,
   );
@@ -48,19 +53,22 @@ class MyApp extends StatelessWidget {
           title: 'StudyPulse',
           debugShowCheckedModeBanner: false,
 
-          // 🌞 Light theme
+          // 🌞 Light Theme
           theme: ThemeData(
             brightness: Brightness.light,
             useMaterial3: true,
           ),
 
-          // 🌙 Dark theme
+          // 🌙 Dark Theme
           darkTheme: ThemeData(
             brightness: Brightness.dark,
             useMaterial3: true,
           ),
 
+          // 🔥 Dynamic Theme Switch
           themeMode: mode,
+
+          // 🚀 Single entry point
           home: const AppRoot(),
         );
       },
