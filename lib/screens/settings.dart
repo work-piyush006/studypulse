@@ -2,13 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
-import '../services/notification.dart';
-import '../state/exam_state.dart';
-import 'about.dart';
 import '../state/theme_state.dart';
-
-
+import 'about.dart';
+import 'auth_gate.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -20,7 +18,7 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage>
     with WidgetsBindingObserver {
   bool _darkMode = false;
-  bool _notifications = false;
+  bool _notificationsAllowed = false;
   bool _loading = true;
 
   @override
@@ -45,35 +43,73 @@ class _SettingsPageState extends State<SettingsPage>
 
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
-    final canNotify = await Permission.notification.isGranted;
+    final allowed = await Permission.notification.isGranted;
 
     if (!mounted) return;
     setState(() {
       _darkMode = prefs.getBool('dark_mode') ?? false;
-      _notifications = canNotify;
+      _notificationsAllowed = allowed;
       _loading = false;
     });
   }
 
   Future<void> _toggleTheme(bool value) async {
-  final prefs = await SharedPreferences.getInstance();
-  await prefs.setBool('dark_mode', value);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('dark_mode', value);
 
-  // 🔥 INSTANT THEME UPDATE (THIS IS THE KEY LINE)
-  ThemeState.mode.value =
-      value ? ThemeMode.dark : ThemeMode.light;
+    ThemeState.mode.value =
+        value ? ThemeMode.dark : ThemeMode.light;
 
-  if (!mounted) return;
-  setState(() => _darkMode = value);
-}
-  
+    if (!mounted) return;
+    setState(() => _darkMode = value);
+  }
 
-  void _snack(String msg, {bool error = false}) {
+  /* ================= LOGOUT ================= */
+
+  Future<void> _logout() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Logout'),
+        content: const Text(
+          'You will be signed out and redirected to login screen.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('CANCEL'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text(
+              'LOGOUT',
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    // 🔥 Firebase sign out
+    await FirebaseAuth.instance.signOut();
+
+    if (!mounted) return;
+
+    // 🔁 Reset navigation → AuthGate
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const AuthGate()),
+      (_) => false,
+    );
+  }
+
+  /* ================= UI HELPERS ================= */
+
+  void _snack(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(msg),
-        backgroundColor:
-            error ? Colors.redAccent : Colors.green,
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -82,7 +118,8 @@ class _SettingsPageState extends State<SettingsPage>
   void _snackWithSettings() {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: const Text('Notifications are blocked'),
+        content:
+            const Text('Notifications permission is blocked'),
         action: SnackBarAction(
           label: 'ALLOW',
           onPressed: openAppSettings,
@@ -138,72 +175,36 @@ class _SettingsPageState extends State<SettingsPage>
           _section('Notifications'),
           _card(
             SwitchListTile(
-              title: const Text('Study Notifications'),
-              secondary:
-                  const Icon(Icons.notifications_active_outlined),
-              value: _notifications,
+              title:
+                  const Text('Allow Study Notifications'),
+              subtitle: const Text(
+                'Required to receive exam alerts',
+              ),
+              secondary: const Icon(
+                  Icons.notifications_active_outlined),
+              value: _notificationsAllowed,
               onChanged: (v) async {
-                bool allowed = false;
-
-                if (v) {
-                  final status =
-                      await Permission.notification.request();
-                  allowed = status.isGranted;
+                if (!v) {
+                  _snack(
+                    'Disable notifications from system settings',
+                  );
+                  openAppSettings();
+                  return;
                 }
 
-                setState(() => _notifications = allowed);
+                final status =
+                    await Permission.notification.request();
+                final allowed = status.isGranted;
 
-                if (v && !allowed) {
+                setState(
+                    () => _notificationsAllowed = allowed);
+
+                if (!allowed) {
                   _snackWithSettings();
                 } else {
-                  _snack(allowed
-                      ? 'Notifications enabled'
-                      : 'Notifications disabled');
+                  _snack('Notifications enabled');
                 }
               },
-            ),
-          ),
-
-          _card(
-            ListTile(
-              enabled: _notifications,
-              leading: const Icon(Icons.notification_add),
-              title: const Text('Test Notification'),
-              subtitle:
-                  const Text('Preview only (not saved)'),
-              onTap: !_notifications
-                  ? null
-                  : () async {
-                      final examDate =
-                          ExamState.examDate.value;
-
-                      if (examDate == null) {
-                        _snack(
-                          'Please set exam date first',
-                          error: true,
-                        );
-                        return;
-                      }
-
-                      final days =
-                          ExamState.daysLeft.value;
-
-                      await NotificationService.instant(
-                        title: '📘 Exam Countdown',
-                        body:
-                            '$days days left\nYou’re on track 🚀',
-                        save: false,
-                      );
-
-                      final allowed =
-                          await Permission.notification.isGranted;
-
-                      if (!allowed) {
-                        _snackWithSettings();
-                      } else {
-                        _snack('Test notification sent');
-                      }
-                    },
             ),
           ),
 
@@ -231,6 +232,27 @@ class _SettingsPageState extends State<SettingsPage>
                   builder: (_) => const AboutPage(),
                 ),
               ),
+            ),
+          ),
+
+          const SizedBox(height: 30),
+
+          // 🔴 LOGOUT BUTTON
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              foregroundColor: Colors.white,
+              padding:
+                  const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            onPressed: _logout,
+            child: const Text(
+              'Logout',
+              style:
+                  TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
           ),
         ],

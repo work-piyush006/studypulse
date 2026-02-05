@@ -39,72 +39,72 @@ class _NoInternetScreenState extends State<NoInternetScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 28),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              AnimatedBuilder(
-                animation: _controller,
-                builder: (_, __) {
-                  return Transform.translate(
-                    offset: Offset(0, _move.value),
-                    child: Opacity(
-                      opacity: _fade.value,
-                      child: Icon(
-                        Icons.wifi_off_rounded,
-                        size: 110,
-                        color: Colors.redAccent.shade200,
+    return WillPopScope(
+      onWillPop: () async => false, // 🔒 BACK DISABLED
+      child: AbsorbPointer(
+        absorbing: true, // 🔒 BLOCK ALL TOUCHES
+        child: Material(
+          color: const Color(0xFFF8FAFC),
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 28),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  AnimatedBuilder(
+                    animation: _controller,
+                    builder: (_, __) {
+                      return Transform.translate(
+                        offset: Offset(0, _move.value),
+                        child: Opacity(
+                          opacity: _fade.value,
+                          child: Icon(
+                            Icons.wifi_off_rounded,
+                            size: 110,
+                            color: Colors.redAccent.shade200,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 24),
+                  const Text(
+                    'No Internet Connection',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Waiting for connection…\nPlease check your network',
+                    style: TextStyle(
+                      fontSize: 15,
+                      color: Colors.grey,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 32),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 18, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                    child: const Text(
+                      'Retrying automatically',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.orange,
                       ),
                     ),
-                  );
-                },
-              ),
-
-              const SizedBox(height: 24),
-
-              const Text(
-                'No Internet Connection',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w700,
-                ),
-                textAlign: TextAlign.center,
-              ),
-
-              const SizedBox(height: 8),
-
-              const Text(
-                'Waiting for connection…\nPlease check your network',
-                style: TextStyle(
-                  fontSize: 15,
-                  color: Colors.grey,
-                ),
-                textAlign: TextAlign.center,
-              ),
-
-              const SizedBox(height: 32),
-
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                decoration: BoxDecoration(
-                  color: Colors.orange.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(30),
-                ),
-                child: const Text(
-                  'Retrying automatically',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.orange,
                   ),
-                ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
