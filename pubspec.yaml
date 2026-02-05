@@ -1,5 +1,5 @@
 name: studypulse
-description: A smart student utility app for exams, calculations, reminders & productivity.
+description: A smart student utility app for exams, calculations & productivity.
 publish_to: 'none'
 
 version: 1.0.0+1
@@ -13,30 +13,49 @@ dependencies:
 
   cupertino_icons: ^1.0.6
 
-  # Google AdMob
-  google_mobile_ads: ^5.3.1
+  # ===============================
+  # STATE MANAGEMENT (REQUIRED)
+  # ===============================
+  provider: ^6.1.2
 
-  device_info_plus: ^10.1.0
-
-  # Local storage
-  shared_preferences: ^2.2.2
-  
-  firebase_core: ^2.27.0
-  firebase_messaging: ^14.7.10
-
-  # Local notifications (Android 13+ compatible)
-  flutter_local_notifications: ^17.2.4
-
-  # Internet connectivity checker
+  # ===============================
+  # INTERNET / CONNECTIVITY
+  # ===============================
+  connectivity_plus: ^6.0.5
   internet_connection_checker: ^1.0.0+1
 
-  # Android 13+ runtime permission
-  permission_handler: ^11.3.0
+  # ===============================
+  # FIREBASE
+  # ===============================
+  firebase_core: ^2.27.0
+  firebase_messaging: ^14.7.10
+  firebase_auth: ^5.3.1
 
-  # External links
+  # ===============================
+  # ADS
+  # ===============================
+  google_mobile_ads: ^5.3.1
+
+  # ===============================
+  # STORAGE / DEVICE
+  # ===============================
+  shared_preferences: ^2.2.2
+  device_info_plus: ^10.1.0
+
+  # ===============================
+  # PERMISSIONS / LINKS
+  # ===============================
+  permission_handler: ^11.3.0
   url_launcher: ^6.2.5
 
-  # 🎉 CONFETTI ANIMATION
+  # ===============================
+  # APP BADGE (used in notification_store)
+  # ===============================
+  app_badge_plus: ^1.2.0
+
+  # ===============================
+  # UI FX
+  # ===============================
   confetti: ^0.7.0
 
 dev_dependencies:
@@ -44,7 +63,6 @@ dev_dependencies:
     sdk: flutter
 
   flutter_lints: ^3.0.1
-
   flutter_launcher_icons: ^0.13.1
 
 flutter:
