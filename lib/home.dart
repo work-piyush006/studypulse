@@ -15,6 +15,7 @@ import 'screens/notification_inbox.dart';
 import 'services/ads.dart';
 import 'services/ad_click_tracker.dart';
 import 'services/notification_store.dart';
+import 'services/fcm_service.dart'; // ✅ ADD
 
 import 'widgets/ad_placeholder.dart';
 import 'widgets/notification_warning_card.dart';
@@ -37,8 +38,11 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
   void initState() {
     super.initState();
 
-    // 🔥 CRITICAL: restores exam countdown on relaunch
+    // 🔥 Restore exam countdown
     ExamState.init();
+
+    // 🔔 INIT FCM HERE (CORRECT PLACE)
+    FCMService.init();
 
     AdsService.initialize();
     WidgetsBinding.instance.addObserver(this);
@@ -237,7 +241,7 @@ class _HomeMainState extends State<HomeMain>
 
         const SizedBox(height: 20),
 
-        /// 🔔 NOTIFICATION WARNING (STABLE)
+        /// 🔔 NOTIFICATION WARNING
         ValueListenableBuilder<bool>(
           valueListenable: _canNotify,
           builder: (_, ok, __) {
