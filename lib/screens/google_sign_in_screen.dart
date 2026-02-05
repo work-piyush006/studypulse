@@ -1,29 +1,32 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
-import 'permission_gate.dart';
+import '../navigation/app_shell.dart';
 
 class GoogleSignInScreen extends StatefulWidget {
   const GoogleSignInScreen({super.key});
 
   @override
-  State<GoogleSignInScreen> createState() =>
-      _GoogleSignInScreenState();
+  State<GoogleSignInScreen> createState() => _GoogleSignInScreenState();
 }
 
 class _GoogleSignInScreenState extends State<GoogleSignInScreen> {
   bool _loading = false;
+  String? _error;
 
-  Future<void> _signInWithGoogle() async {
-    if (_loading) return;
-    setState(() => _loading = true);
+  Future<void> _signIn() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
 
     try {
       final googleUser = await GoogleSignIn().signIn();
       if (googleUser == null) {
         setState(() => _loading = false);
-        return; // user cancelled
+        return;
       }
 
       final googleAuth = await googleUser.authentication;
@@ -33,28 +36,37 @@ class _GoogleSignInScreenState extends State<GoogleSignInScreen> {
         idToken: googleAuth.idToken,
       );
 
-      await FirebaseAuth.instance.signInWithCredential(
-        credential,
-      );
+      final userCred =
+          await FirebaseAuth.instance.signInWithCredential(credential);
+
+      final user = userCred.user;
+      if (user == null) throw Exception('User is null');
+
+      // 🔥 CREATE / UPDATE USER IN FIRESTORE
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .set({
+        'uid': user.uid,
+        'email': user.email,
+        'name': user.displayName,
+        'photo': user.photoURL,
+        'provider': 'google',
+        'createdAt': FieldValue.serverTimestamp(),
+        'lastLogin': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
 
       if (!mounted) return;
 
-      Navigator.pushReplacement(
+      Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(
-          builder: (_) => const PermissionGate(),
-        ),
+        MaterialPageRoute(builder: (_) => const AppShell()),
+        (_) => false,
       );
     } catch (e) {
-      debugPrint('Google sign-in error: $e');
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Login failed. Try again.'),
-          ),
-        );
-      }
+      setState(() {
+        _error = e.toString();
+      });
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -63,69 +75,33 @@ class _GoogleSignInScreenState extends State<GoogleSignInScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 28),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Image.asset(
-                  'assets/logo.png',
-                  height: 100,
-                  errorBuilder: (_, __, ___) =>
-                      const Icon(Icons.school, size: 80),
-                ),
-
-                const SizedBox(height: 20),
-
-                const Text(
-                  'Welcome to StudyPulse',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-
-                const SizedBox(height: 8),
-
-                const Text(
-                  'Sign in to continue',
-                  style: TextStyle(color: Colors.grey),
-                ),
-
-                const SizedBox(height: 40),
-
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    icon: _loading
-                        ? const SizedBox(
-                            height: 18,
-                            width: 18,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Icon(Icons.login),
-                    label: Text(
-                      _loading
-                          ? 'Signing in...'
-                          : 'Continue with Google',
-                    ),
-                    onPressed:
-                        _loading ? null : _signInWithGoogle,
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 14,
-                      ),
-                    ),
+      appBar: AppBar(title: const Text('Sign in')),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (_error != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: Text(
+                    _error!,
+                    style: const TextStyle(color: Colors.red),
+                    textAlign: TextAlign.center,
                   ),
                 ),
-              ],
-            ),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.login),
+                  label: _loading
+                      ? const CircularProgressIndicator()
+                      : const Text('Continue with Google'),
+                  onPressed: _loading ? null : _signIn,
+                ),
+              ),
+            ],
           ),
         ),
       ),
