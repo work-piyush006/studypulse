@@ -24,34 +24,37 @@ class Home extends StatefulWidget {
   State<Home> createState() => _HomeState();
 }
 
-class _HomeState extends State<Home> with WidgetsBindingObserver {
+class _HomeState extends State<Home> {
   final ValueNotifier<String> _quote = ValueNotifier('');
+
+  bool _fcmInitDone = false; // 🔒 CRITICAL GUARD
 
   @override
   void initState() {
     super.initState();
 
+    // 🔥 Restore exam data (safe – idempotent)
     ExamState.init();
-    FCMService.init();
+
+    // 🔔 Init FCM ONCE only
+    if (!_fcmInitDone) {
+      FCMService.init();
+      _fcmInitDone = true;
+    }
+
+    // 📢 Ads
     AdsService.initialize();
 
-    WidgetsBinding.instance.addObserver(this);
     _loadQuote();
   }
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
     _quote.dispose();
     super.dispose();
   }
 
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      _loadQuote();
-    }
-  }
+  /* ================= QUOTE ================= */
 
   Future<void> _loadQuote() async {
     try {
@@ -67,6 +70,8 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
       _quote.value = quotes.first;
     } catch (_) {}
   }
+
+  /* ================= UI ================= */
 
   @override
   Widget build(BuildContext context) {
@@ -117,8 +122,8 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
           ),
         ],
       ),
-      body: SafeArea(
-        child: HomeMain(quote: _quote),
+      body: const SafeArea(
+        child: HomeMain(),
       ),
     );
   }
@@ -127,8 +132,7 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
 /* ================= HOME MAIN ================= */
 
 class HomeMain extends StatefulWidget {
-  final ValueNotifier<String> quote;
-  const HomeMain({super.key, required this.quote});
+  const HomeMain({super.key});
 
   @override
   State<HomeMain> createState() => _HomeMainState();
@@ -147,24 +151,28 @@ class _HomeMainState extends State<HomeMain>
   @override
   void initState() {
     super.initState();
-    _loadBanner();
 
+    // 🔔 Permission state
     Permission.notification.isGranted.then((v) {
       if (mounted) _canNotify.value = v;
     });
+
+    // 📢 Banner after first frame (SAFE)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadBanner();
+    });
   }
 
-  void _loadBanner() {
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      _bannerAd?.dispose();
-      _bannerAd = await AdsService.createAdaptiveBanner(
-        context: context,
-        onState: (loaded) {
-          if (!mounted) return;
-          setState(() => _bannerLoaded = loaded);
-        },
-      );
-    });
+  void _loadBanner() async {
+    _bannerAd?.dispose();
+
+    _bannerAd = await AdsService.createAdaptiveBanner(
+      context: context,
+      onState: (loaded) {
+        if (!mounted) return;
+        setState(() => _bannerLoaded = loaded);
+      },
+    );
   }
 
   @override
@@ -194,6 +202,7 @@ class _HomeMainState extends State<HomeMain>
 
         const SizedBox(height: 20),
 
+        /// 🔔 Notification warning
         ValueListenableBuilder<bool>(
           valueListenable: _canNotify,
           builder: (_, ok, __) {
@@ -207,21 +216,7 @@ class _HomeMainState extends State<HomeMain>
           },
         ),
 
-        ValueListenableBuilder<String>(
-          valueListenable: widget.quote,
-          builder: (_, q, __) {
-            if (q.isEmpty) return const SizedBox.shrink();
-            return Text(
-              '“$q”',
-              style: const TextStyle(
-                fontStyle: FontStyle.italic,
-                color: Colors.grey,
-              ),
-            );
-          },
-        ),
-
-        const SizedBox(height: 30),
+        const SizedBox(height: 20),
 
         _tool(
           context,
