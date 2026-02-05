@@ -25,11 +25,11 @@ dependencies:
   internet_connection_checker: ^1.0.0+1
 
   # ===============================
-  # FIREBASE
-  # ===============================
-  firebase_core: ^3.10.0
-  firebase_messaging: ^14.7.10
-  firebase_auth: ^5.3.1
+# FIREBASE (SAME GENERATION)
+# ===============================
+firebase_core: ^3.10.0
+firebase_auth: ^5.3.1
+firebase_messaging: ^15.2.10
 
   # ===============================
   # ADS
