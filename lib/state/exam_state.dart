@@ -2,7 +2,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../services/notification.dart';
 
 class ExamState {
   static final examDate = ValueNotifier<DateTime?>(null);
@@ -16,20 +15,17 @@ class ExamState {
 
   static const _dateKey = 'exam_date';
   static const _totalKey = 'exam_total_days';
-  static const _completedKey = 'exam_completed_notified';
+  static const _completedKey = 'exam_completed_flag';
 
-  /* ================= PUBLIC API (REQUIRED BY exam.dart) ================= */
+  /* ================= PUBLIC API ================= */
 
-  /// 🔑 Used by exam.dart
   static bool get hasExam => examDate.value != null;
 
-  /// 🎯 Used by progress bar
   static double progress() {
     if (_totalDays == null || _totalDays == 0) return 0;
     return 1 - (daysLeft.value / _totalDays!);
   }
 
-  /// 🎨 Used by UI color logic
   static Color colorForDays(int d) {
     if (d >= 45) return Colors.green;
     if (d >= 30) return Colors.orange;
@@ -44,14 +40,13 @@ class ExamState {
 
     final prefs = await SharedPreferences.getInstance();
 
-    // ✅ restore total days (FIXES countdown reset on relaunch)
     _totalDays = prefs.getInt(_totalKey);
 
     final raw = prefs.getString(_dateKey);
     if (raw != null) {
       final d = DateTime.tryParse(raw);
       if (d != null) {
-        await _recalculate(d, fromUser: false);
+        _recalculate(d);
       }
     }
 
@@ -67,71 +62,42 @@ class ExamState {
     await prefs.setString(_dateKey, normalized.toIso8601String());
     await prefs.remove(_completedKey);
 
-    await _recalculate(normalized, fromUser: true);
+    _recalculate(normalized);
   }
 
   /* ================= CORE ================= */
 
-  static Future<void> _recalculate(
-    DateTime d, {
-    required bool fromUser,
-  }) async {
+  static void _recalculate(DateTime d) {
     examDate.value = d;
 
-    final prefs = await SharedPreferences.getInstance();
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final diff = d.difference(today).inDays;
 
-    // 🔴 Exam completed
     if (diff < 0) {
       daysLeft.value = 0;
       isExamDay.value = false;
       isExamCompleted.value = true;
-
-      if (!(prefs.getBool(_completedKey) ?? false)) {
-        await NotificationService.examCompleted();
-        await prefs.setBool(_completedKey, true);
-      }
       return;
     }
 
-    // 🟠 Exam day
     if (diff == 0) {
       daysLeft.value = 0;
       isExamDay.value = true;
       isExamCompleted.value = false;
-
-      if (fromUser) {
-        await NotificationService.instant(
-          title: '🤞 Best of Luck!',
-          body: 'Your exam is today.\nYou’ve got this 💪📘',
-          save: true,
-          route: '/exam',
-        );
-      }
-
-      await NotificationService.scheduleExamMorning(d);
-      await NotificationService.cancelDaily();
       return;
     }
 
-    // 🟢 Future exam
     isExamDay.value = false;
     isExamCompleted.value = false;
     daysLeft.value = diff;
 
-    // ✅ total days should be set ONCE
     _totalDays ??= diff;
-    await prefs.setInt(_totalKey, _totalDays!);
-
-    if (fromUser) {
-      await NotificationService.scheduleDaily(diff);
-      await NotificationService.scheduleExamMorning(d);
-    }
+    SharedPreferences.getInstance()
+        .then((p) => p.setInt(_totalKey, _totalDays!));
   }
 
-  /* ================= MIDNIGHT AUTO UPDATE ================= */
+  /* ================= MIDNIGHT UI UPDATE ================= */
 
   static void _scheduleMidnight() {
     _timer?.cancel();
@@ -139,9 +105,9 @@ class ExamState {
     final now = DateTime.now();
     final next = DateTime(now.year, now.month, now.day + 1);
 
-    _timer = Timer(next.difference(now), () async {
+    _timer = Timer(next.difference(now), () {
       if (examDate.value != null) {
-        await _recalculate(examDate.value!, fromUser: false);
+        _recalculate(examDate.value!);
       }
       _scheduleMidnight();
     });
@@ -154,8 +120,6 @@ class ExamState {
     await prefs.remove(_dateKey);
     await prefs.remove(_totalKey);
     await prefs.remove(_completedKey);
-
-    await NotificationService.cancelAll();
 
     examDate.value = null;
     daysLeft.value = 0;
