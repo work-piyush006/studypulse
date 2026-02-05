@@ -1,35 +1,7 @@
 import 'package:flutter/material.dart';
 
-import 'auth_gate.dart';
-
-class SplashScreen extends StatefulWidget {
+class SplashScreen extends StatelessWidget {
   const SplashScreen({super.key});
-
-  @override
-  State<SplashScreen> createState() => _SplashScreenState();
-}
-
-class _SplashScreenState extends State<SplashScreen> {
-  bool _navigated = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _start();
-  }
-
-  Future<void> _start() async {
-    // ⏳ Splash delay (UI only)
-    await Future.delayed(const Duration(milliseconds: 1300));
-    if (!mounted || _navigated) return;
-
-    _navigated = true;
-
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => const AuthGate()),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
