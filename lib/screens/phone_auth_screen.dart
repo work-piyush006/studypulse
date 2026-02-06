@@ -34,25 +34,20 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
   @override
   void initState() {
     super.initState();
-    _initGuard();
+    _syncGuard();
   }
 
   /* ================= OTP GUARD ================= */
 
-  Future<void> _initGuard() async {
-    await OtpGuardService.init();
-    _syncGuard();
-  }
-
   void _syncGuard() {
     _uiTimer?.cancel();
-
     final state = OtpGuardService.status();
     _remaining = state.remaining;
 
     if (state.isBlocked) {
       _uiTimer = Timer.periodic(const Duration(seconds: 1), (_) {
         final s = OtpGuardService.status();
+        if (!mounted) return;
         setState(() => _remaining = s.remaining);
         if (!s.isBlocked) _uiTimer?.cancel();
       });
@@ -65,12 +60,12 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
     final guard = OtpGuardService.status();
 
     if (guard.isBlocked) {
-      _popup(OtpGuardService.message(guard.blockLevel));
+      _showDialog(OtpGuardService.message(guard.blockLevel));
       return;
     }
 
     if (_phoneCtrl.text.trim().isEmpty) {
-      _popup('Please enter phone number');
+      _showSnack('Please enter phone number');
       return;
     }
 
@@ -85,16 +80,16 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
         await _onLoginSuccess();
       },
 
-      verificationFailed: (_) async {
-        await OtpGuardService.recordFailure();
+      verificationFailed: (_) {
+        OtpGuardService.recordFailure();
         _syncGuard();
-        _popup('Authentication service broken ⛓️‍💥\nWe are fixing it ❤️‍🩹');
+        _showDialog('Authentication service broken ⛓️‍💥\n\nWe’re improving the system ❤️‍🩹');
       },
 
       codeSent: (id, _) {
         _verificationId = id;
         _otpSent = true;
-        _popup(resend ? 'OTP resent' : 'OTP sent');
+        _showSnack(resend ? 'OTP resent successfully' : 'OTP sent');
       },
 
       codeAutoRetrievalTimeout: (id) {
@@ -102,14 +97,14 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
       },
     );
 
-    setState(() => _loading = false);
+    if (mounted) setState(() => _loading = false);
   }
 
   /* ================= VERIFY OTP ================= */
 
   Future<void> _verifyOtp() async {
     if (_otpCtrl.text.trim().isEmpty) {
-      _popup('Please enter OTP first');
+      _showSnack('Please enter OTP first');
       return;
     }
 
@@ -124,15 +119,15 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
       );
 
       await _auth.signInWithCredential(cred);
-      await OtpGuardService.resetOnSuccess();
+      OtpGuardService.resetOnSuccess();
       await _onLoginSuccess();
     } catch (_) {
-      await OtpGuardService.recordFailure();
+      OtpGuardService.recordFailure();
       _syncGuard();
-      _popup('Invalid OTP');
+      _showSnack('Invalid OTP');
     }
 
-    setState(() => _loading = false);
+    if (mounted) setState(() => _loading = false);
   }
 
   /* ================= LOGIN SUCCESS ================= */
@@ -164,13 +159,21 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
     );
   }
 
-  /* ================= UI HELPERS ================= */
+  /* ================= HELPERS ================= */
 
-  void _popup(String msg) {
+  void _showSnack(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg)),
+    );
+  }
+
+  void _showDialog(String msg) {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        content: Text(msg, textAlign: TextAlign.center),
+        title: const Text('Notice'),
+        content: Text(msg),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -200,88 +203,112 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
 
     return Scaffold(
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            children: [
-              Image.asset('assets/logo.png', height: 90),
-              const SizedBox(height: 20),
-              const Icon(Icons.lock_outline, size: 80),
-              const SizedBox(height: 24),
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Image.asset('assets/logo.png', height: 72),
+                const SizedBox(height: 20),
 
-              Row(
-                children: [
-                  InkWell(
-                    onTap: () {
-                      showCountryPicker(
-                        context: context,
-                        showPhoneCode: true,
-                        onSelect: (c) =>
-                            setState(() => _countryCode = '+${c.phoneCode}'),
-                      );
-                    },
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Text(_countryCode,
-                          style: const TextStyle(fontSize: 16)),
-                    ),
+                const Icon(Icons.lock_outline, size: 72),
+                const SizedBox(height: 12),
+
+                Text(
+                  _otpSent
+                      ? 'Enter the OTP sent to $_countryCode${_phoneCtrl.text}'
+                      : 'Secure phone verification',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+
+                const SizedBox(height: 28),
+
+                /// PHONE INPUT
+                if (!_otpSent)
+                  Row(
+                    children: [
+                      InkWell(
+                        onTap: () {
+                          showCountryPicker(
+                            context: context,
+                            showPhoneCode: true,
+                            onSelect: (c) =>
+                                setState(() => _countryCode = '+${c.phoneCode}'),
+                          );
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          child: Text(
+                            _countryCode,
+                            style: const TextStyle(fontSize: 16),
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: TextField(
+                          controller: _phoneCtrl,
+                          keyboardType: TextInputType.phone,
+                          decoration: const InputDecoration(
+                            hintText: 'Phone number',
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  Expanded(
-                    child: TextField(
-                      controller: _phoneCtrl,
-                      keyboardType: TextInputType.phone,
-                      decoration:
-                          const InputDecoration(hintText: 'Phone number'),
+
+                /// OTP BOX
+                if (_otpSent) ...[
+                  PinCodeTextField(
+                    appContext: context,
+                    length: 6,
+                    controller: _otpCtrl,
+                    keyboardType: TextInputType.number,
+                    animationType: AnimationType.fade,
+                    pinTheme: PinTheme(
+                      shape: PinCodeFieldShape.box,
+                      borderRadius: BorderRadius.circular(10),
+                      fieldHeight: 52,
+                      fieldWidth: 44,
                     ),
+                    onChanged: (_) {},
                   ),
                 ],
-              ),
 
-              const SizedBox(height: 24),
+                const SizedBox(height: 24),
 
-              if (_otpSent)
-                PinCodeTextField(
-                  appContext: context,
-                  length: 6,
-                  controller: _otpCtrl,
-                  keyboardType: TextInputType.number,
-                  animationType: AnimationType.fade,
-                  pinTheme: PinTheme(
-                    shape: PinCodeFieldShape.box,
-                    borderRadius: BorderRadius.circular(10),
-                    fieldHeight: 52,
-                    fieldWidth: 44,
-                  ),
-                  onChanged: (_) {},
-                ),
-
-              const SizedBox(height: 24),
-
-              ElevatedButton(
-                onPressed: _loading
-                    ? null
-                    : _otpSent
-                        ? _verifyOtp
-                        : _sendOtp,
-                child: _loading
-                    ? const CircularProgressIndicator()
-                    : Text(_otpSent ? 'Verify OTP' : 'Send OTP'),
-              ),
-
-              TextButton(
-                onPressed: guard.isBlocked
-                    ? null
-                    : () => _sendOtp(resend: true),
-                child: Text(
-                  guard.isBlocked
-                      ? 'Try again after ${_time(_remaining)}'
-                      : 'Resend OTP',
-                  style: TextStyle(
-                    color: guard.isBlocked ? Colors.grey : Colors.blue,
+                /// MAIN BUTTON
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _loading
+                        ? null
+                        : _otpSent
+                            ? _verifyOtp
+                            : _sendOtp,
+                    child: _loading
+                        ? const CircularProgressIndicator()
+                        : Text(_otpSent ? 'Verify OTP' : 'Send OTP'),
                   ),
                 ),
-              ),
-            ],
+
+                /// RESEND
+                TextButton(
+                  onPressed: guard.isBlocked
+                      ? null
+                      : () => _sendOtp(resend: true),
+                  child: Text(
+                    guard.isBlocked
+                        ? 'Try again after ${_time(_remaining)}'
+                        : 'Resend OTP',
+                    style: TextStyle(
+                      color: guard.isBlocked ? Colors.grey : Colors.blue,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
