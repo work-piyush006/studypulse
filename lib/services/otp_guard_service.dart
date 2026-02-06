@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:shared_preferences/shared_preferences.dart';
 
 enum OtpBlockLevel {
   none,
@@ -20,20 +21,52 @@ class OtpGuardState {
   });
 
   bool get isBlocked => blockLevel != OtpBlockLevel.none;
+
+  String get remainingText {
+    if (remaining.inSeconds <= 0) return '0:00';
+    final m = remaining.inMinutes;
+    final s = remaining.inSeconds % 60;
+    return '$m:${s.toString().padLeft(2, '0')}';
+  }
 }
 
 class OtpGuardService {
+  static const _keyAttempts = 'otp_attempts';
+  static const _keyBlockedUntil = 'otp_blocked_until';
+  static const _keyLevel = 'otp_block_level';
+
   static int _attempts = 0;
   static DateTime? _blockedUntil;
   static OtpBlockLevel _level = OtpBlockLevel.none;
 
-  static const int _maxAttempts = 3;
+  static const int _phase1 = 3;
+  static const int _phase2 = 5;
+  static const int _phase3 = 6;
 
-  /// ================= CHECK =================
+  /// ================= INIT =================
+
+  static Future<void> init() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    _attempts = prefs.getInt(_keyAttempts) ?? 0;
+
+    final until = prefs.getInt(_keyBlockedUntil);
+    if (until != null) {
+      _blockedUntil = DateTime.fromMillisecondsSinceEpoch(until);
+    }
+
+    final lvl = prefs.getInt(_keyLevel);
+    if (lvl != null) {
+      _level = OtpBlockLevel.values[lvl];
+    }
+  }
+
+  /// ================= STATUS =================
 
   static OtpGuardState status() {
     if (_blockedUntil != null) {
       final diff = _blockedUntil!.difference(DateTime.now());
+
       if (diff.isNegative) {
         _reset();
       } else {
@@ -46,45 +79,78 @@ class OtpGuardService {
     }
 
     return OtpGuardState(
-      triesLeft: _maxAttempts - _attempts,
+      triesLeft: _remainingTries(),
       blockLevel: OtpBlockLevel.none,
       remaining: Duration.zero,
     );
   }
 
-  /// ================= RECORD FAILURE =================
+  static bool canSendOtp() {
+    return !status().isBlocked;
+  }
 
-  static void recordFailure() {
+  /// ================= FAILURE =================
+
+  static Future<void> recordFailure() async {
     _attempts++;
 
-    if (_attempts == 3) {
-      _block(const Duration(minutes: 5), OtpBlockLevel.cooldown5);
-    } else if (_attempts == 5) {
-      _block(const Duration(minutes: 10), OtpBlockLevel.cooldown10);
-    } else if (_attempts == 6) {
-      _block(const Duration(minutes: 15), OtpBlockLevel.cooldown15);
-    } else if (_attempts >= 7) {
-      _block(const Duration(hours: 1), OtpBlockLevel.blocked1h);
+    if (_attempts == _phase1) {
+      await _block(const Duration(minutes: 5), OtpBlockLevel.cooldown5);
+    } else if (_attempts == _phase2) {
+      await _block(const Duration(minutes: 10), OtpBlockLevel.cooldown10);
+    } else if (_attempts == _phase3) {
+      await _block(const Duration(minutes: 15), OtpBlockLevel.cooldown15);
+    } else if (_attempts >= _phase3 + 1) {
+      await _block(const Duration(hours: 1), OtpBlockLevel.blocked1h);
     }
+
+    await _persist();
   }
 
   /// ================= SUCCESS =================
 
-  static void resetOnSuccess() {
-    _reset();
+  static Future<void> resetOnSuccess() async {
+    await _reset();
   }
 
   /// ================= INTERNAL =================
 
-  static void _block(Duration duration, OtpBlockLevel level) {
-    _blockedUntil = DateTime.now().add(duration);
-    _level = level;
+  static int _remainingTries() {
+    if (_attempts < _phase1) return _phase1 - _attempts;
+    if (_attempts < _phase2) return _phase2 - _attempts;
+    if (_attempts < _phase3) return _phase3 - _attempts;
+    return 0;
   }
 
-  static void _reset() {
+  static Future<void> _block(
+      Duration duration, OtpBlockLevel level) async {
+    _blockedUntil = DateTime.now().add(duration);
+    _level = level;
+    await _persist();
+  }
+
+  static Future<void> _reset() async {
     _attempts = 0;
     _blockedUntil = null;
     _level = OtpBlockLevel.none;
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_keyAttempts);
+    await prefs.remove(_keyBlockedUntil);
+    await prefs.remove(_keyLevel);
+  }
+
+  static Future<void> _persist() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_keyAttempts, _attempts);
+
+    if (_blockedUntil != null) {
+      await prefs.setInt(
+        _keyBlockedUntil,
+        _blockedUntil!.millisecondsSinceEpoch,
+      );
+      await prefs.setInt(_keyLevel, _level.index);
+    }
   }
 
   /// ================= USER MESSAGE =================
