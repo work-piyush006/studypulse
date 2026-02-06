@@ -3,7 +3,6 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/ads.dart';
 import '../services/ad_click_tracker.dart';
@@ -22,7 +21,7 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
   BannerAd? _bannerAd;
   bool _bannerLoaded = false;
 
-  late final VoidCallback _examListener;
+  late final VoidCallback _eventListener;
 
   @override
   void initState() {
@@ -31,8 +30,11 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
     _loadQuotes();
     _loadBanner();
 
-    _examListener = () {
-      if (ExamState.isExamCompleted.value && mounted) {
+    /// 🔔 LISTEN TO EXAM EVENTS (NOT FLAGS)
+    _eventListener = () {
+      final e = ExamState.event.value;
+
+      if (e == ExamEvent.examCompleted && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content:
@@ -46,15 +48,17 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
       }
     };
 
-    ExamState.isExamCompleted.addListener(_examListener);
+    ExamState.event.addListener(_eventListener);
   }
 
   @override
   void dispose() {
-    ExamState.isExamCompleted.removeListener(_examListener);
+    ExamState.event.removeListener(_eventListener);
     _bannerAd?.dispose();
     super.dispose();
   }
+
+  /* ================= QUOTES ================= */
 
   Future<void> _loadQuotes() async {
     if (_quotes != null) return;
@@ -78,6 +82,8 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
     return _quotes![Random().nextInt(_quotes!.length)];
   }
 
+  /* ================= ADS ================= */
+
   void _loadBanner() {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       _bannerAd?.dispose();
@@ -91,33 +97,42 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
     });
   }
 
+  /* ================= DATE PICK ================= */
+
   Future<void> _pickDate() async {
+    final current = ExamState.examDate.value;
+
     final picked = await showDatePicker(
       context: context,
       firstDate: DateTime.now(),
       lastDate: DateTime(DateTime.now().year + 5),
       initialDate:
-          ExamState.examDate.value ??
-              DateTime.now().add(const Duration(days: 30)),
+          current ?? DateTime.now().add(const Duration(days: 30)),
     );
 
     if (picked == null || !mounted) return;
 
-    final prefs = await SharedPreferences.getInstance();
     final normalized =
         DateTime(picked.year, picked.month, picked.day);
+
+    /// 🛑 SAME DATE → NO RE-TRIGGER
+    if (current != null && current == normalized) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Same exam date selected')),
+      );
+      return;
+    }
 
     await ExamState.update(normalized);
 
     final days = ExamState.daysLeft.value;
 
-    // 🔕 FCM-only → no local notification here
-
-    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Exam set • $days days remaining')),
     );
   }
+
+  /* ================= CANCEL ================= */
 
   Future<void> _cancelCountdown() async {
     final confirm = await showModalBottomSheet<bool>(
@@ -184,6 +199,8 @@ class _ExamCountdownPageState extends State<ExamCountdownPage> {
       ),
     );
   }
+
+  /* ================= UI ================= */
 
   @override
   Widget build(BuildContext context) {
