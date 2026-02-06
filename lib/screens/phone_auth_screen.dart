@@ -7,6 +7,7 @@ import 'package:country_picker/country_picker.dart';
 import 'package:pin_code_fields/pin_code_fields.dart';
 
 import '../navigation/app_shell.dart';
+import '../services/otp_guard_service.dart';
 
 class PhoneAuthScreen extends StatefulWidget {
   const PhoneAuthScreen({super.key});
@@ -19,22 +20,54 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
   final _phoneCtrl = TextEditingController();
   final _otpCtrl = TextEditingController();
 
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final _auth = FirebaseAuth.instance;
 
-  String _countryCode = '+91';
+  String _countryCode = '+1';
   String? _verificationId;
 
   bool _otpSent = false;
   bool _loading = false;
 
-  int _triesLeft = 3;
-  int _cooldown = 0;
-  Timer? _timer;
+  Timer? _uiTimer;
+  Duration _remaining = Duration.zero;
+
+  @override
+  void initState() {
+    super.initState();
+    _syncGuard();
+  }
+
+  /* ================= OTP GUARD ================= */
+
+  void _syncGuard() {
+    _uiTimer?.cancel();
+
+    final state = OtpGuardService.status();
+    _remaining = state.remaining;
+
+    if (state.isBlocked) {
+      _uiTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+        final s = OtpGuardService.status();
+        setState(() => _remaining = s.remaining);
+        if (!s.isBlocked) _uiTimer?.cancel();
+      });
+    }
+  }
 
   /* ================= SEND OTP ================= */
 
   Future<void> _sendOtp({bool resend = false}) async {
-    if (_triesLeft <= 0) return;
+    final guard = OtpGuardService.status();
+
+    if (guard.isBlocked) {
+      _show(OtpGuardService.message(guard.blockLevel));
+      return;
+    }
+
+    if (_phoneCtrl.text.trim().isEmpty) {
+      _show('Please enter phone number');
+      return;
+    }
 
     setState(() => _loading = true);
 
@@ -47,17 +80,15 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
         await _onLoginSuccess();
       },
 
-      verificationFailed: (e) {
-        _show(e.message ?? 'Verification failed');
+      verificationFailed: (_) {
+        OtpGuardService.recordFailure();
+        _syncGuard();
+        _show('Authentication service broken ⛓️‍💥');
       },
 
-      codeSent: (verificationId, _) {
-        _verificationId = verificationId;
+      codeSent: (id, _) {
+        _verificationId = id;
         _otpSent = true;
-
-        _triesLeft--;
-        if (_triesLeft == 0) _startCooldown();
-
         _show(resend ? 'OTP resent' : 'OTP sent');
       },
 
@@ -72,6 +103,11 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
   /* ================= VERIFY OTP ================= */
 
   Future<void> _verifyOtp() async {
+    if (_otpCtrl.text.trim().isEmpty) {
+      _show('Please enter OTP first');
+      return;
+    }
+
     if (_verificationId == null) return;
 
     setState(() => _loading = true);
@@ -83,8 +119,11 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
       );
 
       await _auth.signInWithCredential(cred);
+      OtpGuardService.resetOnSuccess();
       await _onLoginSuccess();
     } catch (_) {
+      OtpGuardService.recordFailure();
+      _syncGuard();
       _show('Invalid OTP');
     }
 
@@ -120,27 +159,7 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
     );
   }
 
-  /* ================= COOLDOWN ================= */
-
-  void _startCooldown() {
-    _cooldown = 299; // 4:59 minutes
-
-    _timer = Timer.periodic(const Duration(seconds: 1), (t) {
-      if (_cooldown == 0) {
-        t.cancel();
-        _triesLeft = 3;
-        setState(() {});
-      } else {
-        setState(() => _cooldown--);
-      }
-    });
-  }
-
-  String _cooldownText() {
-    final m = _cooldown ~/ 60;
-    final s = _cooldown % 60;
-    return '$m:${s.toString().padLeft(2, '0')}';
-  }
+  /* ================= HELPERS ================= */
 
   void _show(String msg) {
     if (!mounted) return;
@@ -148,9 +167,12 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
         .showSnackBar(SnackBar(content: Text(msg)));
   }
 
+  String _time(Duration d) =>
+      '${d.inMinutes.remainder(60)}:${(d.inSeconds.remainder(60)).toString().padLeft(2, '0')}';
+
   @override
   void dispose() {
-    _timer?.cancel();
+    _uiTimer?.cancel();
     _phoneCtrl.dispose();
     _otpCtrl.dispose();
     super.dispose();
@@ -160,73 +182,70 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final guard = OtpGuardService.status();
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Phone Login')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          children: [
-            const Icon(Icons.lock_outline, size: 80),
-            const SizedBox(height: 20),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            children: [
+              Image.asset('assets/logo.png', height: 80),
+              const SizedBox(height: 24),
+              const Icon(Icons.lock_outline, size: 80),
+              const SizedBox(height: 24),
 
-            Row(
-              children: [
-                InkWell(
-                  onTap: () {
-                    showCountryPicker(
-                      context: context,
-                      showPhoneCode: true,
-                      onSelect: (c) {
-                        setState(() => _countryCode = '+${c.phoneCode}');
-                      },
-                    );
-                  },
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Text(
-                      _countryCode,
-                      style: const TextStyle(fontSize: 16),
+              /// PHONE INPUT
+              Row(
+                children: [
+                  InkWell(
+                    onTap: () {
+                      showCountryPicker(
+                        context: context,
+                        showPhoneCode: true,
+                        onSelect: (c) =>
+                            setState(() => _countryCode = '+${c.phoneCode}'),
+                      );
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Text(_countryCode,
+                          style: const TextStyle(fontSize: 16)),
                     ),
                   ),
-                ),
-                Expanded(
-                  child: TextField(
-                    controller: _phoneCtrl,
-                    keyboardType: TextInputType.phone,
-                    decoration: const InputDecoration(
-                      hintText: 'Phone number',
+                  Expanded(
+                    child: TextField(
+                      controller: _phoneCtrl,
+                      keyboardType: TextInputType.phone,
+                      decoration:
+                          const InputDecoration(hintText: 'Phone number'),
                     ),
                   ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 24),
-
-            if (_otpSent)
-              PinCodeTextField(
-                appContext: context,
-                length: 6,
-                controller: _otpCtrl,
-                keyboardType: TextInputType.number,
-                animationType: AnimationType.fade,
-                pinTheme: PinTheme(
-                  shape: PinCodeFieldShape.box,
-                  borderRadius: BorderRadius.circular(10),
-                  fieldHeight: 52,
-                  fieldWidth: 44,
-                  activeColor:
-                      Theme.of(context).colorScheme.primary,
-                  selectedColor:
-                      Theme.of(context).colorScheme.primary,
-                  inactiveColor: Colors.grey,
-                ),
-                onChanged: (_) {},
+                ],
               ),
 
-            const SizedBox(height: 24),
+              const SizedBox(height: 24),
 
-            if (_triesLeft > 0)
+              /// OTP BOX
+              if (_otpSent)
+                PinCodeTextField(
+                  appContext: context,
+                  length: 6,
+                  controller: _otpCtrl,
+                  keyboardType: TextInputType.number,
+                  animationType: AnimationType.fade,
+                  pinTheme: PinTheme(
+                    shape: PinCodeFieldShape.box,
+                    borderRadius: BorderRadius.circular(10),
+                    fieldHeight: 52,
+                    fieldWidth: 44,
+                  ),
+                  onChanged: (_) {},
+                ),
+
+              const SizedBox(height: 24),
+
+              /// MAIN BUTTON
               ElevatedButton(
                 onPressed: _loading
                     ? null
@@ -238,28 +257,22 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
                     : Text(_otpSent ? 'Verify OTP' : 'Send OTP'),
               ),
 
-            if (_otpSent && _triesLeft > 0)
+              /// RESEND
               TextButton(
-                onPressed:
-                    _loading ? null : () => _sendOtp(resend: true),
-                child: Text('Resend OTP ($_triesLeft tries left)'),
-              ),
-
-            if (_triesLeft == 0)
-              Column(
-                children: [
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Too many attempts',
-                    style: TextStyle(color: Colors.red),
+                onPressed: guard.isBlocked
+                    ? null
+                    : () => _sendOtp(resend: true),
+                child: Text(
+                  guard.isBlocked
+                      ? 'Try again after ${_time(_remaining)}'
+                      : 'Resend OTP',
+                  style: TextStyle(
+                    color: guard.isBlocked ? Colors.grey : Colors.blue,
                   ),
-                  Text(
-                    'Try again after ${_cooldownText()}',
-                    style: const TextStyle(color: Colors.orange),
-                  ),
-                ],
+                ),
               ),
-          ],
+            ],
+          ),
         ),
       ),
     );
