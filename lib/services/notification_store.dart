@@ -26,32 +26,42 @@ class NotificationStore {
     return list;
   }
 
-  /* ================= SAVE (FROM NOTIFICATION TAP) ================= */
+  /* ================= SAVE ================= */
 
   static Future<void> save({
     required String title,
     required String body,
     required String route,
-    required String time,
+    required String source, // 'fcm' | 'local'
   }) async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_key);
+
+    final now = DateTime.now().toIso8601String();
 
     final list = raw == null
         ? <Map<String, dynamic>>[]
         : List<Map<String, dynamic>>.from(jsonDecode(raw));
 
-    // Deduplicate
-    final exists = list.any(
-      (n) => n['title'] == title && n['body'] == body,
-    );
+    // 🔒 Deduplicate: same route + same title + same day
+    final exists = list.any((n) {
+      final t = DateTime.tryParse(n['time'] ?? '');
+      if (t == null) return false;
+
+      return n['route'] == route &&
+          n['title'] == title &&
+          t.day == DateTime.now().day &&
+          t.month == DateTime.now().month &&
+          t.year == DateTime.now().year;
+    });
 
     if (!exists) {
       list.insert(0, {
         'title': title,
         'body': body,
         'route': route,
-        'time': time,
+        'source': source,
+        'time': now,
         'read': false,
       });
     }
@@ -120,6 +130,7 @@ class NotificationStore {
 
   static void _autoDeleteOld(List<Map<String, dynamic>> list) {
     final now = DateTime.now();
+
     list.removeWhere((n) {
       final time = DateTime.tryParse(n['time'] ?? '');
       if (time == null) return false;
