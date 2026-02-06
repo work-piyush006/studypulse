@@ -34,10 +34,15 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
   @override
   void initState() {
     super.initState();
-    _syncGuard();
+    _initGuard();
   }
 
   /* ================= OTP GUARD ================= */
+
+  Future<void> _initGuard() async {
+    await OtpGuardService.init();
+    _syncGuard();
+  }
 
   void _syncGuard() {
     _uiTimer?.cancel();
@@ -60,12 +65,12 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
     final guard = OtpGuardService.status();
 
     if (guard.isBlocked) {
-      _show(OtpGuardService.message(guard.blockLevel));
+      _popup(OtpGuardService.message(guard.blockLevel));
       return;
     }
 
     if (_phoneCtrl.text.trim().isEmpty) {
-      _show('Please enter phone number');
+      _popup('Please enter phone number');
       return;
     }
 
@@ -80,16 +85,16 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
         await _onLoginSuccess();
       },
 
-      verificationFailed: (_) {
-        OtpGuardService.recordFailure();
+      verificationFailed: (_) async {
+        await OtpGuardService.recordFailure();
         _syncGuard();
-        _show('Authentication service broken ⛓️‍💥');
+        _popup('Authentication service broken ⛓️‍💥\nWe are fixing it ❤️‍🩹');
       },
 
       codeSent: (id, _) {
         _verificationId = id;
         _otpSent = true;
-        _show(resend ? 'OTP resent' : 'OTP sent');
+        _popup(resend ? 'OTP resent' : 'OTP sent');
       },
 
       codeAutoRetrievalTimeout: (id) {
@@ -104,7 +109,7 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
 
   Future<void> _verifyOtp() async {
     if (_otpCtrl.text.trim().isEmpty) {
-      _show('Please enter OTP first');
+      _popup('Please enter OTP first');
       return;
     }
 
@@ -119,12 +124,12 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
       );
 
       await _auth.signInWithCredential(cred);
-      OtpGuardService.resetOnSuccess();
+      await OtpGuardService.resetOnSuccess();
       await _onLoginSuccess();
     } catch (_) {
-      OtpGuardService.recordFailure();
+      await OtpGuardService.recordFailure();
       _syncGuard();
-      _show('Invalid OTP');
+      _popup('Invalid OTP');
     }
 
     setState(() => _loading = false);
@@ -159,12 +164,21 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
     );
   }
 
-  /* ================= HELPERS ================= */
+  /* ================= UI HELPERS ================= */
 
-  void _show(String msg) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(msg)));
+  void _popup(String msg) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        content: Text(msg, textAlign: TextAlign.center),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
   String _time(Duration d) =>
@@ -190,12 +204,11 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
           padding: const EdgeInsets.all(24),
           child: Column(
             children: [
-              Image.asset('assets/logo.png', height: 80),
-              const SizedBox(height: 24),
+              Image.asset('assets/logo.png', height: 90),
+              const SizedBox(height: 20),
               const Icon(Icons.lock_outline, size: 80),
               const SizedBox(height: 24),
 
-              /// PHONE INPUT
               Row(
                 children: [
                   InkWell(
@@ -226,7 +239,6 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
 
               const SizedBox(height: 24),
 
-              /// OTP BOX
               if (_otpSent)
                 PinCodeTextField(
                   appContext: context,
@@ -245,7 +257,6 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
 
               const SizedBox(height: 24),
 
-              /// MAIN BUTTON
               ElevatedButton(
                 onPressed: _loading
                     ? null
@@ -257,7 +268,6 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
                     : Text(_otpSent ? 'Verify OTP' : 'Send OTP'),
               ),
 
-              /// RESEND
               TextButton(
                 onPressed: guard.isBlocked
                     ? null
