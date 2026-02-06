@@ -1,5 +1,3 @@
-// lib/screens/notification_inbox.dart
-
 import 'package:flutter/material.dart';
 import '../services/notification_store.dart';
 
@@ -15,6 +13,8 @@ class _NotificationInboxScreenState
     extends State<NotificationInboxScreen> {
   List<Map<String, dynamic>> today = [];
   List<Map<String, dynamic>> earlier = [];
+
+  bool _loading = true;
 
   @override
   void initState() {
@@ -54,6 +54,7 @@ class _NotificationInboxScreenState
     setState(() {
       today = t;
       earlier = e;
+      _loading = false;
     });
   }
 
@@ -63,7 +64,7 @@ class _NotificationInboxScreenState
     if (n['read'] != true) {
       n['read'] = true;
 
-      // 🔥 SAFE: always sync with store
+      // 🔒 Always resync full list
       final all = await NotificationStore.getAll();
       await NotificationStore.replace(all);
     }
@@ -74,10 +75,10 @@ class _NotificationInboxScreenState
     }
   }
 
-  /* ================= UI ================= */
+  /* ================= UI HELPERS ================= */
 
   Widget _section(String title) => Padding(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+        padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
         child: Text(
           title,
           style: const TextStyle(
@@ -92,7 +93,9 @@ class _NotificationInboxScreenState
 
     return ListTile(
       leading: Icon(
-        Icons.notifications,
+        unread
+            ? Icons.notifications_active
+            : Icons.notifications_none,
         color: unread
             ? Theme.of(context).colorScheme.primary
             : Colors.grey,
@@ -104,19 +107,31 @@ class _NotificationInboxScreenState
               unread ? FontWeight.bold : FontWeight.w500,
         ),
       ),
-      subtitle: Text(n['body']),
+      subtitle: Text(
+        n['body'],
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      ),
       onTap: () => _open(n),
     );
   }
 
+  /* ================= UI ================= */
+
   @override
   Widget build(BuildContext context) {
+    if (_loading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     if (today.isEmpty && earlier.isEmpty) {
       return Scaffold(
         appBar: AppBar(title: const Text('Notifications')),
         body: const Center(
           child: Text(
-            'No notifications 🔕',
+            'No notifications yet 🔕',
             style: TextStyle(color: Colors.grey),
           ),
         ),
