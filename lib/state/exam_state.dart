@@ -3,11 +3,21 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+enum ExamEvent {
+  examSet,
+  examDay,
+  examCompleted,
+  examCleared,
+}
+
 class ExamState {
   static final examDate = ValueNotifier<DateTime?>(null);
   static final daysLeft = ValueNotifier<int>(0);
   static final isExamDay = ValueNotifier(false);
   static final isExamCompleted = ValueNotifier(false);
+
+  /// 🔔 EVENT HOOK (for notifications / server sync)
+  static final event = ValueNotifier<ExamEvent?>(null);
 
   static Timer? _timer;
   static int? _totalDays;
@@ -17,7 +27,7 @@ class ExamState {
   static const _totalKey = 'exam_total_days';
   static const _completedKey = 'exam_completed_flag';
 
-  /* ================= PUBLIC API ================= */
+  /* ================= PUBLIC ================= */
 
   static bool get hasExam => examDate.value != null;
 
@@ -62,42 +72,55 @@ class ExamState {
     await prefs.setString(_dateKey, normalized.toIso8601String());
     await prefs.remove(_completedKey);
 
+    event.value = ExamEvent.examSet;
     _recalculate(normalized);
   }
 
   /* ================= CORE ================= */
 
-  static void _recalculate(DateTime d) {
+  static void _recalculate(DateTime d) async {
     examDate.value = d;
 
+    final prefs = await SharedPreferences.getInstance();
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final diff = d.difference(today).inDays;
 
+    // Exam already passed
     if (diff < 0) {
+      final completed = prefs.getBool(_completedKey) ?? false;
+
       daysLeft.value = 0;
       isExamDay.value = false;
       isExamCompleted.value = true;
+
+      if (!completed) {
+        await prefs.setBool(_completedKey, true);
+        event.value = ExamEvent.examCompleted;
+      }
       return;
     }
 
+    // Exam today
     if (diff == 0) {
       daysLeft.value = 0;
       isExamDay.value = true;
       isExamCompleted.value = false;
+
+      event.value = ExamEvent.examDay;
       return;
     }
 
+    // Future exam
     isExamDay.value = false;
     isExamCompleted.value = false;
     daysLeft.value = diff;
 
     _totalDays ??= diff;
-    SharedPreferences.getInstance()
-        .then((p) => p.setInt(_totalKey, _totalDays!));
+    prefs.setInt(_totalKey, _totalDays!);
   }
 
-  /* ================= MIDNIGHT UI UPDATE ================= */
+  /* ================= MIDNIGHT ================= */
 
   static void _scheduleMidnight() {
     _timer?.cancel();
@@ -126,5 +149,7 @@ class ExamState {
     isExamDay.value = false;
     isExamCompleted.value = false;
     _totalDays = null;
+
+    event.value = ExamEvent.examCleared;
   }
 }
