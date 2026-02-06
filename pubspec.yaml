@@ -31,7 +31,7 @@ dependencies:
   app_badge_plus: ^1.2.0
 
   pin_code_fields: ^8.0.1
-country_picker: ^2.0.26
+  country_picker: ^2.0.26
 
   confetti: ^0.7.0
 
